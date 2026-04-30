@@ -10,3 +10,4 @@
  * add a single line here: export * from './org'
  */
 export * from './auth'
+export * from './pbac'

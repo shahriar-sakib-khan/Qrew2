@@ -6,9 +6,15 @@
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
+    "start": "turbo run start",
     "typecheck": "turbo run typecheck",
     "lint": "turbo run lint",
-    "test": "turbo run test"
+    "test": "turbo run test",
+    "db:push": "pnpm --filter @starter/db push",
+    "db:studio": "pnpm --filter @starter/db studio",
+    "db:generate": "pnpm --filter @starter/db generate",
+    "db:reset": "docker compose down -v --remove-orphans && docker compose up -d && sleep 3 && pnpm db:push",
+    "db:seed": "pnpm --filter @starter/db seed"
   },
   "devDependencies": {
     "turbo": "^2.9.6",
