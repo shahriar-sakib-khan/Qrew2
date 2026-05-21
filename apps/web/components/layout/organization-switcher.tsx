@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronsUpDown, Plus, Building2, Loader2 } from "lucide-react";
+import { ChevronsUpDown, Plus, Building2, Loader2, Check } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
+import { usePermissionStore } from "@/store/use-permission-store";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +23,7 @@ export function OrganizationSwitcher({ isCollapsed }: { isCollapsed?: boolean })
   const [activeOrgId, setActiveOrgId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSwitching, setIsSwitching] = useState(false);
+  const { loadPermissions } = usePermissionStore();
 
   useEffect(() => {
     const fetchOrgData = async () => {
@@ -56,6 +58,9 @@ export function OrganizationSwitcher({ isCollapsed }: { isCollapsed?: boolean })
       setIsSwitching(false);
       return;
     }
+
+    // THE FIX: Immediately reload permissions for the new organization
+    await loadPermissions();
 
     // Success: Update local state and hard refresh to clear any cached tenant data
     setActiveOrgId(orgId);
