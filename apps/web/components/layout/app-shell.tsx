@@ -1,9 +1,11 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { PanelLeftClose, PanelLeft } from "lucide-react";
 
 import { OrganizationSwitcher } from "@/components/layout/organization-switcher";
+import { usePermissionStore } from "@/store/use-permission-store";
 
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
@@ -21,6 +23,7 @@ interface AppShellProps {
   settingsItem?: { name: string; href: string; icon: any };
   systemName?: string;
   theme?: "default" | "admin" | "destructive";
+  showOrgSwitcher?: boolean;
 }
 
 export function AppShell(props: AppShellProps) {
@@ -31,8 +34,17 @@ export function AppShell(props: AppShellProps) {
   );
 }
 
-function AppShellInner({ children, session, navItems, settingsItem, systemName = "QREW", theme = "default" }: AppShellProps) {
+function AppShellInner({ children, session, navItems, settingsItem, systemName = "QREW", theme = "default", showOrgSwitcher = true }: AppShellProps) {
   const { isCollapsed, isMounted, toggle } = useSidebar();
+  const { loadPermissions, isLoaded } = usePermissionStore();
+
+  useEffect(() => {
+    // Ensure permissions are loaded when the shell mounts, 
+    // even if the org switcher is hidden (e.g., in the admin panel)
+    if (!isLoaded && session?.session?.activeOrganizationId) {
+      loadPermissions();
+    }
+  }, [isLoaded, session?.session?.activeOrganizationId, loadPermissions]);
 
   const styles = {
     default: { border: "border-border/50", bg: "bg-card/30", primaryText: "text-primary" },
@@ -91,8 +103,17 @@ function AppShellInner({ children, session, navItems, settingsItem, systemName =
               </div>
             </div>
             
-            {/* Inject the Organization Switcher here */}
-            <OrganizationSwitcher isCollapsed={isCollapsed} />
+            {/* Inject the Organization Switcher — hidden in admin panels */}
+            {showOrgSwitcher ? (
+              <OrganizationSwitcher isCollapsed={isCollapsed} />
+            ) : (
+              !isCollapsed && (
+                <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-amber-500/10 border border-amber-500/20">
+                  <div className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                  <span className="text-xs font-semibold text-amber-500 uppercase tracking-wider">Admin Mode</span>
+                </div>
+              )
+            )}
           </div>
 
           <div className="flex-1 min-h-0 overflow-hidden">

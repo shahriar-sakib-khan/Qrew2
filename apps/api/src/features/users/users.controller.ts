@@ -1,9 +1,12 @@
 import type { Context } from 'hono';
 import { UsersService } from './users.service';
 import type { AuthVariables } from '../../infra/middleware/auth';
+import { logger } from '../../infra/lib/logger';
 
 import { auth, sendSmartEmail } from "../../infra/lib/auth";
 import { redis } from "../../infra/lib/redis";
+
+const usersControllerLog = logger.child({ module: 'users-controller' });
 
 export const UsersController = {
   async deleteMe(c: Context<{ Variables: AuthVariables }>) {
@@ -41,7 +44,7 @@ export const UsersController = {
       return c.json({ success: true, message: 'Account purged.' }, 200);
 
     } catch (error: unknown) {
-      console.error('[UsersController.deleteMe] Account purge failure:', error);
+      usersControllerLog.error({ userId: user.id, err: error }, 'Account purge failure');
       return c.json({ error: 'Internal Server Error', message: 'Failed to process deletion.' }, 500);
     }
   },
@@ -70,7 +73,7 @@ export const UsersController = {
 
       return c.json({ success: true, message: 'OTP sent successfully.' }, 200);
     } catch (error) {
-      console.error('[UsersController.sendDeleteOtp] Failed:', error);
+      usersControllerLog.error({ userId: user.id, err: error }, 'sendDeleteOtp failed');
       return c.json({ error: 'Internal Server Error' }, 500);
     }
   },

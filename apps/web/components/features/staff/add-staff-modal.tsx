@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,60 +25,62 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-export function AddStaffModal() {
+export function InviteStaffModal() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   
-  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [roleId, setRoleId] = useState("");
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
   // 1. Fetch available roles for the dropdown using TanStack Query
-  const { data: roles, isLoading: isLoadingRoles } = useQuery({
+  const { data, isLoading: isLoadingRoles } = useQuery({
     queryKey: ["org-roles"],
     queryFn: async () => {
       const res = await fetch(`${apiUrl}/api/workspaces/roles`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch roles");
-      const data = await res.json();
-      return data.roles || []; // Assuming your GET /roles endpoint returns { roles: [...] }
+      return res.json();
     },
     enabled: isOpen, // Optimization: Only fetch roles when the modal is actually opened
   });
 
-  // 2. Handle the Submission (Pattern 3 API)
+  const roles = data?.roles || [];
+
+  // 2. Handle the Submission (Invitation API)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !email || !roleId) return;
+    if (!email || !roleId) return;
 
     setIsLoading(true);
 
     try {
-      const res = await fetch(`${apiUrl}/api/workspaces/staff`, {
+      const res = await fetch(`${apiUrl}/api/workspaces/staff/invite`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ name, email, roleId }),
+        body: JSON.stringify({ email, roleId }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || data.message || "Failed to provision staff.");
+        throw new Error(data.error || data.message || "Failed to send invitation.");
       }
 
-      toast.success(data.message || "Staff member provisioned successfully.");
+      toast.success(data.message || "Invitation sent successfully.");
       
       // Reset form and close modal
       setIsOpen(false);
-      setName("");
       setEmail("");
       setRoleId("");
       
-      // Hard refresh to update the staff table in the background
-      router.refresh(); 
+      // Instantly update the invitations table in the background without reloading
+      queryClient.invalidateQueries({ queryKey: ["invitations"] });
+      // Optional: switch to the pending tab by pushing to router
+      router.push("?tab=pending"); 
     } catch (error: any) {
       toast.error(error.message);
     } finally {
@@ -91,29 +93,18 @@ export function AddStaffModal() {
       <DialogTrigger asChild>
         <Button className="gap-2">
           <UserPlus className="h-4 w-4" />
-          Add Staff
+          Invite Staff
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px] bg-background/95 backdrop-blur-xl">
         <DialogHeader>
-          <DialogTitle>Provision Staff Account</DialogTitle>
+          <DialogTitle>Invite a Team Member</DialogTitle>
           <DialogDescription>
-            Create a new account for a team member. They will receive an email to securely set their password.
+            Send an invitation link to a colleague's email address. They will be able to join the workspace immediately.
           </DialogDescription>
         </DialogHeader>
         
         <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Full Name</Label>
-            <Input 
-              id="name" 
-              placeholder="e.g. Jane Doe" 
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              disabled={isLoading}
-              required 
-            />
-          </div>
           
           <div className="space-y-2">
             <Label htmlFor="email">Email Address</Label>
@@ -129,17 +120,19 @@ export function AddStaffModal() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="role">Workspace Role</Label>
+            <Label htmlFor="role">Office Role</Label>
             <Select value={roleId} onValueChange={setRoleId} disabled={isLoading || isLoadingRoles} required>
               <SelectTrigger id="role">
                 <SelectValue placeholder={isLoadingRoles ? "Loading roles..." : "Select a role"} />
               </SelectTrigger>
-              <SelectContent>
-                {roles?.map((role: any) => (
+              <SelectContent position="popper" align="start">
+                {roles.length > 0 ? roles.map((role: { id: string, name: string }) => (
                   <SelectItem key={role.id} value={role.id}>
                     {role.name}
                   </SelectItem>
-                ))}
+                )) : (
+                  <SelectItem value="empty" disabled>No roles available</SelectItem>
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -148,11 +141,11 @@ export function AddStaffModal() {
             <Button type="button" variant="ghost" onClick={() => setIsOpen(false)} disabled={isLoading}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isLoading || !name || !email || !roleId}>
+            <Button type="submit" disabled={isLoading || !email || !roleId}>
               {isLoading ? (
-                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Provisioning...</>
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending...</>
               ) : (
-                "Create Account"
+                "Send Invitation"
               )}
             </Button>
           </div>

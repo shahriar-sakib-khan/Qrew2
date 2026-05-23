@@ -59,6 +59,11 @@ function Button({
       data-variant={variant}
       data-size={size}
       className={cn(buttonVariants({ variant, size, className }))}
+      onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+        // Remove focus when clicked with a mouse so it doesn't stay highlighted
+        e.currentTarget.blur()
+        props.onClick?.(e)
+      }}
       {...props}
     />
   )

@@ -6,6 +6,7 @@ import * as schema from '@starter/db'
 import { redis } from './redis'
 import { Resend } from 'resend'
 import nodemailer from 'nodemailer'
+import { logger } from './logger'
 
 if (!process.env.BETTER_AUTH_SECRET) {
   throw new Error('BETTER_AUTH_SECRET is not set.')
@@ -45,7 +46,7 @@ export async function sendSmartEmail(to: string, subject: string, html: string) 
       subject,
       html,
     });
-    console.log(`[Mailpit] Intercepted email to: ${to}`);
+    logger.child({ module: 'email' }).info({ to }, '[Mailpit] intercepted email');
   } else {
     // PROD: Send via Resend
     await resend.emails.send({

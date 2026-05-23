@@ -35,7 +35,7 @@ export function SidebarNavLink({
   const isActive = activeMatch
     ? pathname.startsWith(activeMatch)
     : (() => {
-        const isRootPath = ["/dashboard", "/admin", "/super-admin"].includes(href);
+        const isRootPath = ["/dashboard", "/admin", "/super-admin", "/org-admin"].includes(href);
         return isRootPath ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
       })();
 

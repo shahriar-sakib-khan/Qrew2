@@ -1,4 +1,11 @@
-# Qrew Application Architecture & AI Agent Instructions
+# App Context & Purpose
+This is an Enterprise B2B SaaS application. It serves as a central operating system for organizations to manage their staff, financials, clients, and projects. 
+Key architectural pillars:
+- **Multi-Tenant:** Everything belongs to an `Organization`.
+- **Granular PBAC:** Strict Role-Based and Permission-Based Access Control down to the individual member level.
+- **Dynamic Entities:** "Clients" and "Projects" (formerly referred to as "Files") utilize a Postgres JSONB architecture allowing organization admins to build custom fields dynamically, enforced by strict Zod schema generation on the backend.
+
+# Full-Stack AI Agent Directives: Enterprise B2B SaaS
 
 ## 1. Project Overview & Tech Stack
 You are operating within "Qrew", an Enterprise SaaS for SME Office Management in Bangladesh.
@@ -13,6 +20,7 @@ This is a Monorepo workspace (Turborepo + pnpm) separated into two primary appli
 *   **Strict Frontend/Backend Boundary:** The Next.js frontend MUST NEVER execute direct database queries. All database operations, business logic, and heavy processing must reside in the Hono API (`apps/api`). The frontend acts strictly as a UI consumption layer.
 *   **Smart Container / Dumb Component Pattern:** Complex React views MUST lift state to a parent "Container" component. The parent acts as the Orchestrator, holding the `react-hook-form` `<FormProvider>` context and executing the single `onSubmit` function. Child components (like inputs or uploaders) must be purely presentational.
 *   **Backend Folder Structure:** The `apps/api` logic MUST be strictly separated into `routes/` (endpoint definitions), `controllers/` (request handling), and `services/` (business logic & DB calls).
+*   **Custom Fields Architecture (JSONB):** Entities requiring custom fields (like Clients and Files) MUST use the Postgres JSONB architecture. System fields (immutable/core) will be standard SQL columns. All custom fields will be stored in a single `custom_fields` JSONB column. The JSONB payload MUST be strictly validated using Zod at the application layer before insertion to ensure data integrity.
 
 ---
 

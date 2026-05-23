@@ -1,6 +1,8 @@
 import { Context, Next } from 'hono';
 import { auth } from '../lib/auth';
 import { PermissionService } from '../../features/permissions/permission.service';
+import { db, members } from '@starter/db';
+import { eq, and } from 'drizzle-orm';
 
 export const requireOrgPermission = (requiredPermission: string) => {
   return async (c: Context, next: Next) => {
@@ -19,6 +21,18 @@ export const requireOrgPermission = (requiredPermission: string) => {
     const orgId = sessionData.session.activeOrganizationId;
     if (!orgId) {
       return c.json({ error: 'No active workspace context selected.' }, 400);
+    }
+
+    // NEW: Tenant Owner Bypass
+    const currentMember = await db.query.members.findFirst({
+      where: and(
+        eq(members.userId, sessionData.user.id),
+        eq(members.organizationId, orgId)
+      )
+    });
+
+    if (currentMember?.role === 'owner') {
+      return await next(); // Owners bypass all PBAC checks
     }
 
     // 4. Resolve & Verify Permissions

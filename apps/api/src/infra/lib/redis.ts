@@ -1,4 +1,5 @@
 import Redis from 'ioredis'
+import { logger } from './logger'
 
 if (!process.env.REDIS_URL) {
   throw new Error('REDIS_URL is not set.')
@@ -27,14 +28,16 @@ export const redis = new Redis(process.env.REDIS_URL, {
   maxRetriesPerRequest: 3,
 })
 
+const redisLog = logger.child({ module: 'redis' })
+
 redis.on('connect', () => {
-  console.log('[redis] connected')
+  redisLog.info('connected')
 })
 
 redis.on('error', (err) => {
-  console.error('[redis] error:', err.message)
+  redisLog.error({ err: err.message }, 'error')
 })
 
 redis.on('reconnecting', () => {
-  console.warn('[redis] reconnecting...')
+  redisLog.warn('reconnecting...')
 })

@@ -6,7 +6,7 @@ import { useSession } from "@/lib/auth-client";
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { data: session } = useSession();
   return (
-    <AppShell session={session} navItems={NAV_CONFIG.user} settingsItem={NAV_CONFIG.userSettings} theme="default">
+    <AppShell session={session} navItems={NAV_CONFIG.user} theme="default">
       {children}
     </AppShell>
   );

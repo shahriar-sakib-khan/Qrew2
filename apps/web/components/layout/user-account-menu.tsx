@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
+import { Settings, Zap, LogOut } from "lucide-react";
 import { signOut } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Can } from "@/components/ui/can";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,6 +26,8 @@ interface UserAccountMenuProps {
 
 export function UserAccountMenu({ session, isCollapsed, basePath, compact = false, primaryTextClass }: UserAccountMenuProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  const isInAdminPanel = pathname.startsWith("/org-admin");
 
   const handleSignOut = async () => {
     await signOut({ fetchOptions: { onSuccess: () => router.push("/sign-in") } });
@@ -60,11 +64,30 @@ export function UserAccountMenu({ session, isCollapsed, basePath, compact = fals
       <DropdownMenuContent align={compact ? "end" : isCollapsed ? "center" : "start"} side={compact ? "bottom" : isCollapsed ? "right" : "top"} className="w-56 mt-2 md:mt-0 md:mb-2">
         <DropdownMenuLabel>My Account</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link href={`${basePath}/settings/profile`} className="cursor-pointer w-full">Profile</Link>
+        
+        <DropdownMenuItem onClick={() => router.push("/dashboard/settings/profile")} className="cursor-pointer">
+          <Settings className="mr-2 h-4 w-4" />
+          Settings
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={handleSignOut} className="text-destructive cursor-pointer">
-          Logout
+
+        {!isInAdminPanel && (
+          <Can I="workspace:manage_settings">
+            <DropdownMenuSeparator />
+            <DropdownMenuItem 
+              onClick={() => router.push("/org-admin")} 
+              className="cursor-pointer text-amber-500 focus:text-amber-400"
+            >
+              <Zap className="mr-2 h-4 w-4" />
+              Admin Panel
+            </DropdownMenuItem>
+          </Can>
+        )}
+
+        <DropdownMenuSeparator />
+
+        <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer text-destructive focus:text-destructive">
+          <LogOut className="mr-2 h-4 w-4" />
+          Log Out
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

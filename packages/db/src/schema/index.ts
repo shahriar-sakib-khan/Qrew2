@@ -11,3 +11,6 @@
  */
 export * from './auth'
 export * from './pbac'
+export * from './clients'
+export * from './projects'
+export * from './custom_fields'

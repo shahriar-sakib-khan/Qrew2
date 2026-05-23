@@ -9,6 +9,9 @@ import {
   passkeys,
   db
 } from '@starter/db';
+import { logger } from '../../infra/lib/logger';
+
+const usersServiceLog = logger.child({ module: 'users-service' });
 
 export const UsersService = {
   async softDeleteAccount(userId: string): Promise<{ success: boolean }> {
@@ -19,7 +22,7 @@ export const UsersService = {
         Key: `avatars/${userId}.webp`,
       }));
     } catch (storageError) {
-      console.warn(`[UsersService] Orphaned avatar or R2 failure for ${userId}:`, storageError);
+      usersServiceLog.warn({ userId, err: storageError }, 'Orphaned avatar or R2 failure');
     }
 
     // The ACID Database Wipe
@@ -44,7 +47,7 @@ export const UsersService = {
           .where(eq(users.id, userId));
       });
     } catch (dbError) {
-      console.error(`[UsersService] Database soft-delete failed for ${userId}:`, dbError);
+      usersServiceLog.error({ userId, err: dbError }, 'Database soft-delete failed');
       throw new Error("Failed to anonymize database records.");
     }
 

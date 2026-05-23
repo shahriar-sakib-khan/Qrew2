@@ -1,7 +1,7 @@
 import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
-import { logger } from 'hono/logger'
+import { logger as apiLogger } from './infra/lib/logger'
 
 // --- Core Middleware ---
 import type { AuthVariables } from './infra/middleware/auth'
@@ -23,7 +23,16 @@ const app = new Hono<{ Variables: AuthVariables }>()
 // ---------------------------------------------------------------
 // Global Middleware (The Core)
 // ---------------------------------------------------------------
-app.use('*', logger())
+// Custom Pino request logger — replaces hono/logger with structured JSON
+app.use('*', async (c, next) => {
+  const start = Date.now()
+  await next()
+  const ms = Date.now() - start
+  apiLogger.info(
+    { module: 'http', method: c.req.method, path: c.req.path, status: c.res.status, ms },
+    `${c.req.method} ${c.req.path} ${c.res.status} ${ms}ms`
+  )
+})
 app.use('*', rateLimit(200, 60)) // 200 reqs per minute
 
 app.use(
@@ -56,7 +65,7 @@ app.notFound((c) => {
 })
 
 app.onError((err, c) => {
-  console.error('[error]', err)
+  apiLogger.error({ module: 'http', err, path: c.req.path, method: c.req.method }, 'Unhandled exception')
   const isDev = process.env.NODE_ENV === 'development'
 
   return c.json(
@@ -79,7 +88,7 @@ serve(
     port: PORT,
   },
   (info) => {
-    console.log(`[api] running on http://localhost:${info.port}`)
-    console.log(`[api] health → http://localhost:${info.port}/api/system/health`)
+    apiLogger.info({ module: 'api', port: info.port }, `running on http://localhost:${info.port}`)
+    apiLogger.info({ module: 'api', port: info.port }, `health → http://localhost:${info.port}/api/system/health`)
   }
 )

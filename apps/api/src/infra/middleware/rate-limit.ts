@@ -1,6 +1,9 @@
 import type { Context, Next } from 'hono'
 import { createMiddleware } from 'hono/factory'
 import { redis } from '../lib/redis'
+import { logger } from '../lib/logger'
+
+const rateLimitLog = logger.child({ module: 'rate-limit' })
 
 export const rateLimit = (limit = 100, windowSecs = 60) => {
   return createMiddleware(async (c: Context, next: Next) => {
@@ -20,7 +23,7 @@ export const rateLimit = (limit = 100, windowSecs = 60) => {
         return c.json({ error: 'Too Many Requests', message: 'Rate limit exceeded. Try again later.' }, 429)
       }
     } catch (error) {
-      console.error('[RateLimiter] Redis error, bypassing limit:', error)
+      rateLimitLog.error({ error }, 'Redis error, bypassing limit')
     }
 
     await next()

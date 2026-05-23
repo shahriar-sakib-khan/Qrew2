@@ -35,6 +35,11 @@ export function OrganizationSwitcher({ isCollapsed }: { isCollapsed?: boolean })
         // Fetch all organizations the user belongs to
         const { data: orgsData } = await authClient.organization.list();
         setOrganizations(orgsData || []);
+
+        // CRITICAL: Load permissions on initial mount so <Can> components work immediately
+        if (sessionData?.session?.activeOrganizationId) {
+          await loadPermissions();
+        }
       } catch (error) {
         console.error("Failed to fetch organizations", error);
       } finally {
@@ -125,14 +130,19 @@ export function OrganizationSwitcher({ isCollapsed }: { isCollapsed?: boolean })
               <div className="flex h-6 w-6 items-center justify-center rounded-sm bg-primary/10 text-primary font-bold shrink-0">
                 {org.name.charAt(0).toUpperCase()}
               </div>
-              <span className="truncate">{org.name}</span>
+              <div>
+                <div className="font-medium">{org.name}</div>
+                <div className="text-xs text-muted-foreground line-clamp-1">
+                  {org.slug || "Office"}
+                </div>
+              </div>
             </div>
             {activeOrgId === org.id && <Check className="h-4 w-4 text-emerald-500" />}
           </DropdownMenuItem>
         ))}
         
         <DropdownMenuSeparator />
-        
+
         <DropdownMenuItem 
           onClick={() => router.push("/onboarding/organization")}
           className="cursor-pointer text-emerald-600 focus:text-emerald-500"
