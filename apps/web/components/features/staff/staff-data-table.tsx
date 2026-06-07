@@ -13,7 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Can } from "@/components/ui/can";
+import { Can } from "@/components/features/auth/can";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,6 +34,7 @@ import { EditStaffRoleModal } from "./edit-staff-role-modal";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { WalletHistoryModal } from "@/components/features/financials/wallet-history-modal";
 
 interface StaffMember {
   memberId: string;
@@ -44,6 +45,7 @@ interface StaffMember {
   roleId?: string;
   isSystem?: boolean;
   createdAt?: string;
+  walletBalance?: number;
 }
 
 import {
@@ -66,6 +68,7 @@ export function StaffDataTable({ isReadOnly = true }: StaffDataTableProps) {
   const [editingMember, setEditingMember] = useState<StaffMember | null>(null);
   const [revokingMember, setRevokingMember] = useState<StaffMember | null>(null);
   const [viewingMember, setViewingMember] = useState<StaffMember | null>(null);
+  const [viewingWalletUser, setViewingWalletUser] = useState<StaffMember | null>(null);
 
   const { data: staff = [], isLoading, refetch } = useQuery({
     queryKey: ["staff"],
@@ -125,6 +128,7 @@ export function StaffDataTable({ isReadOnly = true }: StaffDataTableProps) {
           <TableRow>
             <TableHead>User</TableHead>
             <TableHead>Office Role</TableHead>
+            <TableHead>Wallet Balance</TableHead>
             {!isReadOnly && <TableHead>Joined</TableHead>}
             {!isReadOnly && <TableHead className="text-right">Actions</TableHead>}
           </TableRow>
@@ -132,7 +136,7 @@ export function StaffDataTable({ isReadOnly = true }: StaffDataTableProps) {
         <TableBody>
           {staff.map((member: StaffMember) => (
             <TableRow 
-              key={member.id || member.memberId}
+              key={member.memberId}
               className="cursor-pointer hover:bg-muted/50 transition-colors"
               onClick={() => setViewingMember(member)}
             >
@@ -144,6 +148,15 @@ export function StaffDataTable({ isReadOnly = true }: StaffDataTableProps) {
                 <div className={`inline-flex items-center px-2 py-1 rounded-full border text-xs font-medium ${getRoleColor(member.roleName)}`}>
                   {member.roleName || "Member"}
                 </div>
+              </TableCell>
+              <TableCell 
+                className="font-medium text-green-600 dark:text-green-500 cursor-pointer hover:underline"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setViewingWalletUser(member);
+                }}
+              >
+                ${Number(member.walletBalance || 0).toFixed(2)}
               </TableCell>
               {!isReadOnly && (
                 <TableCell className="text-muted-foreground">
@@ -254,6 +267,11 @@ export function StaffDataTable({ isReadOnly = true }: StaffDataTableProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <WalletHistoryModal 
+        viewingUser={viewingWalletUser}
+        onClose={() => setViewingWalletUser(null)}
+      />
     </div>
   );
 }

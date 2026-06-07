@@ -1,6 +1,6 @@
 import { InviteStaffModal } from "@/components/features/staff/add-staff-modal";
 import { StaffTabs } from "./staff-tabs";
-import { Can } from "@/components/ui/can";
+import { Can } from "@/components/features/auth/can";
 
 export const metadata = {
   title: "Staff Management | Qrew",

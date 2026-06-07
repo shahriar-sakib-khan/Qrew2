@@ -13,8 +13,15 @@ workspacesRouter.route('/custom-fields', customFieldsRouter);
 workspacesRouter.route('/clients', clientsRouter);
 workspacesRouter.route('/projects', projectsRouter);
 
+// GET /api/workspaces/dashboard-stats
+workspacesRouter.get('/dashboard-stats', WorkspacesController.getDashboardStats);
+
 // GET /api/workspaces/permissions/me
 workspacesRouter.get('/permissions/me', PermissionsController.getMyPermissions);
+
+// GET/PATCH /api/workspaces/settings
+workspacesRouter.get('/settings', WorkspacesController.getSettings);
+workspacesRouter.patch('/settings', requireOrgPermission('org:manage'), WorkspacesController.updateSettings);
 
 // POST /api/workspaces/staff/invite
 workspacesRouter.post(

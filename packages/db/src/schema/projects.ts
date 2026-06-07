@@ -20,7 +20,17 @@ export const projects = pgTable("projects", {
     .notNull()
     .$onUpdate(() => new Date()),
   customFields: jsonb("custom_fields").$type<Record<string, any>>().default({}),
+  archivedAt: timestamp("archived_at", { mode: "date" }),
 });
 
 export type Project = typeof projects.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;
+
+import { relations } from "drizzle-orm";
+
+export const projectsRelations = relations(projects, ({ one }) => ({
+  client: one(clients, {
+    fields: [projects.clientId],
+    references: [clients.id],
+  }),
+}));

@@ -124,6 +124,7 @@ export class RolesController {
       if (!activeOrgId) return c.json({ error: 'No active workspace selected' }, 400);
 
       const roleId = c.req.param('roleId');
+      if (!roleId) return c.json({ error: 'Role ID required' }, 400);
 
       const role = await db.query.orgRoles.findFirst({
         where: and(eq(orgRoles.id, roleId), eq(orgRoles.organizationId, activeOrgId)),
@@ -169,6 +170,7 @@ export class RolesController {
       if (!activeOrgId) return c.json({ error: 'No active workspace selected' }, 400);
 
       const roleId = c.req.param('roleId');
+      if (!roleId) return c.json({ error: 'Role ID required' }, 400);
 
       const existingRole = await db.query.orgRoles.findFirst({
         where: and(eq(orgRoles.id, roleId), eq(orgRoles.organizationId, activeOrgId)),
@@ -234,6 +236,7 @@ export class RolesController {
       if (!activeOrgId) return c.json({ error: 'No active workspace selected' }, 400);
 
       const roleId = c.req.param('roleId');
+      if (!roleId) return c.json({ error: 'Role ID required' }, 400);
 
       const existingRole = await db.query.orgRoles.findFirst({
         where: and(eq(orgRoles.id, roleId), eq(orgRoles.organizationId, activeOrgId)),

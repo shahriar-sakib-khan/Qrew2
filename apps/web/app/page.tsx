@@ -8,8 +8,10 @@ import { MoveRight, Moon, Sun, CheckCircle2, FileText, Wallet, Receipt, Users } 
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { BackgroundEffects } from "@/components/ui/background-effects";
+import { BackgroundEffects } from "@/components/layout/background-effects";
 import { QrewLogo } from "@/components/ui/logo";
+
+import { authClient } from "@/lib/auth-client";
 
 export default function LandingPage() {
   const [isDark, setIsDark] = useState(true);
@@ -19,6 +21,15 @@ export default function LandingPage() {
 
   useEffect(() => {
     setIsDark(document.documentElement.classList.contains("dark"));
+  }, []);
+
+  useEffect(() => {
+    // Log out the user if they visit the landing page
+    authClient.getSession().then(({ data }) => {
+      if (data?.session) {
+        authClient.signOut();
+      }
+    });
   }, []);
 
   useEffect(() => {

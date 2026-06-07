@@ -1,3 +1,5 @@
+import { randomUUID } from 'crypto';
+import { relations } from 'drizzle-orm';
 import {
   pgTable,
   pgEnum,
@@ -18,6 +20,12 @@ export const systemRoleEnum = pgEnum('system_role', [
   'super_admin',
 ])
 
+export const accountStatusEnum = pgEnum('account_status', [
+  'active',
+  'suspended',
+  'banned',
+])
+
 // ---------------------------------------------------------------
 // Users
 // ---------------------------------------------------------------
@@ -30,6 +38,9 @@ export const users = pgTable('users', {
   image: text('image'),
 
   role: systemRoleEnum('role').notNull().default('user'),
+
+  status: accountStatusEnum('status').notNull().default('active'),
+  requiresPasswordReset: boolean('requires_password_reset').notNull().default(false),
 
   banned: boolean('banned').default(false),
   banReason: text('ban_reason'),
@@ -231,3 +242,44 @@ export type NewOrganization = typeof organizations.$inferInsert;
 
 export type Member = typeof members.$inferSelect;
 export type Invitation = typeof invitations.$inferSelect;
+
+// ---------------------------------------------------------------
+// Audit Logs (SOC2 Compliance)
+// ---------------------------------------------------------------
+
+export const auditLogs = pgTable('audit_logs', {
+  id: text('id').primaryKey().$defaultFn(() => randomUUID()),
+  adminId: text('admin_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  targetUserId: text('target_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  action: text('action').notNull(),
+  reason: text('reason').notNull(),
+  ipAddress: text('ip_address').notNull().default('unknown'),
+  createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+}, (table) => [
+  index('audit_logs_admin_id_idx').on(table.adminId),
+  index('audit_logs_target_user_id_idx').on(table.targetUserId),
+]);
+
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type NewAuditLog = typeof auditLogs.$inferInsert;
+
+export type AccountStatus = (typeof accountStatusEnum.enumValues)[number];
+
+export const usersRelations = relations(users, ({ many }) => ({
+  members: many(members),
+}));
+
+export const membersRelations = relations(members, ({ one }) => ({
+  user: one(users, {
+    fields: [members.userId],
+    references: [users.id],
+  }),
+  workspace: one(organizations, {
+    fields: [members.organizationId],
+    references: [organizations.id],
+  }),
+}));
+
+export const organizationsRelations = relations(organizations, ({ many }) => ({
+  members: many(members),
+}));

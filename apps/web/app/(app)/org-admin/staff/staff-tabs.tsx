@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Can } from "@/components/ui/can";
+import { Can } from "@/components/features/auth/can";
 import { StaffDataTable } from "@/components/features/staff/staff-data-table";
 import { InvitationsDataTable } from "@/components/features/staff/invitations-data-table";
 

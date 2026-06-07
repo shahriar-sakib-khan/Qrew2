@@ -1,14 +1,15 @@
 "use client";
 
 import React from "react";
-import { User, Shield, Palette } from "lucide-react";
-import { SidebarNavLink } from "@/components/ui/sidebar-nav-link";
+import { User, Shield, Palette, Building } from "lucide-react";
+import { SidebarNavLink } from "@/components/layout/sidebar-nav-link";
 
 export function SettingsLayout({ children, basePath }: { children: React.ReactNode; basePath: string }) {
   const tabs = [
     { name: "Profile", href: `${basePath}/settings/profile`, icon: User },
     { name: "Security", href: `${basePath}/settings/security`, icon: Shield },
     { name: "Appearance", href: `${basePath}/settings/appearance`, icon: Palette },
+    { name: "Workspace", href: `${basePath}/settings/workspace`, icon: Building },
   ];
 
   return (

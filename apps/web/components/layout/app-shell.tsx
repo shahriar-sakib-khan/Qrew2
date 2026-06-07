@@ -9,7 +9,7 @@ import { usePermissionStore } from "@/store/use-permission-store";
 
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
-import { SidebarNavLink } from "@/components/ui/sidebar-nav-link";
+import { SidebarNavLink } from "@/components/layout/sidebar-nav-link";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SidebarProvider, useSidebar } from "@/components/layout/sidebar-context";
 import { UserAccountMenu } from "@/components/layout/user-account-menu";

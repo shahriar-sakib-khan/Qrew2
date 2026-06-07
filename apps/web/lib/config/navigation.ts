@@ -28,7 +28,7 @@ export const NAV_CONFIG = {
     { name: "Overview", href: "/org-admin", icon: LayoutDashboard },
     { name: "Staff Management", href: "/org-admin/staff", icon: Users },
     { name: "Roles & Permissions", href: "/org-admin/roles", icon: Shield },
-    { name: "Custom Fields", href: "/org-admin/schema", icon: Settings },
+    { name: "Customize Fields", href: "/org-admin/customize-fields", icon: Settings },
   ],
   tenantAdminExit: {
     name: "Back to Dashboard",

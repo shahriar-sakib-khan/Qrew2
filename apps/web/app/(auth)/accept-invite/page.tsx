@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Field, FieldLabel, FieldError } from "@/components/ui/field";
-import { BackgroundEffects } from "@/components/ui/background-effects";
+import { BackgroundEffects } from "@/components/layout/background-effects";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
@@ -217,7 +217,7 @@ function AcceptInviteContent() {
             <div className="space-y-4">
               <div className="rounded-lg bg-primary/5 border border-primary/20 p-4 text-center">
                 <p className="text-sm text-muted-foreground mb-1">Logged in as</p>
-                <p className="font-semibold">{session.user.email}</p>
+                <p className="font-semibold">{session?.user?.email}</p>
               </div>
               <Button 
                 onClick={handleDirectAccept} 

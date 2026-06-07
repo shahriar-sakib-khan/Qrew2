@@ -15,7 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Can } from "@/components/ui/can";
+import { Can } from "@/components/features/auth/can";
 import {
   AlertDialog,
   AlertDialogAction,

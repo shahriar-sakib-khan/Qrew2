@@ -13,6 +13,13 @@ import { systemRouter } from './features/system/system.route'
 import { uploadsRouter } from './features/uploads/uploads.route'
 import { usersRouter } from './features/users/users.route'
 import { workspacesRouter } from './features/workspaces/workspaces.route'
+import { expenseCategoriesRouter } from './features/expense-categories/expense-categories.route'
+import { requisitionsRouter } from './features/requisitions/requisitions.route'
+import { expensesRouter } from './features/expenses/expenses.route'
+import { walletRouter } from './features/wallet/wallet.route'
+import { invoicesRouter } from './features/invoices/invoices.route'
+import { adminRouter } from './features/admin/admin.route'
+import { superAdminRouter } from './features/super-admin/super-admin.route'
 
 if (!process.env.NEXT_PUBLIC_APP_URL) {
   throw new Error('NEXT_PUBLIC_APP_URL is not set.')
@@ -25,6 +32,7 @@ const app = new Hono<{ Variables: AuthVariables }>()
 // ---------------------------------------------------------------
 // Custom Pino request logger — replaces hono/logger with structured JSON
 app.use('*', async (c, next) => {
+  c.set('logger' as any, apiLogger)
   const start = Date.now()
   await next()
   const ms = Date.now() - start
@@ -53,6 +61,13 @@ app.route('/api/auth', authRouter)
 app.route('/api/uploads', uploadsRouter)
 app.route('/api/users', usersRouter)
 app.route('/api/workspaces', workspacesRouter)
+app.route('/api/expense-categories', expenseCategoriesRouter)
+app.route('/api/requisitions', requisitionsRouter)
+app.route('/api/expenses', expensesRouter)
+app.route('/api/wallet', walletRouter)
+app.route('/api/invoices', invoicesRouter)
+app.route('/api/admin', adminRouter)
+app.route('/api/super-admin', superAdminRouter)
 
 // ---------------------------------------------------------------
 // Fallbacks & Error Handling

@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { Plus, Shield, Users, MoreVertical, Pencil, Trash2, Lock } from "lucide-react";
-import { Can } from "@/components/ui/can";
+import { Can } from "@/components/features/auth/can";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";

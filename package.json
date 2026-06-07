@@ -14,7 +14,7 @@
     "db:studio": "pnpm --filter @starter/db studio",
     "db:generate": "pnpm --filter @starter/db generate",
     "db:reset": "docker compose down -v --remove-orphans && docker compose up -d && sleep 3 && pnpm db:push",
-    "db:seed": "pnpm --filter @starter/db seed"
+    "db:seed": "pnpm --filter @starter/db seed && pnpm --filter @starter/db seed:sst"
   },
   "devDependencies": {
     "turbo": "^2.9.6",

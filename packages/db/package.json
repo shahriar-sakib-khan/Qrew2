@@ -3,22 +3,28 @@
   "version": "0.0.0",
   "private": true,
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./schema": "./src/schema/index.ts"
   },
   "scripts": {
     "generate": "drizzle-kit generate --config=drizzle.config.ts",
     "push": "drizzle-kit push --config=drizzle.config.ts",
     "migrate": "drizzle-kit migrate --config=drizzle.config.ts",
     "studio": "drizzle-kit studio --config=drizzle.config.ts",
-    "seed": "tsx src/seed.ts"
+    "seed": "tsx src/seed.ts",
+    "seed:sst": "tsx src/seed-sst.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",
     "drizzle-orm": "^0.39.0",
-    "postgres": "^3.4.4"
+    "postgres": "^3.4.4",
+    "uuid": "^11.0.3"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^3.0.0",
     "@types/node": "^22.0.0",
+    "@types/uuid": "^10.0.0",
+    "bcryptjs": "^3.0.3",
     "dotenv": "^16.4.5",
     "drizzle-kit": "^0.30.0",
     "tsx": "^4.21.0",

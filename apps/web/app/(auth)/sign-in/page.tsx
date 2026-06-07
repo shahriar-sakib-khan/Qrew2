@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Field, FieldLabel, FieldError } from "@/components/ui/field";
-import { BackgroundEffects } from "@/components/ui/background-effects";
+import { BackgroundEffects } from "@/components/layout/background-effects";
 
 const signInSchema = z.object({
   email: z.string().email("Please enter a valid email address."),

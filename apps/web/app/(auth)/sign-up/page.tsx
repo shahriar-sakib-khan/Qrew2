@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Field, FieldLabel, FieldError } from "@/components/ui/field";
-import { BackgroundEffects } from "@/components/ui/background-effects";
+import { BackgroundEffects } from "@/components/layout/background-effects";
 
 const signUpSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters."),

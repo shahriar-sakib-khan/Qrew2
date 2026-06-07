@@ -67,8 +67,21 @@ export async function middleware(request: NextRequest) {
   }
 
   const isAuthenticated = !!sessionData?.session;
-  const globalRole = sessionData?.user?.role || 'user';
+  const user = sessionData?.user;
+  const globalRole = user?.role || 'user';
   const globalLevel = ROLE_HIERARCHY[globalRole] || 0;
+
+  // Guard Clause 1: Hard block for Banned/Suspended users
+  // Ensure we don't cause an infinite redirect loop if they are already on /blocked
+  if (user && (user.status === 'banned' || user.status === 'suspended') && pathname !== '/blocked') {
+    return NextResponse.redirect(new URL('/blocked', request.url));
+  }
+
+  // Guard Clause 2: Forced Password Reset
+  // Bypass if they are already heading to the reset endpoint
+  if (user && user.requiresPasswordReset === true && !pathname.startsWith('/reset-password')) {
+    return NextResponse.redirect(new URL('/reset-password', request.url));
+  }
 
   // 1. Unauthenticated users cannot see protected pages
   if (isProtectedRoute && !isAuthenticated) {

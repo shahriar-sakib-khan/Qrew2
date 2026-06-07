@@ -1,7 +1,7 @@
 import { pgTable, text, timestamp, boolean, pgEnum, jsonb, unique } from "drizzle-orm/pg-core";
 import { organizations } from "./auth";
 
-export const entityTypeEnum = pgEnum("entity_type", ["client", "project"]);
+export const entityTypeEnum = pgEnum("entity_type", ["client", "project", "staff"]);
 export const customFieldTypeEnum = pgEnum("custom_field_type", ["text", "number", "date", "boolean", "single_select", "multi_select"]);
 
 export const customFieldDefinitions = pgTable("custom_field_definitions", {

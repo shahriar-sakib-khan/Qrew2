@@ -6,12 +6,12 @@ import { v4 as uuidv4 } from 'uuid';
 import { auth } from '../../infra/lib/auth';
 
 const createDefinitionSchema = z.object({
-  entityType: z.enum(['client', 'project']),
+  entityType: z.enum(['client', 'project', 'staff']),
   fieldName: z.string().min(1),
   fieldKey: z.string().min(1).regex(/^[a-z0-9_]+$/, 'Field key must be lowercase alphanumeric and underscores only'),
   fieldType: z.enum(['text', 'number', 'date', 'boolean', 'single_select', 'multi_select']),
   isRequired: z.boolean().default(false),
-  options: z.array(z.string()).optional(),
+  options: z.array(z.string()).nullable().optional(),
 });
 
 export class CustomFieldsController {
@@ -26,7 +26,7 @@ export class CustomFieldsController {
     const entityType = c.req.query('entityType');
 
     let conditions: SQL | undefined = eq(customFieldDefinitions.organizationId, orgId);
-    if (entityType && (entityType === 'client' || entityType === 'project')) {
+    if (entityType && (entityType === 'client' || entityType === 'project' || entityType === 'staff')) {
       conditions = and(conditions, eq(customFieldDefinitions.entityType, entityType));
     }
 
@@ -111,5 +111,44 @@ export class CustomFieldsController {
     await db.delete(customFieldDefinitions).where(eq(customFieldDefinitions.id, id));
 
     return c.json({ success: true });
+  }
+
+  static async updateDefinition(c: Context) {
+    const sessionData = await auth.api.getSession({ headers: c.req.raw.headers });
+    const orgId = sessionData?.session?.activeOrganizationId;
+
+    if (!orgId) {
+      return c.json({ error: 'Unauthorized', message: 'No active organization selected.' }, 401);
+    }
+
+    const id = c.req.param('id');
+    if (!id) return c.json({ error: 'Missing ID' }, 400);
+
+    const body = await c.req.json();
+
+    const existing = await db.query.customFieldDefinitions.findFirst({
+      where: and(
+        eq(customFieldDefinitions.id, id),
+        eq(customFieldDefinitions.organizationId, orgId)
+      )
+    });
+
+    if (!existing) {
+      return c.json({ error: 'Not Found' }, 404);
+    }
+
+    // Allow updating name, requirement status, and options.
+    const updatedData = {
+      fieldName: body.fieldName ?? existing.fieldName,
+      isRequired: body.isRequired ?? existing.isRequired,
+      options: body.options ?? existing.options,
+    };
+
+    const [updatedDef] = await db.update(customFieldDefinitions)
+      .set(updatedData)
+      .where(eq(customFieldDefinitions.id, id))
+      .returning();
+
+    return c.json(updatedDef, 200);
   }
 }

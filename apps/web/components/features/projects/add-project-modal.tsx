@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -17,12 +19,12 @@ const baseSchema = z.object({
   name: z.string().min(1, "Project name is required"),
   clientId: z.string().min(1, "Client is required"),
   status: z.enum(["planning", "active", "completed", "on_hold"]).default("planning"),
-  customFields: z.record(z.any()).default({}),
+  customFields: z.record(z.string(), z.any()).default({}),
 });
 
 type FormValues = z.infer<typeof baseSchema>;
 
-export function AddProjectModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+export function AddProjectModal({ isOpen, onClose, editProject }: { isOpen: boolean; onClose: () => void; editProject?: any }) {
   const queryClient = useQueryClient();
 
   const { data: customFieldDefs } = useQuery({
@@ -45,10 +47,10 @@ export function AddProjectModal({ isOpen, onClose }: { isOpen: boolean; onClose:
     enabled: isOpen,
   });
 
-  const clients = clientsData?.clients || [];
+  const clients = Array.isArray(clientsData) ? clientsData : [];
 
   const { control, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
-    resolver: zodResolver(baseSchema),
+    resolver: zodResolver(baseSchema) as any,
     defaultValues: {
       name: "",
       clientId: "",
@@ -57,10 +59,35 @@ export function AddProjectModal({ isOpen, onClose }: { isOpen: boolean; onClose:
     },
   });
 
-  const createMutation = useMutation({
+  useEffect(() => {
+    if (isOpen) {
+      if (editProject) {
+        reset({
+          name: editProject.name,
+          clientId: editProject.clientId,
+          status: editProject.status,
+          customFields: editProject.customFields || {},
+        });
+      } else {
+        reset({
+          name: "",
+          clientId: "",
+          status: "planning",
+          customFields: {},
+        });
+      }
+    }
+  }, [isOpen, editProject, reset]);
+
+  const saveMutation = useMutation({
     mutationFn: async (values: FormValues) => {
-      const res = await fetch(`${apiUrl}/api/workspaces/projects`, {
-        method: "POST",
+      const url = editProject 
+        ? `${apiUrl}/api/workspaces/projects/${editProject.id}`
+        : `${apiUrl}/api/workspaces/projects`;
+      const method = editProject ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify(values),
@@ -68,14 +95,13 @@ export function AddProjectModal({ isOpen, onClose }: { isOpen: boolean; onClose:
 
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || "Failed to create project");
+        throw new Error(data.error || `Failed to ${editProject ? "update" : "create"} project`);
       }
       return res.json();
     },
     onSuccess: () => {
-      toast.success("Project created successfully");
+      toast.success(`Project ${editProject ? "updated" : "created"} successfully`);
       queryClient.invalidateQueries({ queryKey: ["projects"] });
-      reset();
       onClose();
     },
     onError: (error) => {
@@ -84,23 +110,23 @@ export function AddProjectModal({ isOpen, onClose }: { isOpen: boolean; onClose:
   });
 
   function onSubmit(values: FormValues) {
-    createMutation.mutate(values);
+    saveMutation.mutate(values);
   }
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add New Project</DialogTitle>
+          <DialogTitle>{editProject ? "Edit File" : "Add New File"}</DialogTitle>
           <DialogDescription>
-            Create a new project. Custom fields configured in settings will appear below.
+            {editProject ? "Update file details." : "Create a new file."} Custom fields configured in settings will appear below.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-2">
           
           <div className="space-y-2">
-            <Label>Project Name *</Label>
+            <Label>File Name *</Label>
             <Controller
               control={control}
               name="name"
@@ -117,7 +143,7 @@ export function AddProjectModal({ isOpen, onClose }: { isOpen: boolean; onClose:
               control={control}
               name="clientId"
               render={({ field }) => (
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select onValueChange={field.onChange} value={field.value}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select a client" />
                   </SelectTrigger>
@@ -138,7 +164,7 @@ export function AddProjectModal({ isOpen, onClose }: { isOpen: boolean; onClose:
               control={control}
               name="status"
               render={({ field }) => (
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select onValueChange={field.onChange} value={field.value}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
@@ -154,8 +180,7 @@ export function AddProjectModal({ isOpen, onClose }: { isOpen: boolean; onClose:
             {errors.status && <p className="text-[0.8rem] font-medium text-destructive">{errors.status.message}</p>}
           </div>
 
-          <div className="pt-4 mt-4 border-t border-dashed">
-            <h4 className="text-sm font-medium mb-4 text-muted-foreground">Additional Details</h4>
+          <div className="mt-4">
             <DynamicCustomFieldsRenderer 
               control={control} 
               definitions={customFieldDefs || []} 
@@ -168,8 +193,8 @@ export function AddProjectModal({ isOpen, onClose }: { isOpen: boolean; onClose:
             <Button type="button" variant="ghost" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={createMutation.isPending}>
-              {createMutation.isPending ? "Saving..." : "Create Project"}
+            <Button type="submit" disabled={saveMutation.isPending}>
+              {saveMutation.isPending ? "Saving..." : (editProject ? "Save Changes" : "Create File")}
             </Button>
           </div>
         </form>

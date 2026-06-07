@@ -7,15 +7,18 @@ interface CanProps {
   I: string; // The permission key (e.g., 'staff:provision')
   children: ReactNode;
   fallback?: ReactNode; // Optional UI to show if they DON'T have permission
+  not?: boolean; // If true, renders children when they DON'T have permission
 }
 
-export function Can({ I, children, fallback = null }: CanProps) {
+export function Can({ I, children, fallback = null, not = false }: CanProps) {
   const { can, isLoaded } = usePermissionStore();
 
   // Prevent UI flashing: Render nothing while permissions are loading over the network
   if (!isLoaded) return null; 
 
-  if (can(I)) {
+  const hasPermission = not ? !can(I) : can(I);
+
+  if (hasPermission) {
     return <>{children}</>;
   }
 

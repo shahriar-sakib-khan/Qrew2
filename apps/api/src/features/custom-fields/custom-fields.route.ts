@@ -10,4 +10,5 @@ export const customFieldsRouter = new Hono();
 
 customFieldsRouter.get('/', CustomFieldsController.listDefinitions); // Everyone in org can read to render forms
 customFieldsRouter.post('/', requireOrgPermission('schema:manage_fields'), CustomFieldsController.createDefinition);
+customFieldsRouter.put('/:id', requireOrgPermission('schema:manage_fields'), CustomFieldsController.updateDefinition);
 customFieldsRouter.delete('/:id', requireOrgPermission('schema:manage_fields'), CustomFieldsController.deleteDefinition);

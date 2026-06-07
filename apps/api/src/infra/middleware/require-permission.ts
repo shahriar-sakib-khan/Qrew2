@@ -22,6 +22,9 @@ export const requireOrgPermission = (requiredPermission: string) => {
     if (!orgId) {
       return c.json({ error: 'No active workspace context selected.' }, 400);
     }
+    
+    // Set the organizationId in the context so downstream controllers can use it
+    c.set('organizationId', orgId);
 
     // NEW: Tenant Owner Bypass
     const currentMember = await db.query.members.findFirst({

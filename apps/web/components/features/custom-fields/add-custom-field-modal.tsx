@@ -14,10 +14,20 @@ import { X } from "lucide-react";
 
 type FieldType = "text" | "number" | "date" | "boolean" | "single_select" | "multi_select";
 
-export function AddCustomFieldModal({ isOpen, onClose, defaultEntity = "client" }: { isOpen: boolean; onClose: () => void; defaultEntity?: "client" | "project" }) {
+export function AddCustomFieldModal({ 
+  isOpen, 
+  onClose, 
+  defaultEntity = "client",
+  editField
+}: { 
+  isOpen: boolean; 
+  onClose: () => void; 
+  defaultEntity?: "client" | "project" | "staff";
+  editField?: any;
+}) {
   const queryClient = useQueryClient();
   
-  const [entityType, setEntityType] = useState<"client" | "project">(defaultEntity);
+  const [entityType, setEntityType] = useState<"client" | "project" | "staff">(defaultEntity);
   const [fieldName, setFieldName] = useState("");
   const [fieldKey, setFieldKey] = useState("");
   const [fieldType, setFieldType] = useState<FieldType>("text");
@@ -25,25 +35,36 @@ export function AddCustomFieldModal({ isOpen, onClose, defaultEntity = "client" 
   const [options, setOptions] = useState<string[]>([]);
   const [newOption, setNewOption] = useState("");
 
+  const isEditMode = !!editField;
+
   // Sync default entity when modal opens
   useEffect(() => {
     if (isOpen) {
-      setEntityType(defaultEntity);
-      setFieldName("");
-      setFieldKey("");
-      setFieldType("text");
-      setIsRequired(false);
-      setOptions([]);
+      if (editField) {
+        setEntityType(editField.entityType);
+        setFieldName(editField.fieldName);
+        setFieldKey(editField.fieldKey);
+        setFieldType(editField.fieldType as FieldType);
+        setIsRequired(editField.isRequired);
+        setOptions(editField.options || []);
+      } else {
+        setEntityType(defaultEntity);
+        setFieldName("");
+        setFieldKey("");
+        setFieldType("text");
+        setIsRequired(false);
+        setOptions([]);
+      }
       setNewOption("");
     }
-  }, [isOpen, defaultEntity]);
+  }, [isOpen, defaultEntity, editField]);
 
-  // Auto-generate key from name
+  // Auto-generate key from name only in add mode
   useEffect(() => {
-    if (fieldName) {
+    if (fieldName && !isEditMode) {
       setFieldKey(fieldName.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, ""));
     }
-  }, [fieldName]);
+  }, [fieldName, isEditMode]);
 
   const addOption = () => {
     if (newOption.trim() && !options.includes(newOption.trim())) {
@@ -58,8 +79,13 @@ export function AddCustomFieldModal({ isOpen, onClose, defaultEntity = "client" 
 
   const mutation = useMutation({
     mutationFn: async (data: any) => {
-      const res = await fetch(`${apiUrl}/api/workspaces/custom-fields`, {
-        method: "POST",
+      const url = isEditMode 
+        ? `${apiUrl}/api/workspaces/custom-fields/${editField.id}` 
+        : `${apiUrl}/api/workspaces/custom-fields`;
+      const method = isEditMode ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify(data),
@@ -67,12 +93,12 @@ export function AddCustomFieldModal({ isOpen, onClose, defaultEntity = "client" 
 
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || "Failed to create field");
+        throw new Error(err.error || `Failed to ${isEditMode ? 'update' : 'create'} field`);
       }
       return res.json();
     },
     onSuccess: () => {
-      toast.success("Custom field created successfully");
+      toast.success(`Custom field ${isEditMode ? 'updated' : 'created'} successfully`);
       queryClient.invalidateQueries({ queryKey: ["custom-fields"] });
       onClose();
     },
@@ -104,9 +130,9 @@ export function AddCustomFieldModal({ isOpen, onClose, defaultEntity = "client" 
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Add Custom Field ({defaultEntity === "client" ? "Client" : "Project"})</DialogTitle>
+          <DialogTitle>{isEditMode ? "Edit" : "Add"} Custom Field ({defaultEntity === "client" ? "Client" : defaultEntity === "project" ? "Project" : "Staff"})</DialogTitle>
           <DialogDescription>
-            Create a new custom field to attach data to {defaultEntity}s.
+            {isEditMode ? "Update an existing custom field." : `Create a new custom field to attach data to ${defaultEntity}s.`}
           </DialogDescription>
         </DialogHeader>
 
@@ -130,15 +156,18 @@ export function AddCustomFieldModal({ isOpen, onClose, defaultEntity = "client" 
               onChange={(e) => setFieldKey(e.target.value)}
               className="font-mono text-sm"
               required
+              disabled={isEditMode}
             />
-            <p className="text-[0.8rem] text-muted-foreground">
-              Auto-generated. This is the JSON key used in the database.
-            </p>
+            {!isEditMode && (
+              <p className="text-[0.8rem] text-muted-foreground">
+                Auto-generated. This is the JSON key used in the database.
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">
             <Label>Field Type</Label>
-            <Select value={fieldType} onValueChange={(val: FieldType) => setFieldType(val)}>
+            <Select value={fieldType} onValueChange={(val: FieldType) => setFieldType(val)} disabled={isEditMode}>
               <SelectTrigger>
                 <SelectValue placeholder="Select type" />
               </SelectTrigger>
@@ -206,7 +235,7 @@ export function AddCustomFieldModal({ isOpen, onClose, defaultEntity = "client" 
               type="submit" 
               disabled={mutation.isPending || (isSelectType && options.length === 0)}
             >
-              {mutation.isPending ? "Creating..." : "Create Field"}
+              {mutation.isPending ? (isEditMode ? "Saving..." : "Creating...") : (isEditMode ? "Save Changes" : "Create Field")}
             </Button>
           </div>
         </form>

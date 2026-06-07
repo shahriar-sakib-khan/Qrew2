@@ -6,7 +6,7 @@ import { Settings, Zap, LogOut } from "lucide-react";
 import { signOut } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Can } from "@/components/ui/can";
+import { Can } from "@/components/features/auth/can";
 import {
   DropdownMenu,
   DropdownMenuContent,

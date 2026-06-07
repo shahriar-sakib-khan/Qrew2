@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { ThemeProvider } from "@/components/features/theme-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { Toaster } from "sonner";
+import { ImpersonationBanner } from "@/components/features/auth/impersonation-banner";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -28,6 +29,7 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
+            <ImpersonationBanner />
             {children}
             <Toaster position="bottom-right" richColors theme="system" />
           </ThemeProvider>

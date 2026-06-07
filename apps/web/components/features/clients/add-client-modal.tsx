@@ -1,8 +1,9 @@
 "use client";
 
-import { useForm, Controller } from "react-hook-form";
+import { useEffect } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useForm, Controller } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -16,12 +17,12 @@ import { DynamicCustomFieldsRenderer } from "@/components/features/custom-fields
 const baseSchema = z.object({
   name: z.string().min(1, "Client name is required"),
   status: z.enum(["active", "lead", "archived"]).default("lead"),
-  customFields: z.record(z.any()).default({}),
+  customFields: z.record(z.string(), z.any()).default({}),
 });
 
 type FormValues = z.infer<typeof baseSchema>;
 
-export function AddClientModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+export function AddClientModal({ isOpen, onClose, editClient }: { isOpen: boolean; onClose: () => void; editClient?: any }) {
   const queryClient = useQueryClient();
 
   const { data: customFieldDefs } = useQuery({
@@ -35,7 +36,7 @@ export function AddClientModal({ isOpen, onClose }: { isOpen: boolean; onClose: 
   });
 
   const { control, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
-    resolver: zodResolver(baseSchema),
+    resolver: zodResolver(baseSchema) as any,
     defaultValues: {
       name: "",
       status: "lead",
@@ -43,10 +44,33 @@ export function AddClientModal({ isOpen, onClose }: { isOpen: boolean; onClose: 
     },
   });
 
-  const createMutation = useMutation({
+  useEffect(() => {
+    if (isOpen) {
+      if (editClient) {
+        reset({
+          name: editClient.name,
+          status: editClient.status,
+          customFields: editClient.customFields || {},
+        });
+      } else {
+        reset({
+          name: "",
+          status: "lead",
+          customFields: {},
+        });
+      }
+    }
+  }, [isOpen, editClient, reset]);
+
+  const saveMutation = useMutation({
     mutationFn: async (values: FormValues) => {
-      const res = await fetch(`${apiUrl}/api/workspaces/clients`, {
-        method: "POST",
+      const url = editClient
+        ? `${apiUrl}/api/workspaces/clients/${editClient.id}`
+        : `${apiUrl}/api/workspaces/clients`;
+      const method = editClient ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify(values),
@@ -54,14 +78,13 @@ export function AddClientModal({ isOpen, onClose }: { isOpen: boolean; onClose: 
 
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || "Failed to create client");
+        throw new Error(data.error || `Failed to ${editClient ? "update" : "create"} client`);
       }
       return res.json();
     },
     onSuccess: () => {
-      toast.success("Client created successfully");
+      toast.success(`Client ${editClient ? "updated" : "created"} successfully`);
       queryClient.invalidateQueries({ queryKey: ["clients"] });
-      reset();
       onClose();
     },
     onError: (error) => {
@@ -70,21 +93,21 @@ export function AddClientModal({ isOpen, onClose }: { isOpen: boolean; onClose: 
   });
 
   function onSubmit(values: FormValues) {
-    createMutation.mutate(values);
+    saveMutation.mutate(values);
   }
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add New Client</DialogTitle>
+          <DialogTitle>{editClient ? "Edit Client" : "Add New Client"}</DialogTitle>
           <DialogDescription>
-            Enter the client details. Custom fields configured in settings will appear below.
+            {editClient ? "Update client details." : "Enter the client details."} Custom fields configured in settings will appear below.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-2">
-          
+
           <div className="space-y-2">
             <Label>Client Name *</Label>
             <Controller
@@ -103,7 +126,7 @@ export function AddClientModal({ isOpen, onClose }: { isOpen: boolean; onClose: 
               control={control}
               name="status"
               render={({ field }) => (
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select onValueChange={field.onChange} value={field.value}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
@@ -118,12 +141,11 @@ export function AddClientModal({ isOpen, onClose }: { isOpen: boolean; onClose: 
             {errors.status && <p className="text-[0.8rem] font-medium text-destructive">{errors.status.message}</p>}
           </div>
 
-          <div className="pt-4 mt-4 border-t border-dashed">
-            <h4 className="text-sm font-medium mb-4 text-muted-foreground">Additional Details</h4>
-            <DynamicCustomFieldsRenderer 
-              control={control} 
-              definitions={customFieldDefs || []} 
-              basePath="customFields" 
+          <div className="mt-4">
+            <DynamicCustomFieldsRenderer
+              control={control}
+              definitions={customFieldDefs || []}
+              basePath="customFields"
               errors={errors.customFields as any}
             />
           </div>
@@ -132,8 +154,8 @@ export function AddClientModal({ isOpen, onClose }: { isOpen: boolean; onClose: 
             <Button type="button" variant="ghost" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={createMutation.isPending}>
-              {createMutation.isPending ? "Saving..." : "Create Client"}
+            <Button type="submit" disabled={saveMutation.isPending}>
+              {saveMutation.isPending ? "Saving..." : (editClient ? "Save Changes" : "Create Client")}
             </Button>
           </div>
         </form>

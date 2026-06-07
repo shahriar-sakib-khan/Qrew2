@@ -1,17 +1,19 @@
 "use client";
 
+import { useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Trash2, Lock, Shield } from "lucide-react";
+import { Trash2, Lock, Shield, Edit } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiUrl } from "@/lib/constants";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AddCustomFieldModal } from "./add-custom-field-modal";
 
 type CustomFieldDefinition = {
   id: string;
-  entityType: "client" | "project";
+  entityType: "client" | "project" | "staff";
   fieldName: string;
   fieldKey: string;
   fieldType: string;
@@ -23,6 +25,7 @@ type CustomFieldDefinition = {
 
 export function CustomFieldsDataTable({ fields, isLoading }: { fields: CustomFieldDefinition[], isLoading: boolean }) {
   const queryClient = useQueryClient();
+  const [editingField, setEditingField] = useState<CustomFieldDefinition | null>(null);
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -110,24 +113,42 @@ export function CustomFieldsDataTable({ fields, isLoading }: { fields: CustomFie
               </TableCell>
               <TableCell className="text-right">
                 {!field.isSystem && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                    onClick={() => {
-                      if (confirm(`Are you sure you want to delete ${field.fieldName}?`)) {
-                        deleteMutation.mutate(field.id);
-                      }
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                      onClick={() => setEditingField(field)}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      onClick={() => {
+                        if (confirm(`Are you sure you want to delete ${field.fieldName}?`)) {
+                          deleteMutation.mutate(field.id);
+                        }
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 )}
               </TableCell>
             </TableRow>
           ))}
         </TableBody>
       </Table>
+      
+      {editingField && (
+        <AddCustomFieldModal 
+          isOpen={!!editingField} 
+          onClose={() => setEditingField(null)} 
+          editField={editingField} 
+        />
+      )}
     </div>
   );
 }

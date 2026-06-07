@@ -1,5 +1,5 @@
 import { Context } from 'hono';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, sql, desc } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
 import { auth } from '../../infra/lib/auth';
@@ -265,14 +265,40 @@ export class WorkspacesController {
       .leftJoin(orgMemberRoles, eq(orgMemberRoles.memberId, members.id))
       .leftJoin(orgRoles, eq(orgRoles.id, orgMemberRoles.roleId));
 
-      const staff = staffList.map(s => {
-        // If they are the creator/owner, their base role is 'owner'
+      const balances = await db
+        .select({
+          userId: schema.walletTransactions.memberId,
+          balance: sql<number>`SUM(CASE WHEN ${schema.walletTransactions.type} = 'credit' THEN ${schema.walletTransactions.amount} ELSE -${schema.walletTransactions.amount} END)`
+        })
+        .from(schema.walletTransactions)
+        .where(eq(schema.walletTransactions.organizationId, activeOrgId))
+        .groupBy(schema.walletTransactions.memberId);
+
+      const balanceMap = new Map(balances.map(b => [b.userId, Number(b.balance) || 0]));
+
+      const staffMap = new Map();
+      for (const s of staffList) {
+        if (!staffMap.has(s.memberId)) {
+          staffMap.set(s.memberId, s);
+        } else {
+          const existing = staffMap.get(s.memberId);
+          // Prefer specific roles over empty or generic ones
+          if (!existing.roleName && s.roleName) {
+            staffMap.set(s.memberId, s);
+          }
+        }
+      }
+
+      const uniqueStaffList = Array.from(staffMap.values());
+
+      const staff = uniqueStaffList.map(s => {
         if (s.memberBaseRole === 'owner') {
-          return { ...s, roleName: 'Owner', isSystem: true }; // Owners are always protected
+          return { ...s, roleName: 'Owner', isSystem: true, walletBalance: balanceMap.get(s.userId) || 0 };
         }
         return {
           ...s,
-          roleName: s.roleName || 'Member'
+          roleName: s.roleName || 'Member',
+          walletBalance: balanceMap.get(s.userId) || 0
         };
       });
 
@@ -334,6 +360,99 @@ export class WorkspacesController {
   }
 
   static async revokeStaff(c: Context) {
+    const orgId = c.get('organizationId');
+    const memberId = c.req.param('memberId');
+
+    if (!orgId || !memberId) {
+      return c.json({ error: 'Missing organizationId or memberId' }, 400);
+    }
+
+    const { members } = await import('@starter/db');
+
+    const [deleted] = await db.delete(members)
+      .where(and(eq(members.id, memberId), eq(members.organizationId, orgId)))
+      .returning();
+
+    if (!deleted) return c.json({ error: 'Member not found' }, 404);
+
+    return c.json({ success: true });
+  }
+
+  // --- Organization Settings ---
+  static async getSettings(c: Context) {
+    try {
+      const sessionData = await auth.api.getSession({ headers: c.req.raw.headers });
+      if (!sessionData?.session) return c.json({ error: 'Unauthorized' }, 401);
+      
+      const orgId = sessionData.session.activeOrganizationId;
+      if (!orgId) return c.json({ error: 'No active workspace selected' }, 400);
+
+      const { organizations } = await import('@starter/db');
+
+      const org = await db.query.organizations.findFirst({
+        where: eq(organizations.id, orgId)
+      });
+
+      if (!org) return c.json({ error: 'Organization not found' }, 404);
+
+      let metadata = {};
+      try {
+        if (org.metadata) {
+          metadata = JSON.parse(org.metadata);
+        }
+      } catch (e) {
+        // Ignore parse errors
+      }
+
+      return c.json({ metadata });
+    } catch (error) {
+      console.error('[WorkspacesController.getSettings] Failed:', error);
+      return c.json({ error: 'Internal Server Error' }, 500);
+    }
+  }
+
+  static async updateSettings(c: Context) {
+    try {
+      const sessionData = await auth.api.getSession({ headers: c.req.raw.headers });
+      if (!sessionData?.session) return c.json({ error: 'Unauthorized' }, 401);
+      
+      const orgId = sessionData.session.activeOrganizationId;
+      if (!orgId) return c.json({ error: 'No active workspace selected' }, 400);
+
+      const body = await c.req.json();
+      const metadata = body.metadata;
+
+      const { organizations } = await import('@starter/db');
+
+      const org = await db.query.organizations.findFirst({
+        where: eq(organizations.id, orgId)
+      });
+
+      if (!org) return c.json({ error: 'Organization not found' }, 404);
+
+      let currentMetadata = {};
+      try {
+        if (org.metadata) {
+          currentMetadata = JSON.parse(org.metadata);
+        }
+      } catch (e) {
+        // Ignore parse errors
+      }
+
+      const newMetadata = { ...currentMetadata, ...metadata };
+
+      await db.update(organizations)
+        .set({ metadata: JSON.stringify(newMetadata) })
+        .where(eq(organizations.id, orgId));
+
+      return c.json({ success: true, metadata: newMetadata });
+    } catch (error) {
+      console.error('[WorkspacesController.updateSettings] Failed:', error);
+      return c.json({ error: 'Internal Server Error' }, 500);
+    }
+  }
+
+  static async getDashboardStats(c: Context) {
     try {
       const sessionData = await auth.api.getSession({ headers: c.req.raw.headers });
       if (!sessionData?.session) return c.json({ error: 'Unauthorized' }, 401);
@@ -341,30 +460,45 @@ export class WorkspacesController {
       const activeOrgId = sessionData.session.activeOrganizationId;
       if (!activeOrgId) return c.json({ error: 'No active workspace selected' }, 400);
 
-      const memberId = c.req.param('memberId');
-      if (!memberId) {
-        return c.json({ error: 'Missing memberId' }, 400);
-      }
+      const [totalClientsRes] = await db.select({ count: sql<number>`count(*)` })
+        .from(schema.clients)
+        .where(eq(schema.clients.organizationId, activeOrgId));
 
-      const targetMember = await db.query.members.findFirst({
-        where: and(eq(members.id, memberId), eq(members.organizationId, activeOrgId))
-      });
+      const [totalProjectsRes] = await db.select({ count: sql<number>`count(*)` })
+        .from(schema.projects)
+        .where(and(eq(schema.projects.organizationId, activeOrgId), eq(schema.projects.status, 'active')));
 
-      if (!targetMember) {
-        return c.json({ error: 'Member not found.' }, 404);
-      }
+      const [totalExpensesRes] = await db.select({ sum: sql<number>`sum(${schema.expenses.amount})` })
+        .from(schema.expenses)
+        .where(eq(schema.expenses.organizationId, activeOrgId));
 
-      if (targetMember.role === 'owner') {
-        return c.json({ error: 'Cannot revoke the owner of the workspace.' }, 400);
-      }
+      const [pendingInvoicesRes] = await db.select({ count: sql<number>`count(*)` })
+        .from(schema.invoices)
+        .where(and(eq(schema.invoices.organizationId, activeOrgId), eq(schema.invoices.status, 'open')));
 
-      await db.delete(members).where(
-        and(eq(members.id, memberId), eq(members.organizationId, activeOrgId))
-      );
+      const recentFiles = await db.select()
+        .from(schema.projects)
+        .where(eq(schema.projects.organizationId, activeOrgId))
+        .orderBy(desc(schema.projects.createdAt))
+        .limit(5);
 
-      return c.json({ success: true }, 200);
+      const recentInvoices = await db.select()
+        .from(schema.invoices)
+        .where(eq(schema.invoices.organizationId, activeOrgId))
+        .orderBy(desc(schema.invoices.createdAt))
+        .limit(5);
+
+      return c.json({
+        totalClients: Number(totalClientsRes?.count) || 0,
+        activeFiles: Number(totalProjectsRes?.count) || 0,
+        totalExpenses: Number(totalExpensesRes?.sum) || 0,
+        pendingInvoices: Number(pendingInvoicesRes?.count) || 0,
+        recentFiles,
+        recentInvoices
+      }, 200);
+
     } catch (error) {
-      console.error('[WorkspacesController.revokeStaff] Failed:', error);
+      console.error('[WorkspacesController.getDashboardStats] Failed:', error);
       return c.json({ error: 'Internal Server Error' }, 500);
     }
   }

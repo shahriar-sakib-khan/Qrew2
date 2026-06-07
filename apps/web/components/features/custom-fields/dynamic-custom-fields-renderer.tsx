@@ -22,7 +22,7 @@ type CustomFieldDefinition = {
 };
 
 interface Props {
-  control: Control<any>;
+  control: any;
   definitions: CustomFieldDefinition[];
   basePath: string; // e.g. "customFields"
   errors?: Record<string, any>;
@@ -97,7 +97,6 @@ export function DynamicCustomFieldsRenderer({ control, definitions, basePath, er
                             mode="single"
                             selected={field.value ? new Date(field.value) : undefined}
                             onSelect={(date) => field.onChange(date ? date.toISOString() : undefined)}
-                            initialFocus
                           />
                         </PopoverContent>
                       </Popover>
