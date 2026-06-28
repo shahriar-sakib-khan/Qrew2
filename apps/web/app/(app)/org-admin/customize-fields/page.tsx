@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Save, Loader2 } from "lucide-react";
+import { Plus, Save, Loader2, Check, X, Edit2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { apiUrl } from "@/lib/constants";
 import { CustomFieldsDataTable } from "@/components/features/custom-fields/custom-fields-data-table";
@@ -10,6 +10,8 @@ import { AddExpenseCategoryModal } from "@/components/features/expense-categorie
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import {
   Table,
@@ -24,7 +26,7 @@ import { format } from "date-fns";
 const SYSTEM_FIELDS = [
   // Client System Fields
   { id: "sys-client-name", entityType: "client" as const, fieldName: "Name", fieldKey: "name", fieldType: "text", isRequired: true, options: null, isSeeded: true, isSystem: true },
-  { id: "sys-client-status", entityType: "client" as const, fieldName: "Status", fieldKey: "status", fieldType: "single_select", isRequired: true, options: ["active", "lead", "archived"], isSeeded: true, isSystem: true },
+  { id: "sys-client-email", entityType: "client" as const, fieldName: "Email", fieldKey: "email", fieldType: "text", isRequired: false, options: null, isSeeded: true, isSystem: true },
   // Project System Fields
   { id: "sys-project-name", entityType: "project" as const, fieldName: "Name", fieldKey: "name", fieldType: "text", isRequired: true, options: null, isSeeded: true, isSystem: true },
   { id: "sys-project-client", entityType: "project" as const, fieldName: "Client", fieldKey: "clientId", fieldType: "single_select", isRequired: true, options: null, isSeeded: true, isSystem: true },
@@ -34,6 +36,126 @@ const SYSTEM_FIELDS = [
   { id: "sys-staff-email", entityType: "staff" as const, fieldName: "Email", fieldKey: "email", fieldType: "text", isRequired: true, options: null, isSeeded: true, isSystem: true },
   { id: "sys-staff-role", entityType: "staff" as const, fieldName: "System Role", fieldKey: "role", fieldType: "single_select", isRequired: true, options: ["user", "admin", "super_admin"], isSeeded: true, isSystem: true },
 ];
+
+function ExpenseCategoryRow({ cat, isShown, onToggleShow }: { cat: any, isShown: boolean, onToggleShow: () => void }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [name, setName] = useState(cat.name);
+  const [description, setDescription] = useState(cat.description || "");
+  const queryClient = useQueryClient();
+
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${apiUrl}/api/expense-categories/${cat.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ name, description }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to update category");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast.success("Category updated successfully.");
+      setIsEditing(false);
+      queryClient.invalidateQueries({ queryKey: ["expense-categories"] });
+    },
+    onError: (err: any) => {
+      toast.error(err.message);
+    }
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${apiUrl}/api/expense-categories/${cat.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to delete category");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast.success("Category deleted successfully.");
+      queryClient.invalidateQueries({ queryKey: ["expense-categories"] });
+    },
+    onError: (err: any) => {
+      toast.error(err.message);
+    }
+  });
+
+  const handleDelete = () => {
+    if (confirm(`Are you sure you want to delete "${cat.name}"?`)) {
+      deleteMutation.mutate();
+    }
+  };
+
+  return (
+    <TableRow>
+      <TableCell className="font-medium">
+        {isEditing ? (
+          <Input 
+            value={name} 
+            onChange={(e) => setName(e.target.value)}
+            className="h-8 w-full text-sm"
+          />
+        ) : (
+          cat.name
+        )}
+      </TableCell>
+      <TableCell>
+        <Badge variant="secondary" className="font-mono text-xs text-muted-foreground">
+          CAT_{cat.tokenKey}
+        </Badge>
+      </TableCell>
+      <TableCell>
+        {isEditing ? (
+          <Input 
+            value={description} 
+            onChange={(e) => setDescription(e.target.value)}
+            className="h-8 w-full text-sm"
+          />
+        ) : (
+          cat.description || "-"
+        )}
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center">
+          <Checkbox 
+            checked={isShown} 
+            onCheckedChange={onToggleShow} 
+            aria-label="Toggle visibility"
+          />
+        </div>
+      </TableCell>
+      <TableCell className="text-right">
+        {isEditing ? (
+          <div className="flex items-center justify-end gap-1">
+            <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600" disabled={updateMutation.isPending} onClick={() => updateMutation.mutate()}>
+              {updateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+            </Button>
+            <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground" onClick={() => { setIsEditing(false); setName(cat.name); setDescription(cat.description || ""); }}>
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-end gap-1">
+            <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => setIsEditing(true)}>
+              <Edit2 className="h-4 w-4" />
+            </Button>
+            <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-red-600" disabled={deleteMutation.isPending} onClick={handleDelete}>
+              {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            </Button>
+          </div>
+        )}
+      </TableCell>
+    </TableRow>
+  );
+}
 
 export default function CustomizeFieldsPage() {
   const [isAddFieldModalOpen, setIsAddFieldModalOpen] = useState(false);
@@ -61,22 +183,17 @@ export default function CustomizeFieldsPage() {
     },
   });
 
-  const [clientFileColumns, setClientFileColumns] = useState<string[]>([]);
-  const [clientViewColumns, setClientViewColumns] = useState<string[]>([]);
+  const [clientColumns, setClientColumns] = useState<string[]>([]);
+  const [projectColumns, setProjectColumns] = useState<string[]>([]);
+  const [staffColumns, setStaffColumns] = useState<string[]>([]);
+  const [categoryColumns, setCategoryColumns] = useState<string[]>([]);
   
   useEffect(() => {
     if (orgSettings) {
-      if (orgSettings.clientFileViewColumns) {
-        setClientFileColumns(orgSettings.clientFileViewColumns);
-      } else {
-        setClientFileColumns(["sys-project-name", "sys-project-status", "arrival_date", "total_expenses"]);
-      }
-      
-      if (orgSettings.clientViewColumns) {
-        setClientViewColumns(orgSettings.clientViewColumns);
-      } else {
-        setClientViewColumns(["sys-client-name"]); // Default
-      }
+      setClientColumns(orgSettings.clientColumns || ["sys-client-name", "sys-client-email"]);
+      setProjectColumns(orgSettings.projectColumns || ["sys-project-name", "sys-project-status", "total_expenses"]);
+      setStaffColumns(orgSettings.staffColumns || ["sys-staff-name", "sys-staff-email", "sys-staff-role"]);
+      setCategoryColumns(orgSettings.categoryColumns || []); // Default to empty if none saved (or we can initialize with fetched categories later)
     }
   }, [orgSettings]);
 
@@ -109,6 +226,13 @@ export default function CustomizeFieldsPage() {
     },
   });
 
+  // Handle initialization of categoryColumns when categories are loaded for the first time
+  useEffect(() => {
+    if (expenseCategories && orgSettings && !orgSettings.categoryColumns) {
+       setCategoryColumns(expenseCategories.map((c: any) => c.id));
+    }
+  }, [expenseCategories, orgSettings]);
+
   const allFields = [...SYSTEM_FIELDS, ...(customFields || [])];
   const clientFields = allFields.filter(f => f.entityType === "client");
   const projectFields = allFields.filter(f => f.entityType === "project");
@@ -119,27 +243,34 @@ export default function CustomizeFieldsPage() {
     setIsAddFieldModalOpen(true);
   };
 
-  const handleToggleColumn = (fieldId: string) => {
-    setClientFileColumns((prev) => 
-      prev.includes(fieldId) 
-        ? prev.filter(id => id !== fieldId)
-        : [...prev, fieldId]
-    );
-  };
+  const handleToggleColumn = (type: "client" | "project" | "staff" | "category", fieldId: string) => {
+    let newSettings: any = {
+      clientColumns,
+      projectColumns,
+      staffColumns,
+      categoryColumns,
+    };
 
-  const handleToggleClientColumn = (fieldId: string) => {
-    setClientViewColumns((prev) => 
-      prev.includes(fieldId) 
-        ? prev.filter(id => id !== fieldId)
-        : [...prev, fieldId]
-    );
-  };
+    if (type === "client") {
+      const updated = clientColumns.includes(fieldId) ? clientColumns.filter(id => id !== fieldId) : [...clientColumns, fieldId];
+      setClientColumns(updated);
+      newSettings.clientColumns = updated;
+    } else if (type === "project") {
+      const updated = projectColumns.includes(fieldId) ? projectColumns.filter(id => id !== fieldId) : [...projectColumns, fieldId];
+      setProjectColumns(updated);
+      newSettings.projectColumns = updated;
+    } else if (type === "staff") {
+      const updated = staffColumns.includes(fieldId) ? staffColumns.filter(id => id !== fieldId) : [...staffColumns, fieldId];
+      setStaffColumns(updated);
+      newSettings.staffColumns = updated;
+    } else if (type === "category") {
+      const updated = categoryColumns.includes(fieldId) ? categoryColumns.filter(id => id !== fieldId) : [...categoryColumns, fieldId];
+      setCategoryColumns(updated);
+      newSettings.categoryColumns = updated;
+    }
 
-  const handleSaveColumns = () => {
-    updateSettingsMutation.mutate({ 
-      clientFileViewColumns: clientFileColumns,
-      clientViewColumns: clientViewColumns
-    });
+    // Auto-save when toggled
+    updateSettingsMutation.mutate(newSettings);
   };
 
   return (
@@ -163,7 +294,12 @@ export default function CustomizeFieldsPage() {
             Add Client Field
           </Button>
         </div>
-        <CustomFieldsDataTable fields={clientFields} isLoading={loadingFields} />
+        <CustomFieldsDataTable 
+          fields={clientFields} 
+          isLoading={loadingFields} 
+          shownColumns={clientColumns}
+          onToggleShow={(id) => handleToggleColumn("client", id)}
+        />
       </section>
 
       {/* PROJECT SCHEMA SECTION */}
@@ -178,7 +314,12 @@ export default function CustomizeFieldsPage() {
             Add Project Field
           </Button>
         </div>
-        <CustomFieldsDataTable fields={projectFields} isLoading={loadingFields} />
+        <CustomFieldsDataTable 
+          fields={projectFields} 
+          isLoading={loadingFields} 
+          shownColumns={projectColumns}
+          onToggleShow={(id) => handleToggleColumn("project", id)}
+        />
       </section>
 
       {/* STAFF SCHEMA SECTION */}
@@ -193,7 +334,12 @@ export default function CustomizeFieldsPage() {
             Add Staff Field
           </Button>
         </div>
-        <CustomFieldsDataTable fields={staffFields} isLoading={loadingFields} />
+        <CustomFieldsDataTable 
+          fields={staffFields} 
+          isLoading={loadingFields} 
+          shownColumns={staffColumns}
+          onToggleShow={(id) => handleToggleColumn("staff", id)}
+        />
       </section>
 
       {/* EXPENSE CATEGORIES SECTION */}
@@ -213,112 +359,37 @@ export default function CustomizeFieldsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Category Name</TableHead>
+                <TableHead>Token</TableHead>
                 <TableHead>Description</TableHead>
-                <TableHead>Created At</TableHead>
+                <TableHead>Shown</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loadingCategories ? (
                 <TableRow>
-                  <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">
+                  <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
                     Loading categories...
                   </TableCell>
                 </TableRow>
               ) : expenseCategories?.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">
+                  <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
                     No expense categories found.
                   </TableCell>
                 </TableRow>
               ) : (
                 expenseCategories?.map((cat: any) => (
-                  <TableRow key={cat.id}>
-                    <TableCell className="font-medium">{cat.name}</TableCell>
-                    <TableCell>{cat.description || "-"}</TableCell>
-                    <TableCell>{format(new Date(cat.createdAt), "MMM d, yyyy")}</TableCell>
-                  </TableRow>
+                  <ExpenseCategoryRow 
+                    key={cat.id} 
+                    cat={cat} 
+                    isShown={categoryColumns.includes(cat.id)}
+                    onToggleShow={() => handleToggleColumn("category", cat.id)}
+                  />
                 ))
               )}
             </TableBody>
           </Table>
-        </div>
-      </section>
-
-      {/* CLIENT DIRECTORY FILE SETTINGS */}
-      <section className="space-y-4 pt-4 border-t border-dashed">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-semibold">Client Directory File Columns</h2>
-            <p className="text-sm text-muted-foreground">Select which fields should be visible when viewing a client's files.</p>
-          </div>
-          <Button onClick={handleSaveColumns} disabled={updateSettingsMutation.isPending}>
-            {updateSettingsMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-            Save Preferences
-          </Button>
-        </div>
-        <div className="rounded-md border bg-card p-4">
-          {loadingSettings || loadingFields ? (
-            <p className="text-sm text-muted-foreground">Loading settings...</p>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {projectFields.map((field) => (
-                <div key={field.id} className="flex items-center space-x-2">
-                  <Checkbox 
-                    id={`col-${field.id}`} 
-                    checked={clientFileColumns.includes(field.id)}
-                    onCheckedChange={() => handleToggleColumn(field.id)}
-                  />
-                  <Label htmlFor={`col-${field.id}`} className="font-normal cursor-pointer">
-                    {field.fieldName} {field.isSystem && <span className="text-xs text-muted-foreground ml-1">(System)</span>}
-                  </Label>
-                </div>
-              ))}
-              <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="col-total_expenses" 
-                  checked={clientFileColumns.includes("total_expenses")}
-                  onCheckedChange={() => handleToggleColumn("total_expenses")}
-                />
-                <Label htmlFor="col-total_expenses" className="font-normal cursor-pointer">
-                  Total Expenses <span className="text-xs text-muted-foreground ml-1">(System)</span>
-                </Label>
-              </div>
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* CLIENT DIRECTORY COLUMNS SETTINGS */}
-      <section className="space-y-4 pt-4 border-t border-dashed">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-semibold">Client Directory Columns</h2>
-            <p className="text-sm text-muted-foreground">Select which fields should be visible when viewing the client directory table.</p>
-          </div>
-          <Button onClick={handleSaveColumns} disabled={updateSettingsMutation.isPending}>
-            {updateSettingsMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-            Save Preferences
-          </Button>
-        </div>
-        <div className="rounded-md border bg-card p-4">
-          {loadingSettings || loadingFields ? (
-            <p className="text-sm text-muted-foreground">Loading settings...</p>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {clientFields.map((field) => (
-                <div key={field.id} className="flex items-center space-x-2">
-                  <Checkbox 
-                    id={`client-col-${field.id}`} 
-                    checked={clientViewColumns.includes(field.id)}
-                    onCheckedChange={() => handleToggleClientColumn(field.id)}
-                  />
-                  <Label htmlFor={`client-col-${field.id}`} className="font-normal cursor-pointer">
-                    {field.fieldName} {field.isSystem && <span className="text-xs text-muted-foreground ml-1">(System)</span>}
-                  </Label>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       </section>
 

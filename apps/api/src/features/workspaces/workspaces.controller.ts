@@ -474,7 +474,7 @@ export class WorkspacesController {
 
       const [pendingInvoicesRes] = await db.select({ count: sql<number>`count(*)` })
         .from(schema.invoices)
-        .where(and(eq(schema.invoices.organizationId, activeOrgId), eq(schema.invoices.status, 'open')));
+        .where(and(eq(schema.invoices.organizationId, activeOrgId), eq(schema.invoices.status, 'draft')));
 
       const recentFiles = await db.select()
         .from(schema.projects)

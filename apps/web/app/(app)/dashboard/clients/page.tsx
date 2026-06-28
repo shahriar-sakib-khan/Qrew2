@@ -122,7 +122,7 @@ export default function ClientsPage() {
         <TableHeader>
           <TableRow>
             {showCol('sys-client-name') && <TableHead className="w-[200px]">Name</TableHead>}
-            {showCol('sys-client-status') && <TableHead>Status</TableHead>}
+            {showCol('sys-client-email') && <TableHead>Email</TableHead>}
             {customFields?.map((field: any) => (
               <TableHead key={field.id}>{field.fieldName}</TableHead>
             ))}
@@ -133,7 +133,7 @@ export default function ClientsPage() {
           {clientsLoading || customFieldsLoading ? (
             <TableRow>
               <TableCell 
-                colSpan={1 + (showCol('sys-client-name') ? 1 : 0) + (showCol('sys-client-status') ? 1 : 0) + (customFields?.length || 0)} 
+                colSpan={1 + (showCol('sys-client-name') ? 1 : 0) + (showCol('sys-client-email') ? 1 : 0) + (customFields?.length || 0)} 
                 className="h-24 text-center text-muted-foreground"
               >
                 Loading clients...
@@ -142,7 +142,7 @@ export default function ClientsPage() {
           ) : clients?.length === 0 ? (
             <TableRow>
               <TableCell 
-                colSpan={1 + (showCol('sys-client-name') ? 1 : 0) + (showCol('sys-client-status') ? 1 : 0) + (customFields?.length || 0)} 
+                colSpan={1 + (showCol('sys-client-name') ? 1 : 0) + (showCol('sys-client-email') ? 1 : 0) + (customFields?.length || 0)} 
                 className="h-24 text-center text-muted-foreground"
               >
                 No {isArchivedView ? "archived" : "active"} clients found.
@@ -160,11 +160,9 @@ export default function ClientsPage() {
                     {client.name}
                   </TableCell>
                 )}
-                {showCol('sys-client-status') && (
+                {showCol('sys-client-email') && (
                   <TableCell>
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-secondary text-secondary-foreground capitalize">
-                      {client.status}
-                    </span>
+                    {client.email || "-"}
                   </TableCell>
                 )}
                 {customFields?.map((field: any) => (

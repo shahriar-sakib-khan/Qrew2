@@ -134,6 +134,45 @@ export const auth = betterAuth({
       },
     },
   },
+  databaseHooks: {
+    user: {
+      create: {
+        after: async (user) => {
+          try {
+            // Auto-create organization for new user
+            const orgId = crypto.randomUUID();
+            const orgName = `${user.name}'s Organization`;
+            
+            await db.insert(schema.organizations).values({
+              id: orgId,
+              name: orgName,
+              slug: orgName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
+              createdAt: new Date(),
+            });
+
+            await db.insert(schema.members).values({
+              id: crypto.randomUUID(),
+              organizationId: orgId,
+              userId: user.id,
+              role: 'owner',
+              createdAt: new Date(),
+            });
+
+            // Seed default expense categories
+            await db.insert(schema.expenseCategories).values([
+              { id: crypto.randomUUID(), organizationId: orgId, name: 'Transportation', tokenKey: 'TRANSPORTATION' },
+              { id: crypto.randomUUID(), organizationId: orgId, name: 'Office', tokenKey: 'OFFICE' },
+              { id: crypto.randomUUID(), organizationId: orgId, name: 'Others', tokenKey: 'OTHERS' },
+            ]);
+            
+            logger.info({ userId: user.id, orgId }, 'Auto-created organization and seeded categories for new user');
+          } catch (error) {
+            logger.error({ err: error, userId: user.id }, 'Failed to auto-create organization for new user');
+          }
+        }
+      }
+    }
+  },
   plugins: [
     admin({
       defaultRole: 'user',

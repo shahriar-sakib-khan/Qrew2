@@ -29,6 +29,7 @@ export const NAV_CONFIG = {
     { name: "Staff Management", href: "/org-admin/staff", icon: Users },
     { name: "Roles & Permissions", href: "/org-admin/roles", icon: Shield },
     { name: "Customize Fields", href: "/org-admin/customize-fields", icon: Settings },
+    { name: "Invoice Templates", href: "/org-admin/invoice-templates", icon: FileText },
   ],
   tenantAdminExit: {
     name: "Back to Dashboard",

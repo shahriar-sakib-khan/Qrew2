@@ -13,11 +13,13 @@ import { systemRouter } from './features/system/system.route'
 import { uploadsRouter } from './features/uploads/uploads.route'
 import { usersRouter } from './features/users/users.route'
 import { workspacesRouter } from './features/workspaces/workspaces.route'
+import { orgConfigsRouter } from './features/org-configs/org-configs.route'
 import { expenseCategoriesRouter } from './features/expense-categories/expense-categories.route'
 import { requisitionsRouter } from './features/requisitions/requisitions.route'
 import { expensesRouter } from './features/expenses/expenses.route'
 import { walletRouter } from './features/wallet/wallet.route'
 import { invoicesRouter } from './features/invoices/invoices.route'
+import { invoiceTemplatesRouter } from './features/invoice-templates/invoice-templates.route'
 import { adminRouter } from './features/admin/admin.route'
 import { superAdminRouter } from './features/super-admin/super-admin.route'
 
@@ -48,7 +50,7 @@ app.use(
   cors({
     origin: process.env.NEXT_PUBLIC_APP_URL,
     allowHeaders: ['Content-Type', 'Authorization'],
-    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     credentials: true,
   })
 )
@@ -61,11 +63,13 @@ app.route('/api/auth', authRouter)
 app.route('/api/uploads', uploadsRouter)
 app.route('/api/users', usersRouter)
 app.route('/api/workspaces', workspacesRouter)
+app.route('/api/org-configs', orgConfigsRouter)
 app.route('/api/expense-categories', expenseCategoriesRouter)
 app.route('/api/requisitions', requisitionsRouter)
 app.route('/api/expenses', expensesRouter)
 app.route('/api/wallet', walletRouter)
 app.route('/api/invoices', invoicesRouter)
+app.route('/api/invoice-templates', invoiceTemplatesRouter)
 app.route('/api/admin', adminRouter)
 app.route('/api/super-admin', superAdminRouter)
 

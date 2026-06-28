@@ -12,6 +12,8 @@ export const requireOrgPermission = (requiredPermission: string) => {
       return c.json({ error: 'Unauthorized' }, 401);
     }
 
+    c.set('user', sessionData.user);
+
     // 2. Global Admin Bypass (Super Admins ignore tenant boundaries)
     if (sessionData.user.role === 'super_admin') {
       return await next();

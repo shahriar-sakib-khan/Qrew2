@@ -8,8 +8,8 @@ import { auth } from '../../infra/lib/auth';
 const createDefinitionSchema = z.object({
   entityType: z.enum(['client', 'project', 'staff']),
   fieldName: z.string().min(1),
-  fieldKey: z.string().min(1).regex(/^[a-z0-9_]+$/, 'Field key must be lowercase alphanumeric and underscores only'),
-  fieldType: z.enum(['text', 'number', 'date', 'boolean', 'single_select', 'multi_select']),
+  fieldKey: z.string().min(1).transform(val => val.toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_|_$/g, "")),
+  fieldType: z.enum(['text', 'number', 'date', 'boolean', 'single_select', 'multi_select', 'others']),
   isRequired: z.boolean().default(false),
   options: z.array(z.string()).nullable().optional(),
 });

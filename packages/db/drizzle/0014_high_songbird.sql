@@ -1,0 +1,1 @@
+ALTER TABLE "organization_configs" ADD CONSTRAINT "org_config_label_unique" UNIQUE("organization_id","display_label");

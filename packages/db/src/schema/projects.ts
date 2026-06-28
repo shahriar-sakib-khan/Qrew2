@@ -1,6 +1,7 @@
-import { pgTable, text, timestamp, pgEnum, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, pgEnum, jsonb, integer } from "drizzle-orm/pg-core";
 import { organizations } from "./auth";
 import { clients } from "./clients";
+import { relations } from "drizzle-orm";
 
 export const projectStatusEnum = pgEnum("project_status", ["pending", "active", "completed", "canceled", "archived"]);
 
@@ -14,6 +15,7 @@ export const projects = pgTable("projects", {
     .references(() => clients.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   status: projectStatusEnum("status").notNull().default("pending"),
+  fileSequenceNumber: integer("file_sequence_number"),
   createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { mode: "date" })
     .defaultNow()
@@ -23,14 +25,16 @@ export const projects = pgTable("projects", {
   archivedAt: timestamp("archived_at", { mode: "date" }),
 });
 
-export type Project = typeof projects.$inferSelect;
-export type NewProject = typeof projects.$inferInsert;
-
-import { relations } from "drizzle-orm";
-
 export const projectsRelations = relations(projects, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [projects.organizationId],
+    references: [organizations.id],
+  }),
   client: one(clients, {
     fields: [projects.clientId],
     references: [clients.id],
   }),
 }));
+
+export type Project = typeof projects.$inferSelect;
+export type NewProject = typeof projects.$inferInsert;

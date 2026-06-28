@@ -16,7 +16,7 @@ import { DynamicCustomFieldsRenderer } from "@/components/features/custom-fields
 
 const baseSchema = z.object({
   name: z.string().min(1, "Client name is required"),
-  status: z.enum(["active", "lead", "archived"]).default("lead"),
+  email: z.string().email("Invalid email").optional().nullable().or(z.literal("")),
   customFields: z.record(z.string(), z.any()).default({}),
 });
 
@@ -39,7 +39,7 @@ export function AddClientModal({ isOpen, onClose, editClient }: { isOpen: boolea
     resolver: zodResolver(baseSchema) as any,
     defaultValues: {
       name: "",
-      status: "lead",
+      email: "",
       customFields: {},
     },
   });
@@ -49,13 +49,13 @@ export function AddClientModal({ isOpen, onClose, editClient }: { isOpen: boolea
       if (editClient) {
         reset({
           name: editClient.name,
-          status: editClient.status,
+          email: editClient.email || "",
           customFields: editClient.customFields || {},
         });
       } else {
         reset({
           name: "",
-          status: "lead",
+          email: "",
           customFields: {},
         });
       }
@@ -121,24 +121,15 @@ export function AddClientModal({ isOpen, onClose, editClient }: { isOpen: boolea
           </div>
 
           <div className="space-y-2">
-            <Label>Status</Label>
+            <Label>Client Email</Label>
             <Controller
               control={control}
-              name="status"
+              name="email"
               render={({ field }) => (
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="lead">Lead</SelectItem>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="archived">Archived</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Input placeholder="client@example.com" type="email" {...field} value={field.value || ""} />
               )}
             />
-            {errors.status && <p className="text-[0.8rem] font-medium text-destructive">{errors.status.message}</p>}
+            {errors.email && <p className="text-[0.8rem] font-medium text-destructive">{errors.email.message}</p>}
           </div>
 
           <div className="mt-4">

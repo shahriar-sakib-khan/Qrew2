@@ -9,7 +9,7 @@ export const clients = pgTable("clients", {
     .notNull()
     .references(() => organizations.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
-  status: clientStatusEnum("status").notNull().default("lead"),
+  email: text("email"),
   createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { mode: "date" })
     .defaultNow()

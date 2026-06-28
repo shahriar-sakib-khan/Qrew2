@@ -23,7 +23,17 @@ type CustomFieldDefinition = {
   isSystem?: boolean;
 };
 
-export function CustomFieldsDataTable({ fields, isLoading }: { fields: CustomFieldDefinition[], isLoading: boolean }) {
+export function CustomFieldsDataTable({ 
+  fields, 
+  isLoading,
+  shownColumns,
+  onToggleShow
+}: { 
+  fields: CustomFieldDefinition[], 
+  isLoading: boolean,
+  shownColumns?: string[],
+  onToggleShow?: (id: string) => void
+}) {
   const queryClient = useQueryClient();
   const [editingField, setEditingField] = useState<CustomFieldDefinition | null>(null);
 
@@ -72,9 +82,11 @@ export function CustomFieldsDataTable({ fields, isLoading }: { fields: CustomFie
         <TableHeader>
           <TableRow>
             <TableHead>Field Name</TableHead>
+            <TableHead>Token</TableHead>
             <TableHead>Entity</TableHead>
             <TableHead>Type</TableHead>
             <TableHead>Required</TableHead>
+            <TableHead>Shown</TableHead>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
@@ -89,10 +101,10 @@ export function CustomFieldsDataTable({ fields, isLoading }: { fields: CustomFie
                     <Lock className="h-3 w-3 text-muted-foreground" />
                   ) : null}
                   {field.fieldName}
-                  {field.isSystem && (
-                    <Badge variant="outline" className="ml-2 text-[10px] h-5 bg-muted">System</Badge>
-                  )}
                 </div>
+              </TableCell>
+              <TableCell>
+                <span className="font-mono text-[11px] text-muted-foreground uppercase">{field.fieldKey}</span>
               </TableCell>
               <TableCell>
                 <Badge variant="outline" className="capitalize">
@@ -106,36 +118,51 @@ export function CustomFieldsDataTable({ fields, isLoading }: { fields: CustomFie
               </TableCell>
               <TableCell>
                 {field.isRequired ? (
-                  <Badge variant="default" className="bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 border-none">Yes</Badge>
+                  <Badge className="bg-red-500/10 text-red-600 hover:bg-red-500/20 border-red-200">Required</Badge>
                 ) : (
-                  <span className="text-muted-foreground text-sm">No</span>
+                  <Badge variant="outline" className="text-muted-foreground">Optional</Badge>
+                )}
+              </TableCell>
+              <TableCell>
+                {shownColumns && onToggleShow && (
+                  <div className="flex items-center">
+                    <input 
+                      type="checkbox"
+                      className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+                      checked={shownColumns.includes(field.id)}
+                      onChange={() => onToggleShow(field.id)}
+                    />
+                  </div>
                 )}
               </TableCell>
               <TableCell className="text-right">
-                {!field.isSystem && (
-                  <div className="flex items-center justify-end gap-2">
-                    <Button
-                      variant="ghost"
+                <div className="flex items-center justify-end gap-1">
+                  {!field.isSystem && (
+                    <Button 
+                      variant="ghost" 
                       size="icon"
                       className="h-8 w-8 text-muted-foreground hover:text-foreground"
                       onClick={() => setEditingField(field)}
                     >
                       <Edit className="h-4 w-4" />
                     </Button>
-                    <Button
-                      variant="ghost"
+                  )}
+                  {!field.isSystem && !field.isSeeded && (
+                    <Button 
+                      variant="ghost" 
                       size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      className="h-8 w-8 text-muted-foreground hover:text-red-600"
                       onClick={() => {
-                        if (confirm(`Are you sure you want to delete ${field.fieldName}?`)) {
+                        if (confirm(`Are you sure you want to delete the field "${field.fieldName}"?`)) {
                           deleteMutation.mutate(field.id);
                         }
                       }}
+                      disabled={deleteMutation.isPending}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
-                  </div>
-                )}
+                  )}
+                </div>
               </TableCell>
             </TableRow>
           ))}
@@ -145,8 +172,9 @@ export function CustomFieldsDataTable({ fields, isLoading }: { fields: CustomFie
       {editingField && (
         <AddCustomFieldModal 
           isOpen={!!editingField} 
-          onClose={() => setEditingField(null)} 
-          editField={editingField} 
+          onClose={() => setEditingField(null)}
+          defaultEntity={editingField.entityType}
+          editingField={editingField}
         />
       )}
     </div>

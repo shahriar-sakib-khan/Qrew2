@@ -2,7 +2,7 @@ import { pgTable, text, timestamp, boolean, pgEnum, jsonb, unique } from "drizzl
 import { organizations } from "./auth";
 
 export const entityTypeEnum = pgEnum("entity_type", ["client", "project", "staff"]);
-export const customFieldTypeEnum = pgEnum("custom_field_type", ["text", "number", "date", "boolean", "single_select", "multi_select"]);
+export const customFieldTypeEnum = pgEnum("custom_field_type", ["text", "number", "date", "boolean", "single_select", "multi_select", "others"]);
 
 export const customFieldDefinitions = pgTable("custom_field_definitions", {
   id: text("id").primaryKey(),

@@ -62,6 +62,15 @@ export function createDynamicZodSchema(definitions: CustomFieldDefinition[]) {
         }
         break;
 
+      case 'others':
+        fieldSchema = z.string();
+        if (!def.isRequired) {
+          fieldSchema = fieldSchema.optional().or(z.literal(''));
+        } else {
+          fieldSchema = (fieldSchema as z.ZodString).min(1, `${def.fieldName} is required`);
+        }
+        break;
+
       default:
         fieldSchema = z.any();
     }

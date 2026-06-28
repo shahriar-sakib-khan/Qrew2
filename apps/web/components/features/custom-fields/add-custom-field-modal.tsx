@@ -62,7 +62,7 @@ export function AddCustomFieldModal({
   // Auto-generate key from name only in add mode
   useEffect(() => {
     if (fieldName && !isEditMode) {
-      setFieldKey(fieldName.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, ""));
+      setFieldKey(fieldName.toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_|_$/g, ""));
     }
   }, [fieldName, isEditMode]);
 
@@ -149,35 +149,37 @@ export function AddCustomFieldModal({
           </div>
 
           <div className="space-y-2">
-            <Label>Database Key</Label>
+            <Label>Token</Label>
             <Input 
-              placeholder="e.g. tax_id" 
-              value={fieldKey}
-              onChange={(e) => setFieldKey(e.target.value)}
+              placeholder="e.g. TAX_ID" 
+              value={fieldKey.toUpperCase()}
               className="font-mono text-sm"
               required
-              disabled={isEditMode}
+              disabled={true}
             />
             {!isEditMode && (
               <p className="text-[0.8rem] text-muted-foreground">
-                Auto-generated. This is the JSON key used in the database.
+                Auto-generated from the field name. This is the token key used in formulas.
               </p>
             )}
           </div>
 
           <div className="space-y-2">
             <Label>Field Type</Label>
-            <Select value={fieldType} onValueChange={(val: FieldType) => setFieldType(val)} disabled={isEditMode}>
+            <Select value={fieldType} onValueChange={(val: any) => setFieldType(val)} disabled={isEditMode}>
               <SelectTrigger>
                 <SelectValue placeholder="Select type" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="text">Text (Short input)</SelectItem>
+                <SelectItem value="text">Text</SelectItem>
                 <SelectItem value="number">Number</SelectItem>
-                <SelectItem value="date">Date</SelectItem>
-                <SelectItem value="boolean">Boolean (Checkbox)</SelectItem>
-                <SelectItem value="single_select">Single Select (Dropdown)</SelectItem>
-                <SelectItem value="multi_select">Multi Select (Tags)</SelectItem>
+                <SelectItem value="others">Others</SelectItem>
+                {/* Legacy/system types (only visible when in edit mode and active) */}
+                {isEditMode && !["text", "number", "others"].includes(fieldType) && (
+                  <SelectItem value={fieldType} className="capitalize">
+                    {fieldType.replace("_", " ")}
+                  </SelectItem>
+                )}
               </SelectContent>
             </Select>
           </div>

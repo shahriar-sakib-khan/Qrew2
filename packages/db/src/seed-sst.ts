@@ -330,7 +330,7 @@ async function seedSST() {
     'OOCL Logistics Group'
   ];
 
-  const statuses = ['active', 'active', 'active', 'active', 'active', 'lead', 'lead', 'archived'] as const;
+
   const cities = ['Singapore', 'Copenhagen', 'Sydney', 'Mongla', 'Dubai', 'Chittagong', 'Tokyo', 'Rotterdam', 'Shanghai', 'Hamburg'];
   
   const createdClients: any[] = [];
@@ -344,7 +344,6 @@ async function seedSST() {
 
   for (let i = 0; i < clientNames.length; i++) {
     const clientId = uuidv4();
-    const status = statuses[i % statuses.length];
     const city = cities[i % cities.length];
     const phone = `+${Math.floor(100 + Math.random() * 900)} ${Math.floor(1000 + Math.random() * 9000)} ${Math.floor(1000 + Math.random() * 9000)}`;
     const customFields = {
@@ -352,11 +351,13 @@ async function seedSST() {
       contact_number: phone
     };
 
+    const email = `${clientNames[i].toLowerCase().replace(/[^a-z0-9]/g, '')}@example.com`;
+
     await db.insert(clients).values({
       id: clientId,
       organizationId: orgDb.id,
       name: clientNames[i],
-      status: status,
+      email: email,
       customFields: customFields,
       createdAt: getRandomDateInPastDays(90)
     });
@@ -652,7 +653,7 @@ async function seedSST() {
   // Create invoices for the first 15 projects that have expenses
   const projectIdsWithExpenses = Object.keys(expensesByProject);
   const invoiceCount = Math.min(16, projectIdsWithExpenses.length);
-  const invoiceStatuses = ['draft', 'open', 'open', 'paid', 'paid', 'paid', 'void', 'uncollectible'] as const;
+  const invoiceStatuses = ['draft', 'issued', 'issued', 'paid', 'paid', 'paid', 'void', 'disputed'] as const;
 
   for (let i = 0; i < invoiceCount; i++) {
     const projectId = projectIdsWithExpenses[i];
@@ -679,33 +680,40 @@ async function seedSST() {
     const issueDate = getRandomDateInPastDays(60);
     const dueDate = new Date(issueDate.getTime() + 86400000 * 30); // 30 days later
 
+    const clientObj = createdClients.find(c => c.id === projectObj.clientId);
+    const issuedToClientName = clientObj?.name ?? "Demo Client";
+
     await db.insert(invoices).values({
       id: invoiceId,
       organizationId: orgDb.id,
       clientId: projectObj.clientId,
       projectId: projectId,
-      invoiceNumber: invNumber,
+      documentType: "general",
+      documentNumber: invNumber,
       status: status,
-      issueDate: issueDate,
-      dueDate: dueDate,
-      subtotal: subtotalStr,
-      taxAmount: taxStr,
-      totalAmount: totalStr,
+      generatedByUserId: createdUsers['kabir@sst.com'].id,
+      issuedToClientName: issuedToClientName,
+      currency: "USD",
+      totalBaseAmount: subtotalStr,
+      totalChargesAmount: taxStr,
+      grandTotalAmount: totalStr,
       notes: `Invoice for maritime and agency services provided for vessel ${projectObj.name.split(' ')[0]}. Pls pay within 30 days.`,
       createdAt: issueDate,
       updatedAt: issueDate
     });
 
     // Create line items for each expense of this project
-    for (const exp of projectExpenses) {
+    for (let j = 0; j < projectExpenses.length; j++) {
+      const exp = projectExpenses[j];
       await db.insert(invoiceLineItems).values({
         id: uuidv4(),
         invoiceId: invoiceId,
-        expenseId: exp.id,
-        description: exp.description,
-        quantity: '1.00',
-        unitPrice: exp.amount,
-        amount: exp.amount,
+        rowToken: `EXPENSE_${j + 1}`,
+        lineType: "row",
+        label: exp.description,
+        baseValue: exp.amount,
+        totalValue: exp.amount,
+        displayOrder: j + 1,
         createdAt: exp.createdAt
       });
     }

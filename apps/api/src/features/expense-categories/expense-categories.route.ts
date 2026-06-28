@@ -18,6 +18,12 @@ router.get(
   expenseCategoriesController.listCategories
 );
 
+router.patch(
+  "/:id",
+  requireOrgPermission("finance:manage_categories"),
+  expenseCategoriesController.updateCategory
+);
+
 router.delete(
   "/:id",
   requireOrgPermission("finance:manage_categories"),

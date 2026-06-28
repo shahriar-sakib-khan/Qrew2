@@ -18,7 +18,7 @@ import { DynamicCustomFieldsRenderer } from "@/components/features/custom-fields
 const baseSchema = z.object({
   name: z.string().min(1, "Project name is required"),
   clientId: z.string().min(1, "Client is required"),
-  status: z.enum(["planning", "active", "completed", "on_hold"]).default("planning"),
+  status: z.enum(["pending", "active", "completed", "canceled", "archived"]).default("pending"),
   customFields: z.record(z.string(), z.any()).default({}),
 });
 
@@ -54,7 +54,7 @@ export function AddProjectModal({ isOpen, onClose, editProject }: { isOpen: bool
     defaultValues: {
       name: "",
       clientId: "",
-      status: "planning",
+      status: "pending",
       customFields: {},
     },
   });
@@ -72,7 +72,7 @@ export function AddProjectModal({ isOpen, onClose, editProject }: { isOpen: bool
         reset({
           name: "",
           clientId: "",
-          status: "planning",
+          status: "pending",
           customFields: {},
         });
       }
@@ -169,10 +169,11 @@ export function AddProjectModal({ isOpen, onClose, editProject }: { isOpen: bool
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="planning">Planning</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
                     <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="on_hold">On Hold</SelectItem>
                     <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="canceled">Canceled</SelectItem>
+                    <SelectItem value="archived">Archived</SelectItem>
                   </SelectContent>
                 </Select>
               )}
