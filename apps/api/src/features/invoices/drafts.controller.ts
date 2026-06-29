@@ -31,7 +31,7 @@ export class DraftsController {
   static async getDraftById(c: Context) {
     try {
       const organizationId = c.get("organizationId");
-      const id = c.req.param("id");
+      const id = c.req.param("id") as string;
 
       const draft = await db.query.invoiceDrafts.findFirst({
         where: and(

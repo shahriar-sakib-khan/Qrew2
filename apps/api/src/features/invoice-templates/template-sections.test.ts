@@ -186,7 +186,7 @@ describe("TemplateSectionsController", () => {
       const ctx = makeCtx({ params: { templateId: TEMPLATE_ID } });
       const res = await TemplateSectionsController.listSections(ctx);
       expect(res.status).toBe(200);
-      expect(res.data).toEqual(sections);
+      expect((res as any).data).toEqual(sections);
     });
 
     it("returns empty array when template has no sections", async () => {
@@ -195,7 +195,7 @@ describe("TemplateSectionsController", () => {
       const ctx = makeCtx({ params: { templateId: TEMPLATE_ID } });
       const res = await TemplateSectionsController.listSections(ctx);
       expect(res.status).toBe(200);
-      expect(res.data).toEqual([]);
+      expect((res as any).data).toEqual([]);
     });
   });
 
@@ -256,7 +256,7 @@ describe("TemplateSectionsController", () => {
       });
       const res = await TemplateSectionsController.createSection(ctx);
       expect(res.status).toBe(201);
-      expect(res.data.sectionToken).toBe("SECTION_PORT_COSTS");
+      expect((res as any).data.sectionToken).toBe("SECTION_PORT_COSTS");
     });
 
     it("returns 400 for invalid sectionToken (not UPPER_SNAKE_CASE)", async () => {
@@ -303,7 +303,7 @@ describe("TemplateSectionsController", () => {
       });
       const res = await TemplateSectionsController.createSection(ctx);
       expect(res.status).toBe(201);
-      expect(res.data.description).toBe("Covers all mandatory port dues");
+      expect((res as any).data.description).toBe("Covers all mandatory port dues");
     });
   });
 
@@ -338,8 +338,8 @@ describe("TemplateSectionsController", () => {
       });
       const res = await TemplateSectionsController.updateSection(ctx);
       expect(res.status).toBe(200);
-      expect(res.data.displayName).toBe("New Port Costs");
-      expect(res.data.description).toBe("Updated desc");
+      expect((res as any).data.displayName).toBe("New Port Costs");
+      expect((res as any).data.description).toBe("Updated desc");
     });
 
     it("accepts null displayName to clear the name", async () => {
@@ -368,7 +368,7 @@ describe("TemplateSectionsController", () => {
       });
       const res = await TemplateSectionsController.updateSection(ctx);
       expect(res.status).toBe(200);
-      expect(res.data.sortOrder).toBe(3);
+      expect((res as any).data.sortOrder).toBe(3);
     });
 
     it("returns 400 for invalid body (orderIndex negative)", async () => {
@@ -407,7 +407,7 @@ describe("TemplateSectionsController", () => {
       const ctx = makeCtx({ params: { sectionId: SECTION_ID } });
       const res = await TemplateSectionsController.deleteSection(ctx);
       expect(res.status).toBe(200);
-      expect(res.data.success).toBe(true);
+      expect((res as any).data.success).toBe(true);
     });
   });
 
@@ -430,7 +430,7 @@ describe("TemplateSectionsController", () => {
       });
       const res = await TemplateSectionsController.createSection(ctx);
       expect(res.status).toBe(201);
-      expect(res.data.sectionToken).toBe("SECTION_A");
+      expect((res as any).data.sectionToken).toBe("SECTION_A");
     });
 
     it("empty string sectionToken in body is treated as null (auto-assigned)", async () => {
