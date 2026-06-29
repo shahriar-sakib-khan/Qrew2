@@ -174,7 +174,7 @@ export function CustomFieldsDataTable({
           isOpen={!!editingField} 
           onClose={() => setEditingField(null)}
           defaultEntity={editingField.entityType}
-          editingField={editingField}
+          editField={editingField}
         />
       )}
     </div>

@@ -31,7 +31,7 @@ export default function SignUpPage() {
   const [loadingType, setLoadingType] = useState<"credentials" | "google" | null>(null);
 
   const form = useForm<SignUpValues>({
-    resolver: zodResolver(signUpSchema),
+    resolver: zodResolver(signUpSchema as any),
     defaultValues: { name: "", email: "", password: "" },
     mode: "onSubmit",
   });

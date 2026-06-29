@@ -49,7 +49,7 @@ export function AddExpenseModal({ isOpen, onClose, defaultProjectId }: { isOpen:
   const projects = Array.isArray(projectsData) ? projectsData : [];
 
   const { control, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
-    resolver: zodResolver(schema) as any,
+    resolver: zodResolver(schema as any),
     defaultValues: {
       amount: undefined, // using undefined to avoid 0 showing up empty, but will fallback to 0 in UI
       categoryId: "",

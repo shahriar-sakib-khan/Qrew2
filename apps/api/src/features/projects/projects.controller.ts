@@ -1,7 +1,7 @@
 import { type Context } from 'hono';
 import { z } from 'zod';
-import { db, projects, customFieldDefinitions, projectStatusEnum, expenses } from '@starter/db';
-import { type SQL, eq, and, ne, sql, sum } from 'drizzle-orm';
+import { db, projects, customFieldDefinitions, projectStatusEnum, expenses, invoices } from '@starter/db';
+import { type SQL, eq, and, ne, sql, sum, count } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 import { createDynamicZodSchema } from '../custom-fields/custom-fields.service';
 
@@ -37,11 +37,14 @@ export class ProjectsController {
       orderBy: (p, { desc }) => [desc(p.createdAt)],
     });
 
-    // Compute total expenses per project in a single query
+    // Compute total expenses and invoice count per project in a single query
     const projectIds = result.map((p) => p.id);
     let expenseTotals: Record<string, string> = {};
+    let invoiceCounts: Record<string, number> = {};
 
     if (projectIds.length > 0) {
+      const inClause = sql`${projects.id} IN (${sql.join(projectIds.map(id => sql`${id}`), sql`, `)})`; // safe placeholder trick
+
       const totals = await db
         .select({
           projectId: expenses.projectId,
@@ -61,12 +64,33 @@ export class ProjectsController {
           expenseTotals[row.projectId] = row.total || '0';
         }
       }
+
+      const invCounts = await db
+        .select({
+          projectId: invoices.projectId,
+          count: count(invoices.id),
+        })
+        .from(invoices)
+        .where(
+          and(
+            eq(invoices.organizationId, orgId),
+            sql`${invoices.projectId} IN (${sql.join(projectIds.map(id => sql`${id}`), sql`, `)})`
+          )
+        )
+        .groupBy(invoices.projectId);
+
+      for (const row of invCounts) {
+        if (row.projectId) {
+          invoiceCounts[row.projectId] = Number(row.count) || 0;
+        }
+      }
     }
 
-    // Merge totalExpenses into each project
+    // Merge totalExpenses and invoiceCounts into each project
     const enrichedResult = result.map((project) => ({
       ...project,
       totalExpenses: expenseTotals[project.id] || '0',
+      invoiceCount: invoiceCounts[project.id] || 0,
     }));
 
     return c.json(enrichedResult);

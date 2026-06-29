@@ -21,9 +21,11 @@ import { AddRequisitionModal } from "@/components/features/financials/add-requis
 import { WalletsTab } from "@/components/features/financials/wallets-tab";
 import { useState } from "react";
 import { Plus } from "lucide-react";
+import { usePermissionStore } from "@/store/use-permission-store";
 
 export default function FinancialsPage() {
   const queryClient = useQueryClient();
+  const { can } = usePermissionStore();
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isReqModalOpen, setIsReqModalOpen] = useState(false);
 
@@ -155,7 +157,7 @@ export default function FinancialsPage() {
                       <TableCell>{req.projectName || "-"}</TableCell>
                       <TableCell className="capitalize">{req.status}</TableCell>
                       <TableCell className="text-right">
-                        {req.status === "pending" && (
+                        {req.status === "pending" && can("finance:approve_requisition") && (
                           <div className="flex justify-end gap-2">
                             <Button size="sm" variant="outline" className="text-green-600" onClick={() => actionReq({ id: req.id, status: "approved" })} disabled={actioning}>
                               Approve
@@ -165,7 +167,7 @@ export default function FinancialsPage() {
                             </Button>
                           </div>
                         )}
-                        {req.status === "approved" && (
+                        {req.status === "approved" && can("finance:approve_requisition") && (
                           <Button size="sm" className="bg-blue-600 hover:bg-blue-700" onClick={() => actionReq({ id: req.id, status: "disbursed" })} disabled={actioning}>
                             Mark Disbursed
                           </Button>

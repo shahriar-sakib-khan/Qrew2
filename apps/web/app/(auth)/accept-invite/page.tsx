@@ -75,12 +75,12 @@ function AcceptInviteContent() {
   }, [inviteId]);
 
   const loginForm = useForm<LoginValues>({
-    resolver: zodResolver(loginSchema),
+    resolver: zodResolver(loginSchema as any),
     defaultValues: { email: "", password: "" },
   });
 
   const signupForm = useForm<SignupValues>({
-    resolver: zodResolver(signupSchema),
+    resolver: zodResolver(signupSchema as any),
     defaultValues: { name: "", email: "", password: "" },
   });
 

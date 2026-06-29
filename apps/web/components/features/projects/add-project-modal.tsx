@@ -50,7 +50,7 @@ export function AddProjectModal({ isOpen, onClose, editProject }: { isOpen: bool
   const clients = Array.isArray(clientsData) ? clientsData : [];
 
   const { control, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
-    resolver: zodResolver(baseSchema) as any,
+    resolver: zodResolver(baseSchema as any),
     defaultValues: {
       name: "",
       clientId: "",

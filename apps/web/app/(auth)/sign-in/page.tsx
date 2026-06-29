@@ -30,7 +30,7 @@ export default function SignInPage() {
   const [loadingType, setLoadingType] = useState<"credentials" | "google" | null>(null);
 
   const form = useForm<SignInValues>({
-    resolver: zodResolver(signInSchema),
+    resolver: zodResolver(signInSchema as any),
     defaultValues: { email: "", password: "" },
     mode: "onSubmit",
   });

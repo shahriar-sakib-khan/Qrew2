@@ -11,6 +11,82 @@ const draftSchema = z.object({
 });
 
 export class DraftsController {
+  static async listDrafts(c: Context) {
+    try {
+      const organizationId = c.get("organizationId");
+      
+      const drafts = await db.query.invoiceDrafts.findMany({
+        where: eq(invoiceDrafts.organizationId, organizationId),
+        with: { project: true },
+        orderBy: (d, { desc }) => [desc(d.lastAutoSavedAt)],
+      });
+
+      return c.json(drafts);
+    } catch (err: any) {
+      console.error("[DraftsController.listDrafts]", err);
+      return c.json({ error: "Failed to fetch drafts" }, 500);
+    }
+  }
+
+  static async getDraftById(c: Context) {
+    try {
+      const organizationId = c.get("organizationId");
+      const id = c.req.param("id");
+
+      const draft = await db.query.invoiceDrafts.findFirst({
+        where: and(
+          eq(invoiceDrafts.organizationId, organizationId),
+          eq(invoiceDrafts.id, id)
+        ),
+        with: {
+          project: {
+            with: { client: true }
+          }
+        }
+      });
+
+      if (!draft) return c.json({ error: "Draft not found" }, 404);
+
+      return c.json(draft);
+    } catch (err: any) {
+      console.error("[DraftsController.getDraftById]", err);
+      return c.json({ error: "Failed to fetch draft" }, 500);
+    }
+  }
+
+  static async createDraft(c: Context) {
+    try {
+      const organizationId = c.get("organizationId");
+      const userId = c.get("userId");
+      const body = await c.req.json();
+      const parsed = draftSchema.safeParse(body);
+
+      if (!parsed.success) {
+        return c.json({ error: "Invalid payload", details: parsed.error.format() }, 400);
+      }
+
+      const payload = parsed.data;
+
+      const [created] = await db.insert(invoiceDrafts)
+        .values({
+          id: crypto.randomUUID(),
+          organizationId,
+          projectId: payload.projectId,
+          userId,
+          sourceTemplateId: payload.sourceTemplateId,
+          draftHeaderValues: payload.draftHeaderValues || {},
+          draftSections: payload.draftSections || [],
+          lastAutoSavedAt: new Date()
+        })
+        .returning();
+
+      return c.json(created);
+    } catch (err: any) {
+      console.error("[DraftsController.createDraft]", err);
+      return c.json({ error: "Failed to create draft" }, 500);
+    }
+  }
+
   static async getDraft(c: Context) {
     try {
       const organizationId = c.get("organizationId");
