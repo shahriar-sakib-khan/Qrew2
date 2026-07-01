@@ -24,7 +24,6 @@ export function OrganizationPortalView() {
   const [isSwitching, setIsSwitching] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newOrgName, setNewOrgName] = useState("");
-  const [newOrgSlug, setNewOrgSlug] = useState("");
 
   // Fetch the user's organizations on mount
   useEffect(() => {
@@ -64,38 +63,44 @@ export function OrganizationPortalView() {
     fetchOrgs();
   }, []);
 
-  // Auto-generate a slug from the organization name
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const name = e.target.value;
-    setNewOrgName(name);
-    setNewOrgSlug(name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, ''));
+    setNewOrgName(e.target.value);
   };
 
   // Handle Organization Creation
   const handleCreateOrganization = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newOrgName || !newOrgSlug) return;
+    if (!newOrgName) return;
 
     setIsCreating(true);
     
-    // Better Auth Organization Creation API
-    const { data, error } = await authClient.organization.create({
-      name: newOrgName,
-      slug: newOrgSlug,
-    });
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+      const res = await fetch(`${apiUrl}/api/workspaces/create`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({ name: newOrgName }),
+      });
 
-    if (error) {
-      toast.error(error.message || "Failed to create workspace.");
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to create workspace.");
+      }
+
+      toast.success("Workspace created successfully!");
+      setIsDialogOpen(false);
+      
+      // Immediately set this new org as active and route to dashboard
+      if (data.organizationId) {
+        await handleSelectOrganization(data.organizationId);
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to create workspace.");
       setIsCreating(false);
-      return;
-    }
-
-    toast.success("Workspace created successfully!");
-    setIsDialogOpen(false);
-    
-    // Immediately set this new org as active and route to dashboard
-    if (data) {
-      await handleSelectOrganization(data.id);
     }
   };
 
@@ -129,6 +134,67 @@ export function OrganizationPortalView() {
       <div className="flex flex-col items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
         <p className="mt-4 text-sm text-muted-foreground">Loading your workspaces...</p>
+      </div>
+    );
+  }
+
+  if (organizations.length === 0) {
+    return (
+      <div className="flex flex-col min-h-screen bg-background/50 relative overflow-hidden">
+        {/* Background decoration */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
+        
+        {/* Top Bar */}
+        <header className="w-full px-6 py-4 flex items-center justify-between z-10 border-b border-border/50 bg-background/80 backdrop-blur-xl">
+          <button onClick={handleLogout} className="flex items-center gap-2 hover:opacity-80 transition-opacity focus:outline-none">
+            <QrewLogo className="h-8 w-8" />
+            <span className="font-bold text-xl tracking-tight hidden sm:inline-block">Qrew</span>
+          </button>
+          
+          <Button variant="ghost" size="sm" onClick={handleLogout} className="text-muted-foreground hover:text-foreground">
+            <LogOut className="h-4 w-4 mr-2" />
+            Log Out
+          </Button>
+        </header>
+
+        <main className="flex-1 flex flex-col items-center justify-center p-6 z-10 w-full max-w-md mx-auto">
+          <Card className="w-full card-animate border-border/50 bg-background/80 backdrop-blur-xl shadow-2xl">
+            <CardHeader className="space-y-1 text-center pb-6">
+              <CardTitle className="text-2xl font-bold tracking-tight">Create your workspace</CardTitle>
+              <CardDescription>Enter a name for your new organization</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form id="create-org-form-initial" onSubmit={handleCreateOrganization} className="space-y-4">
+                <div className="space-y-2">
+                  <Input 
+                    id="orgNameInitial" 
+                    placeholder="e.g. Acme Corp" 
+                    value={newOrgName} 
+                    onChange={handleNameChange}
+                    required
+                    disabled={isCreating}
+                    className="bg-background/60 h-12 text-lg text-center"
+                    autoFocus
+                  />
+                </div>
+              </form>
+            </CardContent>
+            <CardFooter>
+              <Button 
+                type="submit" 
+                form="create-org-form-initial" 
+                className="w-full h-12 shadow-md shadow-primary/20" 
+                disabled={isCreating || !newOrgName}
+              >
+                {isCreating ? (
+                  <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Provisioning...</>
+                ) : (
+                  <>Create & Enter <ArrowRight className="ml-2 h-5 w-5" /></>
+                )}
+              </Button>
+            </CardFooter>
+          </Card>
+        </main>
       </div>
     );
   }
@@ -180,78 +246,8 @@ export function OrganizationPortalView() {
             <p className="text-muted-foreground">Select an organization to continue or create a new one.</p>
           </div>
 
-          {organizations.length === 0 ? (
-            <Card className="border-dashed bg-transparent shadow-none border-2">
-              <CardContent className="flex flex-col items-center justify-center h-64 text-center p-6">
-                <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-6">
-                  <Building2 className="h-8 w-8 text-primary" />
-                </div>
-                <h3 className="text-xl font-semibold mb-2">No workspaces found</h3>
-                <p className="text-sm text-muted-foreground max-w-sm mb-8">
-                  You don't belong to any active organizations yet. Create your first workspace to get started.
-                </p>
-                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button size="lg" className="w-full sm:w-auto">
-                      <Plus className="h-5 w-5 mr-2" /> Create Workspace
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-[425px]">
-                    <DialogHeader>
-                      <DialogTitle>Create Workspace</DialogTitle>
-                      <DialogDescription>
-                        Establish a new company or branch.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <form id="create-org-form" onSubmit={handleCreateOrganization} className="space-y-4 py-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="orgName">Organization Name</Label>
-                        <Input 
-                          id="orgName" 
-                          placeholder="e.g. Acme Corp" 
-                          value={newOrgName} 
-                          onChange={handleNameChange}
-                          required
-                          disabled={isCreating}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="orgSlug">Workspace URL Slug</Label>
-                        <div className="flex items-center">
-                          <span className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded-l-md border border-r-0">
-                            qrew.com/
-                          </span>
-                          <Input 
-                            id="orgSlug" 
-                            className="rounded-l-none" 
-                            value={newOrgSlug} 
-                            onChange={(e) => setNewOrgSlug(e.target.value)}
-                            required
-                            disabled={isCreating}
-                          />
-                        </div>
-                      </div>
-                    </form>
-                    <DialogFooter>
-                      <Button 
-                        type="submit" 
-                        form="create-org-form" 
-                        className="w-full" 
-                        disabled={isCreating || !newOrgName}
-                      >
-                        {isCreating ? (
-                          <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Provisioning...</>
-                        ) : (
-                          <>Create & Enter <ArrowRight className="ml-2 h-4 w-4" /></>
-                        )}
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-6">
+          {/* We only reach here if organizations.length > 0 */}
+          <div className="space-y-6">
               <div className="grid gap-3">
                 {organizations.map((org) => (
                   <Card 
@@ -305,22 +301,7 @@ export function OrganizationPortalView() {
                           disabled={isCreating}
                         />
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="orgSlug2">Workspace URL Slug</Label>
-                        <div className="flex items-center">
-                          <span className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded-l-md border border-r-0">
-                            qrew.com/
-                          </span>
-                          <Input 
-                            id="orgSlug2" 
-                            className="rounded-l-none" 
-                            value={newOrgSlug} 
-                            onChange={(e) => setNewOrgSlug(e.target.value)}
-                            required
-                            disabled={isCreating}
-                          />
-                        </div>
-                      </div>
+
                     </form>
                     <DialogFooter>
                       <Button 
@@ -340,7 +321,6 @@ export function OrganizationPortalView() {
                 </Dialog>
               </div>
             </div>
-          )}
         </div>
       </main>
     </div>

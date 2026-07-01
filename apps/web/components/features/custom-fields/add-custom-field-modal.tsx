@@ -148,21 +148,7 @@ export function AddCustomFieldModal({
             />
           </div>
 
-          <div className="space-y-2">
-            <Label>Token</Label>
-            <Input 
-              placeholder="e.g. TAX_ID" 
-              value={fieldKey.toUpperCase()}
-              className="font-mono text-sm"
-              required
-              disabled={true}
-            />
-            {!isEditMode && (
-              <p className="text-[0.8rem] text-muted-foreground">
-                Auto-generated from the field name. This is the token key used in formulas.
-              </p>
-            )}
-          </div>
+          {/* Token is auto-generated and hidden from the user */}
 
           <div className="space-y-2">
             <Label>Field Type</Label>
@@ -173,13 +159,11 @@ export function AddCustomFieldModal({
               <SelectContent>
                 <SelectItem value="text">Text</SelectItem>
                 <SelectItem value="number">Number</SelectItem>
+                <SelectItem value="date">Date</SelectItem>
+                <SelectItem value="boolean">Boolean (Checkbox)</SelectItem>
+                <SelectItem value="single_select">Single Select (Dropdown)</SelectItem>
+                <SelectItem value="multi_select">Multi Select (Dropdown)</SelectItem>
                 <SelectItem value="others">Others</SelectItem>
-                {/* Legacy/system types (only visible when in edit mode and active) */}
-                {isEditMode && !["text", "number", "others"].includes(fieldType) && (
-                  <SelectItem value={fieldType} className="capitalize">
-                    {fieldType.replace("_", " ")}
-                  </SelectItem>
-                )}
               </SelectContent>
             </Select>
           </div>

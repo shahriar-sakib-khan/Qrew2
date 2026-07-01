@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, ArchiveRestore, ArchiveX, Edit, Trash2 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { AddClientModal } from "@/components/features/clients/add-client-modal";
+import { ArchiveModal } from "@/components/shared/archive-modal";
 import { useQuery } from "@tanstack/react-query";
 import { apiUrl } from "@/lib/constants";
 import {
@@ -24,6 +25,8 @@ export default function ClientsPage() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [clientToEdit, setClientToEdit] = useState<any>(null);
   const [clientToView, setClientToView] = useState<any>(null);
+  const [clientToArchive, setClientToArchive] = useState<any>(null);
+  const [isArchiving, setIsArchiving] = useState(false);
   const [activeTab, setActiveTab] = useState("active");
 
   const { data: orgSettings } = useQuery({
@@ -77,18 +80,22 @@ export default function ClientsPage() {
     }
   };
 
-  const handleArchive = async (client: any) => {
-    if (!confirm(`Archive ${client.name}?`)) return;
+  const confirmArchive = async () => {
+    if (!clientToArchive) return;
+    setIsArchiving(true);
     try {
-      const res = await fetch(`${apiUrl}/api/workspaces/clients/${client.id}/archive`, {
+      const res = await fetch(`${apiUrl}/api/workspaces/clients/${clientToArchive.id}/archive`, {
         method: "PATCH",
         credentials: "include",
       });
       if (!res.ok) throw new Error(await res.text());
       toast.success("Client archived");
       refetch();
+      setClientToArchive(null);
     } catch (err: any) {
       toast.error(err.message || "Failed to archive client");
+    } finally {
+      setIsArchiving(false);
     }
   };
 
@@ -180,7 +187,7 @@ export default function ClientsPage() {
                           </Button>
                         </Can>
                         <Can I="client:edit">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-orange-500" onClick={() => handleArchive(client)} title="Archive Client">
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-orange-500" onClick={(e) => { e.stopPropagation(); setClientToArchive(client); }} title="Archive Client">
                             <ArchiveX className="h-4 w-4" />
                           </Button>
                         </Can>
@@ -193,7 +200,7 @@ export default function ClientsPage() {
                           </Button>
                         </Can>
                         <Can I="client:delete">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(client)} title="Permanently Delete Client">
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={(e) => { e.stopPropagation(); handleDelete(client); }} title="Permanently Delete Client">
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </Can>
@@ -251,6 +258,14 @@ export default function ClientsPage() {
           setClientToView(null);
           handleEdit(client);
         }}
+      />
+
+      <ArchiveModal 
+        isOpen={!!clientToArchive}
+        onClose={() => setClientToArchive(null)}
+        onConfirm={confirmArchive}
+        entityName={clientToArchive?.name}
+        isArchiving={isArchiving}
       />
     </div>
   );

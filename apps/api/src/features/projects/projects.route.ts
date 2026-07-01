@@ -1,8 +1,12 @@
 import { Hono } from 'hono';
 import { ProjectsController } from './projects.controller';
 import { requireOrgPermission } from '../../infra/middleware/require-permission';
+import { projectStatusesRoute } from '../project-statuses/project-statuses.route';
 
 export const projectsRouter = new Hono();
+
+// IMPORTANT: Mount /statuses BEFORE /:id routes so Hono matches the literal path first
+projectsRouter.route('/statuses', projectStatusesRoute);
 
 projectsRouter.get('/', requireOrgPermission('file:view'), ProjectsController.listProjects);
 projectsRouter.post('/', requireOrgPermission('file:create'), ProjectsController.createProject);

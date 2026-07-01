@@ -1,5 +1,5 @@
 import { Context } from 'hono';
-import { db, users, auditLogs, sessions } from '@starter/db';
+import { db, users, auditLogs, sessions, permissions } from '@starter/db';
 import { desc, eq, ne, count } from 'drizzle-orm';
 import { z } from 'zod';
 import { logger } from '../../infra/lib/logger';
@@ -170,6 +170,16 @@ export class SuperAdminController {
 
     } catch (error) {
       superAdminControllerLog.error({ err: error }, 'Session nuke failed');
+      return c.json({ error: 'Internal Server Error' }, 500);
+    }
+  }
+
+  static async listPermissions(c: Context) {
+    try {
+      const allPermissions = await db.select().from(permissions);
+      return c.json(allPermissions, 200);
+    } catch (error) {
+      superAdminControllerLog.error({ err: error }, 'Failed to list permissions');
       return c.json({ error: 'Internal Server Error' }, 500);
     }
   }

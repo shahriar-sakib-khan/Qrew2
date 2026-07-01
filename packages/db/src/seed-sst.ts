@@ -6,6 +6,7 @@ import {
   clients, projects, expenseCategories, expenses, requisitions, 
   walletTransactions, orgRoles, orgRolePermissions, invoices, invoiceLineItems 
 } from './index';
+import { seedPermissionsDefaults } from './seed-permissions';
 
 function generateKey(password: string, salt: string): Promise<Buffer> {
   return new Promise((resolve, reject) => {
@@ -30,6 +31,8 @@ async function hashPassword(password: string) {
 
 async function seedSST() {
   console.log("🌊 Seeding SeaSideTraders (SST) Organization...");
+
+  await seedPermissionsDefaults(db);
 
   // Generate a real scrypt hash for '12345678' to match better-auth v1.x expected format
   const defaultHash = await hashPassword('12345678');
@@ -102,6 +105,9 @@ async function seedSST() {
 
   const orgDb = await db.query.organizations.findFirst({ where: (orgs, { eq }) => eq(orgs.slug, 'seasidetraders') });
   if (!orgDb) throw new Error("Org not created");
+
+  const { seedOrganizationDefaults } = await import('./org-initializer');
+  await seedOrganizationDefaults(db, orgDb.id, owner.id);
 
   // 2.5 Clean up existing SeaSideTraders data to make seeding idempotent and prevent duplicates
   console.log("🧹 Cleaning up existing SeaSideTraders data to ensure fresh seeding...");
@@ -380,7 +386,32 @@ async function seedSST() {
     'Crew Change', 'Maintenance', 'Port Transit', 'Supply Delivery'
   ];
 
-  const projectStatuses = ['active', 'active', 'active', 'completed', 'completed', 'pending', 'canceled', 'archived'] as const;
+  const dbStatuses = await db.query.projectStatuses.findMany({ where: (s, { eq }) => eq(s.organizationId, orgDb.id) });
+  const createdStatus = dbStatuses.find(s => s.name === 'Created');
+  const completedStatus = dbStatuses.find(s => s.name === 'Completed');
+  
+  const { projectStatuses } = await import('./index');
+  const activeStatusId = uuidv4();
+  await db.insert(projectStatuses).values({
+    id: activeStatusId, organizationId: orgDb.id, name: 'Active', order: 3, isDefault: false, isSystem: false
+  }).onConflictDoNothing();
+  
+  const pendingStatusId = uuidv4();
+  await db.insert(projectStatuses).values({
+    id: pendingStatusId, organizationId: orgDb.id, name: 'Pending', order: 4, isDefault: false, isSystem: false
+  }).onConflictDoNothing();
+
+  const statusChoices = [
+    { sId: activeStatusId, ls: 'open' },
+    { sId: activeStatusId, ls: 'open' },
+    { sId: activeStatusId, ls: 'open' },
+    { sId: completedStatus?.id || activeStatusId, ls: 'completed' },
+    { sId: completedStatus?.id || activeStatusId, ls: 'completed' },
+    { sId: pendingStatusId, ls: 'open' },
+    { sId: activeStatusId, ls: 'canceled' },
+    { sId: completedStatus?.id || activeStatusId, ls: 'archived' }
+  ] as const;
+
   const ports = ['CDG', 'Mongla', 'Singapore', 'Dubai'];
 
   const createdProjects: any[] = [];
@@ -390,7 +421,7 @@ async function seedSST() {
     const suffix = voyageSuffixes[Math.floor(Math.random() * voyageSuffixes.length)];
     const projectName = `${vessel} ${suffix}`;
     const client = createdClients[Math.floor(Math.random() * createdClients.length)];
-    const status = projectStatuses[i % projectStatuses.length];
+    const choice = statusChoices[i % statusChoices.length];
     
     const arrival = getRandomDateInPastDays(90);
     const departure = new Date(arrival.getTime() + (86400000 * (1 + Math.floor(Math.random() * 4)))); // 1 to 4 days later
@@ -401,7 +432,7 @@ async function seedSST() {
     const customFields = {
       voyage_number: voyageNum,
       arrival_date: arrival.toISOString(),
-      departure_date: status === 'completed' || status === 'archived' ? departure.toISOString() : undefined,
+      departure_date: choice.ls === 'completed' || choice.ls === 'archived' ? departure.toISOString() : undefined,
       terminal_number: `T-0${Math.floor(1 + Math.random() * 9)}`,
       port_number: `P-${Math.floor(10 + Math.random() * 89)}`,
       port: port,
@@ -413,7 +444,9 @@ async function seedSST() {
       id: projectId,
       organizationId: orgDb.id,
       name: projectName,
-      status: status,
+      status: choice.sId,
+      lifecycleState: choice.ls,
+      archivedAt: choice.ls === 'archived' ? new Date() : null,
       clientId: client.id,
       customFields: customFields,
       createdAt: arrival

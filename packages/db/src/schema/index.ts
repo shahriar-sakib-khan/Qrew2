@@ -30,3 +30,4 @@ export * from "./invoice-templates";
 export * from "./invoice-instances";
 export * from "./invoice-types";
 export * from "./project_attachments";
+export * from "./project-statuses";

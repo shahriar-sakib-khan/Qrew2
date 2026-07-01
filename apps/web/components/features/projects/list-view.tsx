@@ -119,7 +119,7 @@ export function ListView({
                 {showCol('sys-project-status') && (
                   <TableCell>
                     <Badge variant="secondary" className="capitalize">
-                      {project.status}
+                      {project.statusRelation?.name || "Pending"}
                     </Badge>
                   </TableCell>
                 )}

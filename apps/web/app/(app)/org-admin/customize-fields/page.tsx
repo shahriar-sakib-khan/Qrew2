@@ -12,7 +12,6 @@ import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -21,7 +20,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { format } from "date-fns";
 
 const SYSTEM_FIELDS = [
   // Client System Fields
@@ -104,15 +102,13 @@ function ExpenseCategoryRow({ cat, isShown, onToggleShow }: { cat: any, isShown:
             className="h-8 w-full text-sm"
           />
         ) : (
-          cat.name
+          <div className="flex items-center gap-2 text-[15px]">
+            <span>{cat.name}</span>
+            <span className="font-mono text-xs text-muted-foreground uppercase">(CAT_{cat.tokenKey})</span>
+          </div>
         )}
       </TableCell>
-      <TableCell>
-        <Badge variant="secondary" className="font-mono text-xs text-muted-foreground">
-          CAT_{cat.tokenKey}
-        </Badge>
-      </TableCell>
-      <TableCell>
+      <TableCell className="text-[15px]">
         {isEditing ? (
           <Input 
             value={description} 
@@ -129,6 +125,7 @@ function ExpenseCategoryRow({ cat, isShown, onToggleShow }: { cat: any, isShown:
             checked={isShown} 
             onCheckedChange={onToggleShow} 
             aria-label="Toggle visibility"
+            className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
           />
         </div>
       </TableCell>
@@ -144,11 +141,11 @@ function ExpenseCategoryRow({ cat, isShown, onToggleShow }: { cat: any, isShown:
           </div>
         ) : (
           <div className="flex items-center justify-end gap-1">
-            <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => setIsEditing(true)}>
-              <Edit2 className="h-4 w-4" />
+            <Button size="icon" variant="ghost" className="h-9 w-9 text-muted-foreground hover:text-foreground" onClick={() => setIsEditing(true)}>
+              <Edit2 className="h-5 w-5" />
             </Button>
-            <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-red-600" disabled={deleteMutation.isPending} onClick={handleDelete}>
-              {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            <Button size="icon" variant="ghost" className="h-9 w-9 text-muted-foreground hover:text-red-600" disabled={deleteMutation.isPending} onClick={handleDelete}>
+              {deleteMutation.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
             </Button>
           </div>
         )}
@@ -183,17 +180,17 @@ export default function CustomizeFieldsPage() {
     },
   });
 
-  const [clientColumns, setClientColumns] = useState<string[]>([]);
-  const [projectColumns, setProjectColumns] = useState<string[]>([]);
-  const [staffColumns, setStaffColumns] = useState<string[]>([]);
+  // Detailed fields (system level fields saved in orgSettings)
+  const [sysDetailedFields, setSysDetailedFields] = useState<string[]>([]);
+  // Sensitive fields (system level fields saved in orgSettings)
+  const [sysSensitiveFields, setSysSensitiveFields] = useState<string[]>([]);
   const [categoryColumns, setCategoryColumns] = useState<string[]>([]);
   
   useEffect(() => {
     if (orgSettings) {
-      setClientColumns(orgSettings.clientColumns || ["sys-client-name", "sys-client-email"]);
-      setProjectColumns(orgSettings.projectColumns || ["sys-project-name", "sys-project-status", "total_expenses"]);
-      setStaffColumns(orgSettings.staffColumns || ["sys-staff-name", "sys-staff-email", "sys-staff-role"]);
-      setCategoryColumns(orgSettings.categoryColumns || []); // Default to empty if none saved (or we can initialize with fetched categories later)
+      setSysDetailedFields(orgSettings.sysDetailedFields || []);
+      setSysSensitiveFields(orgSettings.sysSensitiveFields || []);
+      setCategoryColumns(orgSettings.categoryColumns || []); 
     }
   }, [orgSettings]);
 
@@ -209,11 +206,23 @@ export default function CustomizeFieldsPage() {
       return res.json();
     },
     onSuccess: () => {
-      toast.success("Settings saved successfully.");
       queryClient.invalidateQueries({ queryKey: ["org-settings"] });
+    }
+  });
+
+  const updateCustomFieldMutation = useMutation({
+    mutationFn: async ({ id, payload }: { id: string, payload: any }) => {
+      const res = await fetch(`${apiUrl}/api/workspaces/custom-fields/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error("Failed to update custom field");
+      return res.json();
     },
-    onError: (err: any) => {
-      toast.error(err.message);
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["custom-fields"] });
     }
   });
 
@@ -243,53 +252,67 @@ export default function CustomizeFieldsPage() {
     setIsAddFieldModalOpen(true);
   };
 
-  const handleToggleColumn = (type: "client" | "project" | "staff" | "category", fieldId: string) => {
-    let newSettings: any = {
-      clientColumns,
-      projectColumns,
-      staffColumns,
-      categoryColumns,
-    };
-
-    if (type === "client") {
-      const updated = clientColumns.includes(fieldId) ? clientColumns.filter(id => id !== fieldId) : [...clientColumns, fieldId];
-      setClientColumns(updated);
-      newSettings.clientColumns = updated;
-    } else if (type === "project") {
-      const updated = projectColumns.includes(fieldId) ? projectColumns.filter(id => id !== fieldId) : [...projectColumns, fieldId];
-      setProjectColumns(updated);
-      newSettings.projectColumns = updated;
-    } else if (type === "staff") {
-      const updated = staffColumns.includes(fieldId) ? staffColumns.filter(id => id !== fieldId) : [...staffColumns, fieldId];
-      setStaffColumns(updated);
-      newSettings.staffColumns = updated;
-    } else if (type === "category") {
-      const updated = categoryColumns.includes(fieldId) ? categoryColumns.filter(id => id !== fieldId) : [...categoryColumns, fieldId];
-      setCategoryColumns(updated);
-      newSettings.categoryColumns = updated;
+  const handleToggleDetailed = (id: string, isSystem: boolean) => {
+    if (isSystem) {
+      const updated = sysDetailedFields.includes(id) ? sysDetailedFields.filter(f => f !== id) : [...sysDetailedFields, id];
+      setSysDetailedFields(updated);
+      updateSettingsMutation.mutate({
+        sysDetailedFields: updated,
+        sysSensitiveFields,
+        categoryColumns,
+      });
+    } else {
+      const field = customFields?.find((f: any) => f.id === id);
+      if (field) {
+        updateCustomFieldMutation.mutate({ id, payload: { isDetailed: !field.isDetailed } });
+      }
     }
+  };
 
-    // Auto-save when toggled
-    updateSettingsMutation.mutate(newSettings);
+  const handleToggleSensitive = (id: string, isSystem: boolean) => {
+    if (isSystem) {
+      const updated = sysSensitiveFields.includes(id) ? sysSensitiveFields.filter(f => f !== id) : [...sysSensitiveFields, id];
+      setSysSensitiveFields(updated);
+      updateSettingsMutation.mutate({
+        sysDetailedFields,
+        sysSensitiveFields: updated,
+        categoryColumns,
+      });
+    } else {
+      const field = customFields?.find((f: any) => f.id === id);
+      if (field) {
+        updateCustomFieldMutation.mutate({ id, payload: { isSensitive: !field.isSensitive } });
+      }
+    }
+  };
+
+  const handleToggleCategory = (fieldId: string) => {
+    const updated = categoryColumns.includes(fieldId) ? categoryColumns.filter(id => id !== fieldId) : [...categoryColumns, fieldId];
+    setCategoryColumns(updated);
+    updateSettingsMutation.mutate({
+      sysDetailedFields,
+      sysSensitiveFields,
+      categoryColumns: updated,
+    });
   };
 
   return (
     <div className="flex flex-col gap-10 pb-10">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Customize Fields</h1>
-        <p className="text-muted-foreground mt-1">
+        <h1 className="text-3xl font-bold tracking-tight">Customize Fields</h1>
+        <p className="text-[15px] text-muted-foreground mt-2">
           Configure custom schemas and manage customizable categories across your workspace.
         </p>
       </div>
 
       {/* CLIENT SCHEMA SECTION */}
-      <section className="space-y-4">
-        <div className="flex items-center justify-between">
+      <section className="space-y-5">
+        <div className="flex items-center justify-between border-b pb-3">
           <div>
-            <h2 className="text-xl font-semibold">Client Schema</h2>
-            <p className="text-sm text-muted-foreground">Fields that appear on Client records.</p>
+            <h2 className="text-xl font-bold">Client Schema</h2>
+            <p className="text-[14.5px] text-muted-foreground mt-1">Fields that appear on Client records.</p>
           </div>
-          <Button variant="outline" onClick={() => openAddFieldModal("client")}>
+          <Button onClick={() => openAddFieldModal("client")} className="shadow-sm">
             <Plus className="mr-2 h-4 w-4" />
             Add Client Field
           </Button>
@@ -297,19 +320,21 @@ export default function CustomizeFieldsPage() {
         <CustomFieldsDataTable 
           fields={clientFields} 
           isLoading={loadingFields} 
-          shownColumns={clientColumns}
-          onToggleShow={(id) => handleToggleColumn("client", id)}
+          detailedFields={sysDetailedFields}
+          sensitiveFields={sysSensitiveFields}
+          onToggleDetailed={handleToggleDetailed}
+          onToggleSensitive={handleToggleSensitive}
         />
       </section>
 
       {/* PROJECT SCHEMA SECTION */}
-      <section className="space-y-4">
-        <div className="flex items-center justify-between">
+      <section className="space-y-5">
+        <div className="flex items-center justify-between border-b pb-3">
           <div>
-            <h2 className="text-xl font-semibold">Project / File Schema</h2>
-            <p className="text-sm text-muted-foreground">Fields that appear on Project and File records.</p>
+            <h2 className="text-xl font-bold">Project / File Schema</h2>
+            <p className="text-[14.5px] text-muted-foreground mt-1">Fields that appear on Project and File records.</p>
           </div>
-          <Button variant="outline" onClick={() => openAddFieldModal("project")}>
+          <Button onClick={() => openAddFieldModal("project")} className="shadow-sm">
             <Plus className="mr-2 h-4 w-4" />
             Add Project Field
           </Button>
@@ -317,19 +342,21 @@ export default function CustomizeFieldsPage() {
         <CustomFieldsDataTable 
           fields={projectFields} 
           isLoading={loadingFields} 
-          shownColumns={projectColumns}
-          onToggleShow={(id) => handleToggleColumn("project", id)}
+          detailedFields={sysDetailedFields}
+          sensitiveFields={sysSensitiveFields}
+          onToggleDetailed={handleToggleDetailed}
+          onToggleSensitive={handleToggleSensitive}
         />
       </section>
 
       {/* STAFF SCHEMA SECTION */}
-      <section className="space-y-4">
-        <div className="flex items-center justify-between">
+      <section className="space-y-5">
+        <div className="flex items-center justify-between border-b pb-3">
           <div>
-            <h2 className="text-xl font-semibold">Staff Schema</h2>
-            <p className="text-sm text-muted-foreground">Fields that appear on Staff and Employee profiles.</p>
+            <h2 className="text-xl font-bold">Staff Schema</h2>
+            <p className="text-[14.5px] text-muted-foreground mt-1">Fields that appear on Staff and Employee profiles.</p>
           </div>
-          <Button variant="outline" onClick={() => openAddFieldModal("staff")}>
+          <Button onClick={() => openAddFieldModal("staff")} className="shadow-sm">
             <Plus className="mr-2 h-4 w-4" />
             Add Staff Field
           </Button>
@@ -337,19 +364,21 @@ export default function CustomizeFieldsPage() {
         <CustomFieldsDataTable 
           fields={staffFields} 
           isLoading={loadingFields} 
-          shownColumns={staffColumns}
-          onToggleShow={(id) => handleToggleColumn("staff", id)}
+          detailedFields={sysDetailedFields}
+          sensitiveFields={sysSensitiveFields}
+          onToggleDetailed={handleToggleDetailed}
+          onToggleSensitive={handleToggleSensitive}
         />
       </section>
 
       {/* EXPENSE CATEGORIES SECTION */}
-      <section className="space-y-4 pt-4 border-t border-dashed">
-        <div className="flex items-center justify-between">
+      <section className="space-y-5 mt-10">
+        <div className="flex items-center justify-between border-b pb-3">
           <div>
-            <h2 className="text-xl font-semibold">Expense Categories</h2>
-            <p className="text-sm text-muted-foreground">Categories for logging financial expenses.</p>
+            <h2 className="text-xl font-bold">Expense Categories</h2>
+            <p className="text-[14.5px] text-muted-foreground mt-1">Categories for logging financial expenses.</p>
           </div>
-          <Button variant="outline" onClick={() => setIsAddExpenseCategoryOpen(true)}>
+          <Button onClick={() => setIsAddExpenseCategoryOpen(true)} className="shadow-sm">
             <Plus className="mr-2 h-4 w-4" />
             Add Category
           </Button>
@@ -358,23 +387,22 @@ export default function CustomizeFieldsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Category Name</TableHead>
-                <TableHead>Token</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead>Shown</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="text-[15px]">Category Name</TableHead>
+                <TableHead className="text-[15px]">Description</TableHead>
+                <TableHead className="text-[15px]">Shown</TableHead>
+                <TableHead className="text-[15px] text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loadingCategories ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                  <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
                     Loading categories...
                   </TableCell>
                 </TableRow>
               ) : expenseCategories?.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                  <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
                     No expense categories found.
                   </TableCell>
                 </TableRow>
@@ -384,7 +412,7 @@ export default function CustomizeFieldsPage() {
                     key={cat.id} 
                     cat={cat} 
                     isShown={categoryColumns.includes(cat.id)}
-                    onToggleShow={() => handleToggleColumn("category", cat.id)}
+                    onToggleShow={() => handleToggleCategory(cat.id)}
                   />
                 ))
               )}

@@ -7,16 +7,20 @@ import { createDynamicZodSchema } from '../custom-fields/custom-fields.service';
 
 const baseClientSchema = z.object({
   name: z.string().min(1, 'Name is required'),
-  email: z.string().email('Invalid email').optional().nullable(),
+  email: z.union([z.string().email('Invalid email'), z.literal('')]).optional().nullable(),
   customFields: z.record(z.string(), z.any()).default({}), // We validate this deeper inside the controller
 });
 
 export class ClientsController {
   static async listClients(c: Context) {
     const orgId = c.get('organizationId');
+    const statusQuery = c.req.query('status') || 'active';
 
     const result = await db.query.clients.findMany({
-      where: eq(clients.organizationId, orgId),
+      where: and(
+        eq(clients.organizationId, orgId),
+        eq(clients.status, statusQuery as any)
+      ),
       orderBy: (cl, { desc }) => [desc(cl.createdAt)],
     });
 
@@ -126,5 +130,43 @@ export class ClientsController {
 
     await db.delete(clients).where(eq(clients.id, id));
     return c.json({ success: true });
+  }
+
+  static async archiveClient(c: Context) {
+    const orgId = c.get('organizationId');
+    const id = c.req.param('id');
+    if (!id) return c.json({ error: 'Missing ID' }, 400);
+
+    const existing = await db.query.clients.findFirst({
+      where: and(eq(clients.id, id), eq(clients.organizationId, orgId))
+    });
+
+    if (!existing) return c.json({ error: 'Not Found' }, 404);
+
+    const [updatedClient] = await db.update(clients)
+      .set({ status: 'archived' })
+      .where(eq(clients.id, id))
+      .returning();
+
+    return c.json(updatedClient);
+  }
+
+  static async unarchiveClient(c: Context) {
+    const orgId = c.get('organizationId');
+    const id = c.req.param('id');
+    if (!id) return c.json({ error: 'Missing ID' }, 400);
+
+    const existing = await db.query.clients.findFirst({
+      where: and(eq(clients.id, id), eq(clients.organizationId, orgId))
+    });
+
+    if (!existing) return c.json({ error: 'Not Found' }, 404);
+
+    const [updatedClient] = await db.update(clients)
+      .set({ status: 'active' })
+      .where(eq(clients.id, id))
+      .returning();
+
+    return c.json(updatedClient);
   }
 }

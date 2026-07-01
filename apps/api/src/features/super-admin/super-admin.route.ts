@@ -11,6 +11,7 @@ const superAdminRouter = new Hono();
 superAdminRouter.use('/*', requireAuth, requireRole('super_admin'));
 
 superAdminRouter.get('/audit-logs', SuperAdminController.listAuditLogs);
+superAdminRouter.get('/permissions', SuperAdminController.listPermissions);
 
 superAdminRouter.post('/elevate-role',
   zValidator('json', z.object({

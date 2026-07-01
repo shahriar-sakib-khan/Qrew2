@@ -19,6 +19,7 @@ export const NAV_CONFIG = {
   superAdmin: [
     { name: "System Core", href: "/super-admin", icon: ShieldAlert },
     { name: "Manage Admins", href: "/super-admin/admins", icon: ShieldCheck },
+    { name: "Permissions", href: "/super-admin/permissions", icon: Shield },
   ],
   userSettings: { name: "Settings", href: "/dashboard/settings/profile", icon: Settings },
   adminSettings: { name: "Settings", href: "/admin/settings/profile", icon: Settings },

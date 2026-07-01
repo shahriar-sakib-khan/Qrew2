@@ -1,14 +1,15 @@
 import { type Context } from 'hono';
 import { z } from 'zod';
-import { db, projects, customFieldDefinitions, projectStatusEnum, expenses, invoices } from '@starter/db';
-import { type SQL, eq, and, ne, sql, sum, count } from 'drizzle-orm';
+import { db, projects, customFieldDefinitions, expenses, invoices, projectStatuses } from '@starter/db';
+import { type SQL, eq, and, ne, isNotNull, isNull, or, sql, sum, count } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 import { createDynamicZodSchema } from '../custom-fields/custom-fields.service';
 
 const baseProjectSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   clientId: z.string().min(1, 'Client ID is required'),
-  status: z.enum(projectStatusEnum.enumValues).default('pending'),
+  status: z.string().optional(),
+
   customFields: z.record(z.string(), z.any()).default({}), // We validate this deeper inside the controller
 });
 
@@ -25,15 +26,15 @@ export class ProjectsController {
 
     // Filter by status
     if (statusFilter === 'archived') {
-      conditions = and(conditions, eq(projects.status, 'archived'));
+      conditions = and(conditions, eq(projects.lifecycleState, 'archived'));
     } else {
       // Default: show all non-archived
-      conditions = and(conditions, ne(projects.status, 'archived'));
+      conditions = and(conditions, ne(projects.lifecycleState, 'archived'));
     }
 
     const result = await db.query.projects.findMany({
       where: conditions,
-      with: { client: true },
+      with: { client: true, statusRelation: true },
       orderBy: (p, { desc }) => [desc(p.createdAt)],
     });
 
@@ -105,10 +106,22 @@ export class ProjectsController {
       return c.json({ error: 'Validation Error', details: baseValidation.error.format() }, 400);
     }
 
+    const defaultStatus = await db.query.projectStatuses.findFirst({
+      where: and(
+        eq(projectStatuses.organizationId, orgId),
+        eq(projectStatuses.isDefault, true)
+      )
+    });
+
+    if (!defaultStatus) {
+      return c.json({ error: 'System Configuration Error: No default status found for this organization.' }, 500);
+    }
+
     const definitions = await db.query.customFieldDefinitions.findMany({
       where: and(
         eq(customFieldDefinitions.organizationId, orgId),
-        eq(customFieldDefinitions.entityType, 'project')
+        eq(customFieldDefinitions.entityType, 'project'),
+        or(isNull(customFieldDefinitions.projectStatusId), eq(customFieldDefinitions.projectStatusId, defaultStatus.id))
       )
     });
 
@@ -127,7 +140,7 @@ export class ProjectsController {
       organizationId: orgId,
       clientId: baseValidation.data.clientId,
       name: baseValidation.data.name,
-      status: baseValidation.data.status,
+      status: defaultStatus.id,
       customFields: customFieldsValidation.data,
     }).returning();
 
@@ -195,13 +208,13 @@ export class ProjectsController {
     });
 
     if (!existing) return c.json({ error: 'Not Found' }, 404);
-    if (existing.status === 'archived') {
+    if (existing.lifecycleState === 'archived') {
       return c.json({ error: 'Already archived' }, 400);
     }
 
     const [updated] = await db.update(projects)
       .set({
-        status: 'archived',
+        lifecycleState: 'archived',
         archivedAt: new Date(),
       })
       .where(eq(projects.id, id))
@@ -222,13 +235,13 @@ export class ProjectsController {
     });
 
     if (!existing) return c.json({ error: 'Not Found' }, 404);
-    if (existing.status !== 'archived') {
+    if (existing.lifecycleState !== 'archived') {
       return c.json({ error: 'Not archived' }, 400);
     }
 
     const [updated] = await db.update(projects)
       .set({
-        status: 'pending',
+        lifecycleState: 'open',
         archivedAt: null,
       })
       .where(eq(projects.id, id))
@@ -249,7 +262,7 @@ export class ProjectsController {
     });
 
     if (!existing) return c.json({ error: 'Not Found' }, 404);
-    if (existing.status !== 'archived') {
+    if (existing.lifecycleState !== 'archived') {
       return c.json({ error: 'Must archive file before deleting' }, 400);
     }
 

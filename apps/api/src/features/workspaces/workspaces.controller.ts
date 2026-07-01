@@ -8,6 +8,49 @@ import * as schema from '@starter/db';
 import { users, members, orgRoles, orgMemberRoles } from '@starter/db'; 
 
 export class WorkspacesController {
+  static async createWorkspace(c: Context) {
+    try {
+      const sessionData = await auth.api.getSession({ headers: c.req.raw.headers });
+      if (!sessionData?.session) return c.json({ error: 'Unauthorized' }, 401);
+      
+      const body = await c.req.json();
+      const { name } = body;
+      if (!name) return c.json({ error: 'Organization name is required' }, 400);
+
+      const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+      const orgId = uuidv4();
+      const memberId = uuidv4();
+      const userId = sessionData.user.id;
+
+      await db.transaction(async (tx) => {
+        // 1. Create Organization
+        await tx.insert(schema.organizations).values({
+          id: orgId,
+          name,
+          slug,
+          createdAt: new Date(),
+        });
+
+        // 2. Create Member (Owner)
+        await tx.insert(schema.members).values({
+          id: memberId,
+          organizationId: orgId,
+          userId: userId,
+          role: 'owner',
+          createdAt: new Date(),
+        });
+
+        // 3. Seed Defaults
+        await schema.seedOrganizationDefaults(tx, orgId, userId);
+      });
+
+      return c.json({ success: true, organizationId: orgId }, 201);
+    } catch (error) {
+      console.error('[WorkspacesController.createWorkspace] Failed:', error);
+      return c.json({ error: 'Failed to create workspace' }, 500);
+    }
+  }
+
   static async inviteStaff(c: Context) {
     try {
       // 1. Authenticate and get active context

@@ -13,6 +13,9 @@ workspacesRouter.route('/custom-fields', customFieldsRouter);
 workspacesRouter.route('/clients', clientsRouter);
 workspacesRouter.route('/projects', projectsRouter);
 
+// POST /api/workspaces/create
+workspacesRouter.post('/create', WorkspacesController.createWorkspace);
+
 // GET /api/workspaces/dashboard-stats
 workspacesRouter.get('/dashboard-stats', WorkspacesController.getDashboardStats);
 

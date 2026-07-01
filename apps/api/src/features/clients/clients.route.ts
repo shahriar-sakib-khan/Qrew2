@@ -8,3 +8,5 @@ clientsRouter.get('/', requireOrgPermission('client:view'), ClientsController.li
 clientsRouter.post('/', requireOrgPermission('client:create'), ClientsController.createClient);
 clientsRouter.put('/:id', requireOrgPermission('client:edit'), ClientsController.updateClient);
 clientsRouter.delete('/:id', requireOrgPermission('client:delete'), ClientsController.deleteClient);
+clientsRouter.patch('/:id/archive', requireOrgPermission('client:archive'), ClientsController.archiveClient);
+clientsRouter.patch('/:id/unarchive', requireOrgPermission('client:restore'), ClientsController.unarchiveClient);

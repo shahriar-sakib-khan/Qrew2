@@ -12,6 +12,7 @@ const createDefinitionSchema = z.object({
   fieldType: z.enum(['text', 'number', 'date', 'boolean', 'single_select', 'multi_select', 'others']),
   isRequired: z.boolean().default(false),
   options: z.array(z.string()).nullable().optional(),
+  projectStatusId: z.string().nullable().optional(),
 });
 
 export class CustomFieldsController {
@@ -77,6 +78,7 @@ export class CustomFieldsController {
       fieldType: data.fieldType,
       isRequired: data.isRequired,
       options: data.options,
+      projectStatusId: data.projectStatusId,
     }).returning();
 
     return c.json(newDef, 201);
@@ -137,11 +139,14 @@ export class CustomFieldsController {
       return c.json({ error: 'Not Found' }, 404);
     }
 
-    // Allow updating name, requirement status, and options.
+    // Allow updating name, requirement status, options, projectStatusId, isDetailed, and isSensitive
     const updatedData = {
       fieldName: body.fieldName ?? existing.fieldName,
       isRequired: body.isRequired ?? existing.isRequired,
       options: body.options ?? existing.options,
+      projectStatusId: body.projectStatusId !== undefined ? body.projectStatusId : existing.projectStatusId,
+      isDetailed: body.isDetailed !== undefined ? body.isDetailed : existing.isDetailed,
+      isSensitive: body.isSensitive !== undefined ? body.isSensitive : existing.isSensitive,
     };
 
     const [updatedDef] = await db.update(customFieldDefinitions)
