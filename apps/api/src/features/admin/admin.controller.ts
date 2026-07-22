@@ -1,5 +1,5 @@
 import { Context } from 'hono';
-import { db, users, auditLogs, members, organizations } from '@starter/db';
+import { db, users, auditLogs, members, organizations, accounts } from '@starter/db';
 import { desc, ilike, or, count, eq, and, exists } from 'drizzle-orm';
 import { z } from 'zod';
 import { logger } from '../../infra/lib/logger';
@@ -280,6 +280,32 @@ export class AdminController {
       return c.json({ data: allWorkspaces }, 200);
     } catch (error) {
       c.get('logger').error({ err: error }, 'Failed to list workspaces');
+      return c.json({ error: 'Internal Server Error' }, 500);
+    }
+  }
+
+  static async getUserIdentity(c: Context) {
+    try {
+      const userId = c.req.param('userId');
+      if (!userId) return c.json({ error: 'User ID is required' }, 400);
+
+      const user = await db.query.users.findFirst({
+        where: eq(users.id, userId),
+        columns: {
+          id: true,
+          name: true,
+          email: true,
+          lastLoginAt: true,
+        },
+      });
+
+      if (!user) return c.json({ error: 'User not found' }, 404);
+
+      const userAccounts = await db.select().from(accounts).where(eq(accounts.userId, userId));
+
+      return c.json({ data: { ...user, accounts: userAccounts } }, 200);
+    } catch (error) {
+      adminControllerLog.error({ err: error }, 'Failed to fetch user identity');
       return c.json({ error: 'Internal Server Error' }, 500);
     }
   }

@@ -24,4 +24,10 @@ superAdminRouter.post('/elevate-role',
 
 superAdminRouter.post('/nuke-sessions', SuperAdminController.nukeSessions);
 
+// Priority 3: Cross-Tenant Organization Management
+superAdminRouter.get('/workspaces', SuperAdminController.listWorkspaces);
+superAdminRouter.get('/workspaces/:workspaceId/members', SuperAdminController.listWorkspaceMembers);
+superAdminRouter.post('/workspaces/:workspaceId/members', SuperAdminController.addWorkspaceMember);
+superAdminRouter.delete('/workspaces/:workspaceId/members/:memberId', SuperAdminController.removeWorkspaceMember);
+
 export { superAdminRouter };

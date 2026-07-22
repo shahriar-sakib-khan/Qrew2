@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { expenseCategories, projectStatuses, orgRoles, orgRolePermissions } from './schema';
+import { expenseCategories, projectStatuses, projectStatusTransitions, orgRoles, orgRolePermissions, organizations, invoiceTypes } from './schema';
 import { eq, and } from 'drizzle-orm';
 
 export async function seedOrganizationDefaults(db: any, orgId: string, userId: string) {
@@ -16,16 +16,86 @@ export async function seedOrganizationDefaults(db: any, orgId: string, userId: s
     ]);
   }
 
+  // 1.5 Seed Invoice Types
+  const existingInvoiceTypes = await db.select().from(invoiceTypes).where(
+    eq(invoiceTypes.organizationId, orgId)
+  );
+
+  if (existingInvoiceTypes.length === 0) {
+    await db.insert(invoiceTypes).values([
+      { id: uuidv4(), organizationId: orgId, name: 'Proforma', isDefault: true },
+      { id: uuidv4(), organizationId: orgId, name: 'Tax Invoice', isDefault: false },
+      { id: uuidv4(), organizationId: orgId, name: 'Receipt', isDefault: false },
+    ]);
+  }
+
   // 2. Seed Project Statuses
   const existingStatuses = await db.select().from(projectStatuses).where(
     eq(projectStatuses.organizationId, orgId)
   );
 
+  let createdStatusId: string | null = null;
+  let completedStatusId: string | null = null;
+
   if (existingStatuses.length === 0) {
+    const createdId = uuidv4();
+    const completedId = uuidv4();
+    createdStatusId = createdId;
+    completedStatusId = completedId;
+
     await db.insert(projectStatuses).values([
-      { id: uuidv4(), organizationId: orgId, name: 'Created', order: 1, isDefault: true, isSystem: true },
-      { id: uuidv4(), organizationId: orgId, name: 'Completed', order: 2, isDefault: false, isSystem: false },
+      {
+        id: createdId, organizationId: orgId, name: 'Created',
+        color: '#6366f1', order: 1, isDefault: true, isSystem: true,
+        isInitial: true, isTerminal: false,
+      },
+      {
+        id: completedId, organizationId: orgId, name: 'Completed',
+        color: '#10b981', order: 99, isDefault: false, isSystem: true,
+        isInitial: false, isTerminal: true,
+      },
     ]);
+
+    // Seed the default transition: Created → Completed
+    await db.insert(projectStatusTransitions).values({
+      id: uuidv4(),
+      organizationId: orgId,
+      fromStatusId: createdId,
+      toStatusId: completedId,
+    });
+  } else {
+    // Fix existing orgs: ensure Completed is isSystem=true
+    const completedStatus = existingStatuses.find((s: any) => s.name === 'Completed');
+    const createdStatus = existingStatuses.find((s: any) => s.isInitial);
+    if (completedStatus && !completedStatus.isSystem) {
+      await db.update(projectStatuses)
+        .set({ isSystem: true, color: '#10b981' })
+        .where(eq(projectStatuses.id, completedStatus.id));
+    }
+    if (createdStatus && completedStatus) {
+      // Fix color of Created status too
+      if (createdStatus.color !== '#6366f1') {
+        await db.update(projectStatuses)
+          .set({ color: '#6366f1' })
+          .where(eq(projectStatuses.id, createdStatus.id));
+      }
+      // Ensure transition exists
+      const existing = await db.query.projectStatusTransitions.findFirst({
+        where: and(
+          eq(projectStatusTransitions.organizationId, orgId),
+          eq(projectStatusTransitions.fromStatusId, createdStatus.id),
+          eq(projectStatusTransitions.toStatusId, completedStatus.id)
+        )
+      });
+      if (!existing) {
+        await db.insert(projectStatusTransitions).values({
+          id: uuidv4(),
+          organizationId: orgId,
+          fromStatusId: createdStatus.id,
+          toStatusId: completedStatus.id,
+        });
+      }
+    }
   }
 
   // 3. Seed Roles
@@ -89,6 +159,7 @@ export async function seedOrganizationDefaults(db: any, orgId: string, userId: s
       'invoice:view', 'invoice:create', 'invoice:edit', 'invoice:delete',
       'template:view', 'template:create', 'template:edit', 'template:delete',
       'workspace:manage_fields', 'workspace:manage_billing', 'workspace:manage_settings',
+      'workflow:view', 'workflow:manage', 'file:advance_status',
       'audit:view'
     ];
 
@@ -99,13 +170,14 @@ export async function seedOrganizationDefaults(db: any, orgId: string, userId: s
       'finance:view_expenses', 'finance:request_funds', 'finance:approve_funds', 'finance:record_expense',
       'finance:view_wallets',
       'invoice:view', 'invoice:create', 'invoice:edit',
-      'template:view'
+      'template:view',
+      'workflow:view', 'file:advance_status'
     ];
 
     const staffPerms = [
       'staff:view',
       'client:view', 'client:create', 'client:edit',
-      'file:view', 'file:view_details', 'file:create', 'file:edit',
+      'file:view', 'file:view_details', 'file:create', 'file:edit', 'file:advance_status',
       'finance:view_expenses', 'finance:request_funds'
     ];
 

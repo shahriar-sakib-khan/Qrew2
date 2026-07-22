@@ -24,7 +24,11 @@ export class ClientsController {
       orderBy: (cl, { desc }) => [desc(cl.createdAt)],
     });
 
-    return c.json(result);
+    const { scrubEntityData, getScrubberConfig } = await import('../../infra/lib/data-scrubber');
+    const scrubberConfig = await getScrubberConfig(c, 'client');
+    const scrubbedResult = result.map(cl => scrubEntityData(cl, scrubberConfig, 'client'));
+
+    return c.json(scrubbedResult);
   }
 
   static async createClient(c: Context) {

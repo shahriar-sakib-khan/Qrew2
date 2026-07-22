@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { AdminController } from './admin.controller';
 import { SecurityController } from './security.controller';
+import { SessionsController } from './sessions.controller';
 import { requireAuth } from '../../infra/middleware/auth';
 import { requireRole } from '../../infra/middleware/role';
 
@@ -17,3 +18,6 @@ adminRouter.get('/workspaces', AdminController.listWorkspaces);
 adminRouter.post('/impersonate', AdminController.impersonateUser);
 adminRouter.post('/security-action', SecurityController.enforceSecurityAction);
 
+adminRouter.get('/users/:userId/identity', AdminController.getUserIdentity);
+adminRouter.get('/users/:userId/sessions', SessionsController.listUserSessions);
+adminRouter.post('/sessions/revoke', SessionsController.revokeSession);

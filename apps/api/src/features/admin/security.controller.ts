@@ -1,7 +1,7 @@
 import { Context } from 'hono';
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
-import { db, users, auditLogs } from '@starter/db';
+import { db, users, auditLogs, twoFactor } from '@starter/db';
 import { auth } from '../../infra/lib/auth';
 import { logger } from '../../infra/lib/logger';
 
@@ -15,7 +15,7 @@ const ROLE_HIERARCHY: Record<string, number> = {
 
 const SecurityActionSchema = z.object({
   targetUserId: z.string().min(1),
-  action: z.enum(['ban', 'suspend', 'require_reset']),
+  action: z.enum(['ban', 'suspend', 'require_reset', 'reset_mfa']),
   reason: z.string().min(10, 'SOC2 Audit reason required'),
 });
 
@@ -62,15 +62,22 @@ export class SecurityController {
         }, 403);
       }
 
-      let updatePayload = {};
+      let updatePayload: Record<string, any> = {};
       if (action === 'ban') updatePayload = { status: 'banned' };
       if (action === 'suspend') updatePayload = { status: 'suspended' };
       if (action === 'require_reset') updatePayload = { requiresPasswordReset: true };
+      if (action === 'reset_mfa') updatePayload = { requiresPasswordReset: true, twoFactorEnabled: false };
 
       // 1. Update Database Record
-      await db.update(users)
-        .set(updatePayload)
-        .where(eq(users.id, targetUserId));
+      if (Object.keys(updatePayload).length > 0) {
+        await db.update(users)
+          .set(updatePayload)
+          .where(eq(users.id, targetUserId));
+      }
+
+      if (action === 'reset_mfa') {
+        await db.delete(twoFactor).where(eq(twoFactor.userId, targetUserId));
+      }
 
       // The Session Guillotine
       const result = await auth.api.revokeUserSessions({

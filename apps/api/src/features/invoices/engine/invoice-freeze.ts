@@ -1,7 +1,6 @@
-// @ts-nocheck
-// TODO: [V2 Migration] invoice-freeze.ts needs a full rewrite to use DraftSectionV2,
-// EvaluatorRow V2, and the new line_type-discriminated invoiceLineItems schema.
-// Suppressed with @ts-nocheck until the dedicated freeze-engine sprint.
+// V2 Freeze Engine — persists pre-evaluated V2 sections from the engine preview.
+// The frontend sends EvaluatedSection[] (already computed by AstEvaluatorService),
+// so the freeze does NOT re-evaluate. It simply validates, writes, and locks.
 import {
   db,
   invoices,
@@ -9,21 +8,12 @@ import {
   invoiceDrafts,
   invoiceReservedNumbers,
   templateHeaderFields,
-  templateSections,
   invoiceTemplates,
 } from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { generateDocumentNumber } from "./document-number";
 import { resolveScope } from "./token-resolver.service";
-import { DagValidatorService } from "./dag-validator.service";
-import { AstEvaluatorService, EvaluatorRow } from "./ast-evaluator.service";
-import { interpolateRows } from "./text-interpolator.service";
-import {
-  DraftSectionV1,
-  HistoricalFormatV1,
-  ResolvedScopeV1,
-  EvaluatedRow,
-} from "./types";
+import type { EvaluatedSection, EvaluatedRow } from "./types";
 
 interface FreezeParams {
   organizationId: string;
@@ -33,7 +23,8 @@ interface FreezeParams {
   documentType: "pda" | "fda" | "proforma" | "general";
   sourceTemplateId?: string;
   sourceTemplateVersion?: number;
-  draftRows: DraftSectionV1[];
+  /** V2 EvaluatedSection[] from the frontend preview — already computed, no re-eval needed */
+  draftRows: EvaluatedSection[];
   headerFieldValues: Record<string, string>;
   issuedToClientName: string;
   currency?: string;
@@ -41,26 +32,38 @@ interface FreezeParams {
 }
 
 /**
- * The Atomic Freeze Transaction — per BACKEND_AGENT.md §10
+ * The Atomic Freeze Transaction (V2)
  *
- * All 12 steps run inside a single database transaction.
+ * Accepts pre-evaluated EvaluatedSection[] from the frontend.
+ * Persists them to the DB atomically — no re-evaluation inside the transaction.
  * Any failure = full rollback. No partial state can persist.
  */
 export async function freezeInvoice(params: FreezeParams) {
   return await db.transaction(async (tx) => {
-    // ---------------------------------------------------------------
-    // STEP 1: Idempotency guard — check for duplicate in-flight generation
-    // NOTE: We use status='draft' as a placeholder insert instead of a
-    // 'generating' status (which doesn't exist in the enum). We use a
-    // unique-per-project approach: if a row for this project + status=draft
-    // already exists and was just inserted (within the last 10s), we block.
-    // The real protection is the transaction lock on the PDF layout row (Step 3).
-    // ---------------------------------------------------------------
-    // (No 'generating' enum value — idempotency is handled by the FOR UPDATE lock)
+    // ─────────────────────────────────────────────────────────────────────
+    // STEP 1: Compute grand total from evaluated sections
+    // ─────────────────────────────────────────────────────────────────────
+    let totalBase = 0;
+    let totalCharges = 0;
 
-    // ---------------------------------------------------------------
-    // STEP 2: Insert invoice placeholder (status='draft', will update to 'frozen')
-    // ---------------------------------------------------------------
+    for (const section of params.draftRows) {
+      // Section base = sum of row baseValues
+      totalBase += parseFloat(section.sectionBase ?? "0");
+      // Section charges total
+      totalCharges += parseFloat(section.sectionChargesTotal ?? "0");
+      // Row charges are already summed into sectionTotal by the evaluator
+      for (const row of section.rows ?? []) {
+        totalCharges += parseFloat(row.chargesValue ?? "0");
+      }
+    }
+
+    const grandTotal = (totalBase + totalCharges).toFixed(6);
+    const totalBaseStr = totalBase.toFixed(6);
+    const totalChargesStr = totalCharges.toFixed(6);
+
+    // ─────────────────────────────────────────────────────────────────────
+    // STEP 2: Insert invoice placeholder (status='draft')
+    // ─────────────────────────────────────────────────────────────────────
     const [invoice] = await tx
       .insert(invoices)
       .values({
@@ -69,46 +72,35 @@ export async function freezeInvoice(params: FreezeParams) {
         projectId: params.projectId,
         clientId: params.clientId,
         documentType: params.documentType,
-        documentNumber: "PENDING", // updated in step 10
+        documentNumber: "PENDING",
         status: "draft",
         sourceTemplateId: params.sourceTemplateId ?? null,
         sourceTemplateVersion: params.sourceTemplateVersion ?? null,
         generatedByUserId: params.userId,
         issuedToClientName: params.issuedToClientName,
         currency: params.currency ?? "USD",
-        totalBaseAmount: "0",
-        totalSurchargeAmount: "0",
-        grandTotalAmount: "0",
+        totalBaseAmount: totalBaseStr,
+        totalChargesAmount: totalChargesStr,  // ← correct column name
+        grandTotalAmount: grandTotal,
         notes: params.notes ?? null,
-        schemaVersion: "1.0",
+        schemaVersion: "2.0",
       })
       .returning();
 
-    // ---------------------------------------------------------------
-    // STEP 3: Lock PDF layout + generate document number (SELECT FOR UPDATE NOWAIT)
-    // ---------------------------------------------------------------
+    // ─────────────────────────────────────────────────────────────────────
+    // STEP 3: Generate document number (SELECT FOR UPDATE NOWAIT)
+    // ─────────────────────────────────────────────────────────────────────
     const documentNumber = await generateDocumentNumber({
       organizationId: params.organizationId,
       projectId: params.projectId,
       documentType: params.documentType,
+      sourceTemplateId: params.sourceTemplateId,
       tx,
     });
 
-    // ---------------------------------------------------------------
-    // STEP 4: Fetch template header fields for FILE_* token resolution
-    // ---------------------------------------------------------------
-    let headerFieldRows: Awaited<ReturnType<typeof tx.select>> = [];
-    if (params.sourceTemplateId) {
-      headerFieldRows = await tx
-        .select()
-        .from(templateHeaderFields)
-        .where(eq(templateHeaderFields.templateId, params.sourceTemplateId));
-    }
-
-    // ---------------------------------------------------------------
-    // STEP 5: Fresh token resolution (CAT_*, ORG_*, FILE_*)
-    // Always re-resolve inside the transaction — never use cached scope
-    // ---------------------------------------------------------------
+    // ─────────────────────────────────────────────────────────────────────
+    // STEP 4: Re-resolve scope for historicalFormat (audit trail)
+    // ─────────────────────────────────────────────────────────────────────
     const scope = await resolveScope({
       projectId: params.projectId,
       organizationId: params.organizationId,
@@ -117,130 +109,92 @@ export async function freezeInvoice(params: FreezeParams) {
       headerFieldValues: params.headerFieldValues,
     });
 
-    // ---------------------------------------------------------------
-    // STEP 6: Build section token map (sectionId → sectionToken)
-    // ---------------------------------------------------------------
-    const sectionTokenMap = new Map<string, string>();
+    // ─────────────────────────────────────────────────────────────────────
+    // STEP 5: Write line items from V2 EvaluatedSection[] rows
+    // ─────────────────────────────────────────────────────────────────────
+    const lineItemInserts: any[] = [];
+    let displayOrder = 0;
+
     for (const section of params.draftRows) {
-      sectionTokenMap.set(section.id, section.sectionToken);
-    }
+      for (const row of section.rows ?? []) {
+        lineItemInserts.push({
+          id: crypto.randomUUID(),
+          invoiceId: invoice.id,
+          sectionToken: section.sectionToken ?? null,
+          sectionDisplayName: section.displayName ?? null,
+          rowToken: row.rowToken,
+          lineType: "row",
+          label: row.parentLabel,
+          subDescription: null,
+          qualifier: null,
+          formulaSnapshot: null,
+          componentsSnapshot: null,
+          chargesSnapshot: row.charges?.length > 0 ? row.charges : null,
+          baseValue: row.baseValue,
+          chargesValue: row.chargesValue,
+          totalValue: row.totalValue,
+          computationCurrency: params.currency ?? "USD",
+          isVisible: true,
+          displayOrder: displayOrder++,
+        });
 
-    // ---------------------------------------------------------------
-    // STEP 7: Flatten draft sections → rows in EvaluatorRow shape
-    // ---------------------------------------------------------------
-    const allDraftRows: EvaluatorRow[] = params.draftRows.flatMap((section) =>
-      section.rows.map((r) => ({
-        rowToken: r.rowToken,
-        rowType: r.rowType,
-        label: r.label,
-        subDescription: r.subDescription ?? null,
-        surchargeLabel: r.surchargeLabel ?? null,
-        qualifier: r.qualifier ?? null,
-        formulaRaw: r.formulaRaw ?? null,
-        surchargeFormula: r.surchargeFormula ?? null,
-        constantValue: null,
-        defaultValue: null,
-        subComponents: r.subComponents ?? null,
-        aggregateTargetSectionId: r.aggregateTargetSectionId ?? null,
-        sectionId: section.id,
-        isVisible: r.isVisible,
-        sortOrder: r.sortOrder,
-        overriddenValue: r.overriddenValue ?? null,
-      }))
-    );
+        // Write row charges as sub-line items
+        for (const charge of row.charges ?? []) {
+          lineItemInserts.push({
+            id: crypto.randomUUID(),
+            invoiceId: invoice.id,
+            sectionToken: section.sectionToken ?? null,
+            sectionDisplayName: section.displayName ?? null,
+            rowToken: charge.chargeToken,
+            lineType: "row_charge",
+            label: charge.label,
+            subDescription: charge.subDescription ?? null,
+            qualifier: charge.qualifier ?? null,
+            formulaSnapshot: charge.formulaSnapshot ?? null,
+            componentsSnapshot: null,
+            chargesSnapshot: null,
+            baseValue: "0.000000",
+            chargesValue: charge.value,
+            totalValue: charge.value,
+            computationCurrency: params.currency ?? "USD",
+            isVisible: true,
+            displayOrder: displayOrder++,
+          });
+        }
+      }
 
-    // ---------------------------------------------------------------
-    // STEP 8: DAG validation + topological sort
-    // ---------------------------------------------------------------
-    const { sorted: sortedRows, result: dagResult } = DagValidatorService.sortRows(allDraftRows);
-
-    if (!dagResult.valid) {
-      const cyclicErrors = dagResult.errors.map((e) => e.message).join("; ");
-      throw new Error(`CIRCULAR_DEPENDENCY: ${cyclicErrors}`);
-    }
-
-    // ---------------------------------------------------------------
-    // STEP 9: Full AST evaluation (BigNumber, surcharges, section sums)
-    // ---------------------------------------------------------------
-    const evaluatedRows = AstEvaluatorService.evaluate({
-      rows: sortedRows,
-      scope,
-      sectionTokenMap,
-    });
-
-    // ---------------------------------------------------------------
-    // STEP 10: Text interpolation on labels/descriptions (after evaluation)
-    // ---------------------------------------------------------------
-    const interpolatedRows = interpolateRows(evaluatedRows, scope);
-
-    // ---------------------------------------------------------------
-    // Compute grand totals
-    // ---------------------------------------------------------------
-    let totalBase = "0";
-    let totalSurcharge = "0";
-    let grandTotal = "0";
-
-    // Find explicit grand_total row first
-    const grandTotalRow = interpolatedRows.find((r) => r.rowType === "grand_total");
-    if (grandTotalRow) {
-      grandTotal = grandTotalRow.totalValue;
-    }
-
-    // Sum base and surcharge across all visible countable rows
-    let baseSum = 0;
-    let surchargeSum = 0;
-    for (const row of interpolatedRows) {
-      if (row.rowType !== "header_label" && row.rowType !== "grand_total") {
-        baseSum += parseFloat(row.baseValue);
-        surchargeSum += parseFloat(row.surchargeValue);
+      // Write section charges as line items
+      for (const sc of section.sectionCharges ?? []) {
+        lineItemInserts.push({
+          id: crypto.randomUUID(),
+          invoiceId: invoice.id,
+          sectionToken: section.sectionToken ?? null,
+          sectionDisplayName: section.displayName ?? null,
+          rowToken: sc.chargeToken,
+          lineType: "section_charge",
+          label: sc.label,
+          subDescription: sc.subDescription ?? null,
+          qualifier: sc.qualifier ?? null,
+          formulaSnapshot: sc.formulaSnapshot ?? null,
+          componentsSnapshot: null,
+          chargesSnapshot: null,
+          baseValue: "0.000000",
+          chargesValue: sc.value,
+          totalValue: sc.value,
+          computationCurrency: params.currency ?? "USD",
+          isVisible: true,
+          displayOrder: displayOrder++,
+        });
       }
     }
-    totalBase = baseSum.toFixed(6);
-    totalSurcharge = surchargeSum.toFixed(6);
-
-    if (!grandTotalRow) {
-      grandTotal = (baseSum + surchargeSum).toFixed(6);
-    }
-
-    // ---------------------------------------------------------------
-    // STEP 11: Write line items
-    // ---------------------------------------------------------------
-    const lineItemInserts = interpolatedRows.map((row: EvaluatedRow, idx: number) => {
-      const section = params.draftRows.find((s) =>
-        s.rows.some((r) => r.rowToken === row.rowToken)
-      );
-      return {
-        id: crypto.randomUUID(),
-        invoiceId: invoice.id,
-        sectionToken: row.sectionToken ?? null,
-        sectionName: section?.name ?? null,
-        rowToken: row.rowToken,
-        rowType: row.rowType,
-        label: row.label,
-        subDescription: row.subDescription ?? null,
-        surchargeLabel: row.surchargeLabel ?? null,
-        qualifier: row.qualifier ?? null,
-        formulaSnapshot: row.formulaSnapshot ?? null,
-        surchargeFormulaSnapshot: row.surchargeFormulaSnapshot ?? null,
-        subComponentsSnapshot: row.subComponentsSnapshot ?? null,
-        baseValue: row.baseValue,
-        surchargeValue: row.surchargeValue,
-        totalValue: row.totalValue,
-        computationCurrency: params.currency ?? "USD",
-        isVisible: row.isVisible,
-        displayOrder: idx,
-      };
-    });
 
     if (lineItemInserts.length > 0) {
       await tx.insert(invoiceLineItems).values(lineItemInserts);
     }
 
-    // ---------------------------------------------------------------
-    // STEP 12: Build the three JSONB artifacts
-    // ---------------------------------------------------------------
-
-    // Fetch template name for historicalFormat
+    // ─────────────────────────────────────────────────────────────────────
+    // STEP 6: Fetch template name for historicalFormat
+    // ─────────────────────────────────────────────────────────────────────
     let templateName = "Custom Invoice";
     if (params.sourceTemplateId) {
       const [tpl] = await tx
@@ -251,75 +205,25 @@ export async function freezeInvoice(params: FreezeParams) {
       if (tpl) templateName = tpl.name;
     }
 
-    const historicalFormat: HistoricalFormatV1 = {
+    const resolvedScope = {
+      schemaVersion: "2.0",
+      resolvedAt: new Date().toISOString(),
+      projectId: params.projectId,
+      tokens: scope,
+    };
+
+    // Snapshot the V2 evaluated sections as the historical format
+    const historicalFormat = {
       schemaVersion: "2.0",
       templateId: params.sourceTemplateId ?? "custom",
       templateVersion: params.sourceTemplateVersion ?? 1,
       templateName,
-      sections: params.draftRows.map((s) => ({
-        id: s.id,
-        sectionToken: s.sectionToken,
-        displayName: s.displayName,
-        sortOrder: s.sortOrder,
-        rows: s.rows.map((r) => ({
-          id: r.id,
-          rowToken: r.rowToken,
-          parentLabel: r.parentLabel,
-          sortOrder: r.sortOrder,
-          components: r.components.map((c) => ({
-            id: c.id,
-            componentToken: c.componentToken,
-            label: c.label,
-            subDescription: c.subDescription,
-            qualifier: c.qualifier,
-            valueType: c.valueType,
-            formula: c.formula,
-            manualValue: c.manualValue,
-            initialValue: c.initialValue,
-            sortOrder: c.sortOrder,
-          })),
-          charges: r.charges.map((ch) => ({
-            id: ch.id,
-            chargeToken: ch.chargeToken,
-            label: ch.label,
-            subDescription: ch.subDescription,
-            qualifier: ch.qualifier,
-            formula: ch.formula,
-            sortOrder: ch.sortOrder,
-          })),
-        })),
-        sectionCharges: s.sectionCharges.map((sc) => ({
-          id: sc.id,
-          chargeToken: sc.chargeToken,
-          label: sc.label,
-          subDescription: sc.subDescription,
-          qualifier: sc.qualifier,
-          formulaBase: sc.formulaBase,
-          formulaRest: sc.formulaRest,
-          sortOrder: sc.sortOrder,
-        })),
-      })),
-      headerFields: (headerFieldRows as any[]).map((f) => ({
-        id: f.id,
-        fieldType: f.fieldType,
-        label: f.label,
-        fileFieldKey: f.fileFieldKey ?? undefined,
-        orgConfigKey: f.orgConfigKey ?? undefined,
-        columnPosition: f.columnPosition ?? "left",
-        sortOrder: f.sortOrder ?? 0,
-      })),
+      sections: params.draftRows,
     };
 
-    const resolvedScope: ResolvedScopeV1 = {
-      schemaVersion: "2.0",
-      resolvedAt: new Date().toISOString(),
-      projectId: params.projectId,
-      tokens: scope, // All BigNumber strings
-    };
-
-    // ---------------------------------------------------------------
-    // STEP 13: Atomic status change to 'frozen'
-    // ---------------------------------------------------------------
+    // ─────────────────────────────────────────────────────────────────────
+    // STEP 7: Atomic status change to 'frozen'
+    // ─────────────────────────────────────────────────────────────────────
     const [frozen] = await tx
       .update(invoices)
       .set({
@@ -328,8 +232,8 @@ export async function freezeInvoice(params: FreezeParams) {
         historicalFormat,
         resolvedScope,
         resolvedHeaderValues: params.headerFieldValues,
-        totalBaseAmount: totalBase,
-        totalChargesAmount: totalSurcharge,
+        totalBaseAmount: totalBaseStr,
+        totalChargesAmount: totalChargesStr,  // ← correct column name
         grandTotalAmount: grandTotal,
         frozenAt: new Date(),
         schemaVersion: "2.0",
@@ -337,9 +241,9 @@ export async function freezeInvoice(params: FreezeParams) {
       .where(eq(invoices.id, invoice.id))
       .returning();
 
-    // ---------------------------------------------------------------
-    // STEP 14: Mark reserved number as used
-    // ---------------------------------------------------------------
+    // ─────────────────────────────────────────────────────────────────────
+    // STEP 8: Mark reserved number as used
+    // ─────────────────────────────────────────────────────────────────────
     await tx
       .update(invoiceReservedNumbers)
       .set({ isUsed: true, usedByInvoiceId: frozen.id })
@@ -350,9 +254,9 @@ export async function freezeInvoice(params: FreezeParams) {
         )
       );
 
-    // ---------------------------------------------------------------
-    // STEP 15: Delete the draft
-    // ---------------------------------------------------------------
+    // ─────────────────────────────────────────────────────────────────────
+    // STEP 9: Delete the draft
+    // ─────────────────────────────────────────────────────────────────────
     await tx
       .delete(invoiceDrafts)
       .where(

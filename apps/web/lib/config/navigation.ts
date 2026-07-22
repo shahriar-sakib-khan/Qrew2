@@ -1,16 +1,16 @@
 import {
   FileText, Home, Receipt, Settings, Users, Wallet, Shield, ShieldAlert, ShieldCheck, Contact,
-  LayoutDashboard, ArrowLeft
+  LayoutDashboard, ArrowLeft, Building2, List
 } from "lucide-react";
 
 export const NAV_CONFIG = {
   user: [
-    { name: "Dashboard", href: "/dashboard", icon: Home },
-    { name: "Clients", href: "/dashboard/clients", icon: Contact },
-    { name: "Files", href: "/dashboard/projects", icon: FileText },
-    { name: "Financials", href: "/dashboard/financials", icon: Wallet },
-    { name: "Staffs", href: "/dashboard/staffs", icon: Users },
-    { name: "Invoices", href: "/dashboard/invoices", icon: Receipt },
+    { name: "Dashboard",  href: "/dashboard",            icon: Home },
+    { name: "Clients",    href: "/dashboard/clients",     icon: Contact },
+    { name: "Files",      href: "/dashboard/projects",    icon: FileText },
+    { name: "Invoices",   href: "/dashboard/invoices",    icon: Receipt },
+    { name: "Financials", href: "/dashboard/financials",  icon: Wallet },
+    { name: "Staffs",     href: "/dashboard/staffs",      icon: Users },
   ],
   admin: [
     { name: "Admin Home", href: "/admin", icon: Shield },
@@ -20,6 +20,8 @@ export const NAV_CONFIG = {
     { name: "System Core", href: "/super-admin", icon: ShieldAlert },
     { name: "Manage Admins", href: "/super-admin/admins", icon: ShieldCheck },
     { name: "Permissions", href: "/super-admin/permissions", icon: Shield },
+    { name: "Workspaces", href: "/super-admin/workspaces", icon: Building2 },
+    { name: "Audit Logs", href: "/super-admin/audit-logs", icon: List },
   ],
   userSettings: { name: "Settings", href: "/dashboard/settings/profile", icon: Settings },
   adminSettings: { name: "Settings", href: "/admin/settings/profile", icon: Settings },

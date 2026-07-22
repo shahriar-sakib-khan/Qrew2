@@ -52,7 +52,8 @@ export const invoiceApi = {
       const error = await res.json();
       throw new Error(error.error || "Failed to preview invoice");
     }
-    return res.json();
+    const json = await res.json();
+    return json.data || json;
   },
 
   // --- Drafts ---

@@ -8,8 +8,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, PanelRightClose, PanelRightOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { BuilderProvider } from "@/components/features/invoice-templates/builder/builder-context";
 import { TemplateBuilderWorkspace } from "@/components/features/invoice-templates/builder/template-builder-workspace";
 import { TemplateTokenPool } from "@/components/features/invoice-templates/builder/template-token-pool";
+import { TemplatePreviewModal } from "@/components/features/invoice-templates/builder/template-preview-modal";
 
 export default function TemplateBuilderPage() {
   const params = useParams();
@@ -17,6 +19,7 @@ export default function TemplateBuilderPage() {
   const templateId = params.id as string;
   const [tokenPoolOpen, setTokenPoolOpen] = useState(true);
   const [zoomLevel, setZoomLevel] = useState(0);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const { data: template, isLoading } = useQuery({
     queryKey: ["invoice-templates", templateId],
@@ -95,6 +98,16 @@ export default function TemplateBuilderPage() {
           </Button>
         </div>
 
+        {/* Preview Button */}
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => setPreviewOpen(true)}
+          className="shrink-0 gap-2 text-xs h-8 ml-auto"
+        >
+          Preview Template
+        </Button>
+
         {/* Token Pool toggle — always visible */}
         <Button
           variant="outline"
@@ -112,7 +125,12 @@ export default function TemplateBuilderPage() {
         </Button>
       </div>
 
-      {/* ── Split panes ─────────────────────────────────────────────────── */}
+      <BuilderProvider
+        mode="template"
+        apiBasePath={`${apiUrl}/api/invoice-templates/${templateId}`}
+        invalidateKey={["template-sections", templateId]}
+      >
+        {/* ── Split panes ─────────────────────────────────────────────────── */}
       <div className="flex flex-1 overflow-hidden relative">
         {/* Mobile backdrop for Token Pool */}
         {tokenPoolOpen && (
@@ -129,7 +147,7 @@ export default function TemplateBuilderPage() {
             tokenPoolOpen && "md:border-r md:border-border"
           )}
         >
-          <TemplateBuilderWorkspace templateId={templateId} tokenPoolOpen={tokenPoolOpen} zoomLevel={zoomLevel} />
+          <TemplateBuilderWorkspace templateId={templateId} zoomLevel={zoomLevel} />
         </div>
 
         {/* Token pool — collapsible */}
@@ -145,7 +163,16 @@ export default function TemplateBuilderPage() {
         >
           <TemplateTokenPool templateId={templateId} zoomLevel={zoomLevel} />
         </div>
-      </div>
+        </div>
+      </BuilderProvider>
+      
+      {previewOpen && (
+        <TemplatePreviewModal 
+          isOpen={previewOpen} 
+          onClose={() => setPreviewOpen(false)} 
+          templateId={templateId} 
+        />
+      )}
     </div>
   );
 }

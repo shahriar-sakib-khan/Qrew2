@@ -1,9 +1,12 @@
 import { type Context } from 'hono';
 import { z } from 'zod';
-import { db, projects, customFieldDefinitions, expenses, invoices, projectStatuses } from '@starter/db';
-import { type SQL, eq, and, ne, isNotNull, isNull, or, sql, sum, count } from 'drizzle-orm';
+import { db, projects, customFieldDefinitions, expenses, invoices, projectStatuses, projectStatusTransitions, projectStatusFields } from '@starter/db';
+import { type SQL, eq, and, ne, isNull, sql, sum, count, inArray } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 import { createDynamicZodSchema } from '../custom-fields/custom-fields.service';
+import { logger } from '../../infra/lib/logger';
+
+const log = logger.child({ module: 'projects' });
 
 const baseProjectSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -94,7 +97,11 @@ export class ProjectsController {
       invoiceCount: invoiceCounts[project.id] || 0,
     }));
 
-    return c.json(enrichedResult);
+    const { scrubEntityData, getScrubberConfig } = await import('../../infra/lib/data-scrubber');
+    const scrubberConfig = await getScrubberConfig(c, 'project');
+    const scrubbedResult = enrichedResult.map(p => scrubEntityData(p, scrubberConfig, 'project'));
+
+    return c.json(scrubbedResult);
   }
 
   static async createProject(c: Context) {
@@ -117,11 +124,12 @@ export class ProjectsController {
       return c.json({ error: 'System Configuration Error: No default status found for this organization.' }, 500);
     }
 
+    // Fetch ALL project custom field definitions for this org (no status filter needed;
+    // fields are now mapped per-stage via project_status_fields junction table)
     const definitions = await db.query.customFieldDefinitions.findMany({
       where: and(
         eq(customFieldDefinitions.organizationId, orgId),
-        eq(customFieldDefinitions.entityType, 'project'),
-        or(isNull(customFieldDefinitions.projectStatusId), eq(customFieldDefinitions.projectStatusId, defaultStatus.id))
+        eq(customFieldDefinitions.entityType, 'project')
       )
     });
 
@@ -129,11 +137,28 @@ export class ProjectsController {
     const customFieldsValidation = dynamicSchema.safeParse(baseValidation.data.customFields);
 
     if (!customFieldsValidation.success) {
-      return c.json({ 
-        error: 'Custom Fields Validation Error', 
-        details: customFieldsValidation.error.format() 
-      }, 400);
+      return c.json({ error: 'Custom Fields Validation Error', details: customFieldsValidation.error.format() }, 400);
     }
+
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth(); // 0-indexed
+    const firstDayOfMonth = new Date(currentYear, currentMonth, 1);
+    const nextMonthYear = currentMonth === 11 ? currentYear + 1 : currentYear;
+    const nextMonth = currentMonth === 11 ? 0 : currentMonth + 1;
+    const firstDayOfNextMonth = new Date(nextMonthYear, nextMonth, 1);
+
+    const [maxSeq] = await db
+      .select({ max: sql<number>`MAX(${projects.fileSequenceNumber})` })
+      .from(projects)
+      .where(
+        and(
+          eq(projects.organizationId, orgId),
+          sql`${projects.createdAt} >= ${firstDayOfMonth.toISOString()}`,
+          sql`${projects.createdAt} < ${firstDayOfNextMonth.toISOString()}`
+        )
+      );
+
+    const nextSeq = (maxSeq?.max || 0) + 1;
 
     const [newProject] = await db.insert(projects).values({
       id: uuidv4(),
@@ -141,9 +166,11 @@ export class ProjectsController {
       clientId: baseValidation.data.clientId,
       name: baseValidation.data.name,
       status: defaultStatus.id,
+      fileSequenceNumber: nextSeq,
       customFields: customFieldsValidation.data,
     }).returning();
 
+    log.info({ orgId, projectId: newProject.id }, 'Created new project');
     return c.json(newProject, 201);
   }
 
@@ -391,4 +418,212 @@ export class ProjectsController {
 
     return c.json(result);
   }
+
+  static async renameAttachment(c: Context) {
+    const orgId = c.get('organizationId');
+    const projectId = c.req.param('id');
+    const attachmentId = c.req.param('attachmentId');
+
+    if (!projectId || !attachmentId) {
+      return c.json({ error: 'Missing parameters' }, 400);
+    }
+
+    const body = await c.req.json();
+    if (!body.fileName) {
+      return c.json({ error: 'fileName is required' }, 400);
+    }
+
+    const { projectAttachments } = await import('@starter/db');
+
+    const [updated] = await db.update(projectAttachments)
+      .set({ fileName: body.fileName })
+      .where(
+        and(
+          eq(projectAttachments.id, attachmentId),
+          eq(projectAttachments.projectId, projectId),
+          eq(projectAttachments.organizationId, orgId)
+        )
+      )
+      .returning();
+
+    if (!updated) {
+      return c.json({ error: 'Attachment not found' }, 404);
+    }
+
+    return c.json(updated);
+  }
+
+  static async proxyAttachment(c: Context) {
+    const orgId = c.get('organizationId');
+    const projectId = c.req.param('id');
+    const attachmentId = c.req.param('attachmentId');
+
+    if (!projectId || !attachmentId) {
+      return c.json({ error: 'Missing parameters' }, 400);
+    }
+
+    const { projectAttachments } = await import('@starter/db');
+    const attachment = await db.query.projectAttachments.findFirst({
+      where: and(
+        eq(projectAttachments.organizationId, orgId),
+        eq(projectAttachments.projectId, projectId),
+        eq(projectAttachments.id, attachmentId)
+      )
+    });
+
+    if (!attachment) return c.json({ error: 'Not found' }, 404);
+
+    try {
+      const response = await fetch(attachment.fileUrl);
+      if (!response.ok) throw new Error('Failed to fetch from storage');
+
+      return new Response(response.body, {
+        headers: {
+          'Content-Type': attachment.fileType || 'application/octet-stream',
+          'Content-Disposition': `attachment; filename="${attachment.fileName}"`,
+          'Access-Control-Allow-Origin': '*',
+        },
+      });
+    } catch (e: any) {
+      log.error({ err: e }, 'Failed to proxy attachment');
+      return c.json({ error: 'Failed to download file' }, 500);
+    }
+  }
+
+  /**
+   * PATCH /:id/advance-status
+   *
+   * Advances a file to a new workflow status. Enforces:
+   *   1. The requested transition must be explicitly configured in project_status_transitions.
+   *   2. All fields marked `isRequiredToEnter` for the target status must already have
+   *      values stored in the file's customFields JSONB (Scenario A).
+   * 
+   * On success, updates the project's `status` field.
+   */
+  static async advanceStatus(c: Context) {
+    const orgId = c.get('organizationId');
+    const id = c.req.param('id');
+    if (!id) return c.json({ error: 'Missing project ID' }, 400);
+
+    const body = await c.req.json();
+    const toStatusId: string | undefined = body.toStatusId;
+    // Optional: extra field values the user is submitting as part of this transition
+    const incomingCustomFields: Record<string, any> = body.customFields ?? {};
+
+    if (!toStatusId) {
+      return c.json({ error: 'toStatusId is required' }, 400);
+    }
+
+    // 1. Fetch the project (must belong to this org)
+    const project = await db.query.projects.findFirst({
+      where: and(eq(projects.id, id), eq(projects.organizationId, orgId)),
+    });
+    if (!project) return c.json({ error: 'Project not found' }, 404);
+    if (project.lifecycleState === 'archived') {
+      return c.json({ error: 'Archived files cannot change status' }, 400);
+    }
+
+    // 2. Prevent no-op transitions
+    if (project.status === toStatusId) {
+      return c.json({ error: 'File is already in the requested status' }, 400);
+    }
+
+    // 3. Validate the target status exists in this org
+    const [targetStatus] = await db
+      .select()
+      .from(projectStatuses)
+      .where(and(eq(projectStatuses.id, toStatusId), eq(projectStatuses.organizationId, orgId)));
+
+    if (!targetStatus) {
+      return c.json({ error: 'Target status not found' }, 404);
+    }
+
+    // 4. Validate the transition is allowed in the workflow graph
+    const [allowedTransition] = await db
+      .select({ id: projectStatusTransitions.id })
+      .from(projectStatusTransitions)
+      .where(
+        and(
+          eq(projectStatusTransitions.organizationId, orgId),
+          eq(projectStatusTransitions.fromStatusId, project.status),
+          eq(projectStatusTransitions.toStatusId, toStatusId)
+        )
+      );
+
+    // If workflows are configured (transitions exist), enforce the graph.
+    // If NO transitions are configured at all for this org, allow free status changes
+    // (graceful degradation for orgs with workflows disabled).
+    const hasAnyTransitions = await db
+      .select({ id: projectStatusTransitions.id })
+      .from(projectStatusTransitions)
+      .where(eq(projectStatusTransitions.organizationId, orgId))
+      .limit(1);
+
+    if (hasAnyTransitions.length > 0 && !allowedTransition) {
+      return c.json({
+        error: 'Transition not allowed',
+        message: `Files cannot move from the current status to "${targetStatus.name}". Check your workflow configuration.`,
+      }, 422);
+    }
+
+    // 5. Check Scenario A: fields required BEFORE entering the target status
+    const requiredFields = await db
+      .select({
+        fieldId: projectStatusFields.fieldId,
+        fieldKey: customFieldDefinitions.fieldKey,
+        fieldName: customFieldDefinitions.fieldName,
+        isRequiredToEnter: projectStatusFields.isRequiredToEnter,
+      })
+      .from(projectStatusFields)
+      .innerJoin(customFieldDefinitions, eq(projectStatusFields.fieldId, customFieldDefinitions.id))
+      .where(
+        and(
+          eq(projectStatusFields.organizationId, orgId),
+          eq(projectStatusFields.statusId, toStatusId),
+          eq(projectStatusFields.isRequiredToEnter, true)
+        )
+      );
+
+    // Merge existing customFields with incoming overrides for this transition
+    const mergedFields = { ...project.customFields, ...incomingCustomFields };
+
+    const missingFields: { fieldKey: string; fieldName: string }[] = [];
+    for (const rf of requiredFields) {
+      const value = mergedFields[rf.fieldKey];
+      const isEmpty = value === undefined || value === null || value === '';
+      if (isEmpty) {
+        missingFields.push({ fieldKey: rf.fieldKey, fieldName: rf.fieldName });
+      }
+    }
+
+    if (missingFields.length > 0) {
+      return c.json({
+        error: 'Required fields missing',
+        message: `The following fields must be filled before advancing to "${targetStatus.name}".`,
+        missingFields,
+      }, 422);
+    }
+
+    // 6. Execute the transition — update status, append previous status to history,
+    //    and merge any submitted field values.
+    const previousHistory: string[] = Array.isArray(project.statusHistory) ? project.statusHistory : [];
+    const [updatedProject] = await db
+      .update(projects)
+      .set({
+        status: toStatusId,
+        statusHistory: [...previousHistory, project.status], // append the stage we're leaving
+        customFields: mergedFields,
+        updatedAt: new Date(),
+      })
+      .where(eq(projects.id, id))
+      .returning();
+
+    log.info(
+      { orgId, projectId: id, fromStatus: project.status, toStatus: toStatusId },
+      'Project status advanced'
+    );
+
+    return c.json(updatedProject);
+  }
 }
+

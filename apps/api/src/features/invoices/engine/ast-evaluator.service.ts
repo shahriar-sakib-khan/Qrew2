@@ -75,14 +75,45 @@ function safeBN(val: string | number | null | undefined): ReturnType<typeof math
  *
  * Formula example: "PORT_DUES * 0.15 + FILE_GRT"
  * Scope example:   { PORT_DUES: "1000.000000", FILE_GRT: "4668.000000" }
+ *
+ * @param noticeCollector - If provided, unknown tokens are zero-filled and
+ *   an UNRESOLVED_REFERENCE notice is pushed here instead of throwing.
  */
 function evalFormula(
   formula: string,
   scope: EngineContext,
-  contextLabel: string
+  contextLabel: string,
+  noticeCollector?: EngineError[]
 ): ReturnType<typeof math.bignumber> {
+  // ── Zero-fill any tokens that are not yet in scope ──
+  // Match bare UPPER_CASE identifiers (not pure numbers)
+  const TOKEN_RE = /\b([A-Z_][A-Z0-9_]*)\b/g;
+  let resolvedFormula = formula;
+  if (noticeCollector !== undefined) {
+    const unknownTokens = new Set<string>();
+    let m: RegExpExecArray | null;
+    TOKEN_RE.lastIndex = 0;
+    while ((m = TOKEN_RE.exec(formula)) !== null) {
+      const tok = m[1];
+      if (!(tok in scope)) unknownTokens.add(tok);
+    }
+    for (const tok of unknownTokens) {
+      noticeCollector.push({
+        code: "UNRESOLVED_REFERENCE",
+        message: `Token "${tok}" is not yet defined — treated as 0.`,
+        token: tok,
+        formula,
+      } as EngineError);
+      // Replace the bare token with 0 so mathjs doesn't crash
+      resolvedFormula = resolvedFormula.replace(
+        new RegExp(`\\b${tok}\\b`, "g"),
+        "0"
+      );
+    }
+  }
+
   try {
-    const result = math.evaluate(formula, scope);
+    const result = math.evaluate(resolvedFormula, scope);
     if (result == null) throw new Error("Null result");
     return math.bignumber(result.toString());
   } catch (err) {
@@ -172,6 +203,7 @@ function evaluateRow(
   idToToken: RowIdToTokenMap
 ): { result: EvaluatedRow; errors: EngineError[] } {
   const errors: EngineError[] = [];
+  const notices: EngineError[] = []; // soft, non-blocking
   const evaluatedCharges: EvaluatedRowCharge[] = [];
   let baseValue = ZERO;
   let chargesValue = ZERO;
@@ -187,9 +219,10 @@ function evaluateRow(
     } else {
       try {
         const decodedFormula = decodeFormulaForEval(row.formula, idToToken);
-        baseValue = evalFormula(decodedFormula, scope, `row "${row.parentLabel}"`);
+        // Pass noticeCollector so unknown tokens are zero-filled gracefully
+        baseValue = evalFormula(decodedFormula, scope, `row "${row.parentLabel}"`, notices);
       } catch (err) {
-        errors.push(err as EngineError);
+        errors.push({ ...(err as EngineError), rowToken: row.rowToken });
       }
     }
   } else {
@@ -212,7 +245,7 @@ function evaluateRow(
       scope[charge.chargeToken] = toFixed(value);
       chargesValue = math.add(chargesValue, value) as ReturnType<typeof math.bignumber>;
     } catch (err) {
-      errors.push(err as EngineError);
+      errors.push({ ...(err as EngineError), rowToken: row.rowToken });
       scope[charge.chargeToken] = '0.000000';
     }
   }
@@ -233,6 +266,7 @@ function evaluateRow(
       chargesValue: toFixed(chargesValue),
       totalValue: toFixed(totalValue),
       sortOrder: row.sortOrder,
+      notices: notices.length > 0 ? notices : undefined,
     },
   };
 }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, ShieldAlert, Ban, RefreshCcw } from 'lucide-react';
+import { Loader2, ShieldAlert, Ban, RefreshCcw, KeyRound } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -17,7 +17,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { apiUrl } from '@/lib/constants';
 
-export type SecurityActionType = 'ban' | 'suspend' | 'require_reset';
+export type SecurityActionType = 'ban' | 'suspend' | 'require_reset' | 'reset_mfa';
 
 export interface SecurityUserContext {
   id: string;
@@ -62,6 +62,13 @@ export function SecurityActionModal({ isOpen, onClose, user, actionType }: Secur
       description: 'Force this user to reset their password on their next login. Active sessions will be terminated.',
       buttonText: 'Force Reset',
       variant: 'default' as const,
+    },
+    reset_mfa: {
+      title: 'Reset MFA',
+      icon: <KeyRound className="mr-2 h-4 w-4" />,
+      description: 'Disable Two-Factor Authentication for this user and require a password reset. Use only when a user has lost their 2FA device.',
+      buttonText: 'Reset MFA',
+      variant: 'destructive' as const,
     },
   };
 

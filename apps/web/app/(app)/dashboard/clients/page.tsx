@@ -11,7 +11,6 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
@@ -20,6 +19,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Can } from "@/components/features/auth/can";
 import { toast } from "sonner";
 import { ClientDetailsModal } from "@/components/features/clients/client-details-modal";
+import { useTableCellFilter } from "@/hooks/use-table-cell-filter";
+import { useColumnResizable } from "@/hooks/use-column-resizable";
+import { FilterableTableHeader, FilterableTableCell } from "@/components/ui/table-filter-components";
 
 export default function ClientsPage() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -28,6 +30,18 @@ export default function ClientsPage() {
   const [clientToArchive, setClientToArchive] = useState<any>(null);
   const [isArchiving, setIsArchiving] = useState(false);
   const [activeTab, setActiveTab] = useState("active");
+
+  const {
+    filters,
+    toggleFilter,
+    clearColumnFilter,
+    filterRows,
+    isColumnFiltered,
+  } = useTableCellFilter();
+
+  const { columnWidths, handleResizeStart, resetColumnWidth } = useColumnResizable({
+    tableId: "client-directory",
+  });
 
   const { data: orgSettings } = useQuery({
     queryKey: ["orgSettings"],
@@ -64,6 +78,21 @@ export default function ClientsPage() {
       return res.json();
     },
   });
+
+  const extractors = useMemo(() => {
+    const map: Record<string, (c: any) => any> = {
+      'sys-client-name': (c) => c.name,
+      'sys-client-email': (c) => c.email || "-",
+    };
+    customFields?.forEach((field: any) => {
+      map[field.id] = (c) => c.customFields?.[field.fieldKey] || "-";
+    });
+    return map;
+  }, [customFields]);
+
+  const filteredClients = useMemo(() => {
+    return filterRows(clients || [], extractors);
+  }, [clients, filterRows, extractors]);
 
   const handleDelete = async (client: any) => {
     if (!confirm(`Are you sure you want to permanently delete ${client.name}? This action cannot be undone.`)) return;
@@ -124,16 +153,48 @@ export default function ClientsPage() {
   };
 
   const renderClientsTable = (isArchivedView: boolean) => (
-    <div className="rounded-md border bg-card">
+    <div className="rounded-md border bg-card overflow-x-auto">
       <Table>
         <TableHeader>
-          <TableRow>
-            {showCol('sys-client-name') && <TableHead className="w-[200px]">Name</TableHead>}
-            {showCol('sys-client-email') && <TableHead>Email</TableHead>}
+          <TableRow className="bg-muted/50">
+            {showCol('sys-client-name') && (
+              <FilterableTableHeader
+                columnKey="sys-client-name"
+                title="Name"
+                isFiltered={isColumnFiltered("sys-client-name")}
+                activeValue={filters["sys-client-name"]}
+                onClear={() => clearColumnFilter("sys-client-name")}
+                width={columnWidths["sys-client-name"]}
+                onResizeStart={handleResizeStart}
+                onResetWidth={resetColumnWidth}
+              />
+            )}
+            {showCol('sys-client-email') && (
+              <FilterableTableHeader
+                columnKey="sys-client-email"
+                title="Email"
+                isFiltered={isColumnFiltered("sys-client-email")}
+                activeValue={filters["sys-client-email"]}
+                onClear={() => clearColumnFilter("sys-client-email")}
+                width={columnWidths["sys-client-email"]}
+                onResizeStart={handleResizeStart}
+                onResetWidth={resetColumnWidth}
+              />
+            )}
             {customFields?.map((field: any) => (
-              <TableHead key={field.id}>{field.fieldName}</TableHead>
+              <FilterableTableHeader
+                key={field.id}
+                columnKey={field.id}
+                title={field.fieldName}
+                isFiltered={isColumnFiltered(field.id)}
+                activeValue={filters[field.id]}
+                onClear={() => clearColumnFilter(field.id)}
+                width={columnWidths[field.id]}
+                onResizeStart={handleResizeStart}
+                onResetWidth={resetColumnWidth}
+              />
             ))}
-            <TableHead className="w-[120px] text-right">Actions</TableHead>
+            <TableCell className="w-[120px] text-right font-medium text-muted-foreground">Actions</TableCell>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -146,7 +207,7 @@ export default function ClientsPage() {
                 Loading clients...
               </TableCell>
             </TableRow>
-          ) : clients?.length === 0 ? (
+          ) : filteredClients?.length === 0 ? (
             <TableRow>
               <TableCell 
                 colSpan={1 + (showCol('sys-client-name') ? 1 : 0) + (showCol('sys-client-email') ? 1 : 0) + (customFields?.length || 0)} 
@@ -156,26 +217,45 @@ export default function ClientsPage() {
               </TableCell>
             </TableRow>
           ) : (
-            clients?.map((client: any) => (
+            filteredClients?.map((client: any) => (
               <TableRow 
                 key={client.id}
-                className="cursor-pointer hover:bg-muted/50"
-                onClick={() => setClientToView(client)}
+                className="hover:bg-muted/30 transition-colors"
               >
                 {showCol('sys-client-name') && (
-                  <TableCell className="font-medium">
+                  <FilterableTableCell
+                    columnKey="sys-client-name"
+                    value={client.name}
+                    isFiltered={isColumnFiltered("sys-client-name")}
+                    onToggleFilter={toggleFilter}
+                    onTextClick={() => setClientToView(client)}
+                    width={columnWidths["sys-client-name"]}
+                  >
                     {client.name}
-                  </TableCell>
+                  </FilterableTableCell>
                 )}
                 {showCol('sys-client-email') && (
-                  <TableCell>
+                  <FilterableTableCell
+                    columnKey="sys-client-email"
+                    value={client.email || "-"}
+                    isFiltered={isColumnFiltered("sys-client-email")}
+                    onToggleFilter={toggleFilter}
+                    width={columnWidths["sys-client-email"]}
+                  >
                     {client.email || "-"}
-                  </TableCell>
+                  </FilterableTableCell>
                 )}
                 {customFields?.map((field: any) => (
-                  <TableCell key={field.id}>
+                  <FilterableTableCell
+                    key={field.id}
+                    columnKey={field.id}
+                    value={client.customFields?.[field.fieldKey] || "-"}
+                    isFiltered={isColumnFiltered(field.id)}
+                    onToggleFilter={toggleFilter}
+                    width={columnWidths[field.id]}
+                  >
                     {client.customFields?.[field.fieldKey] || "-"}
-                  </TableCell>
+                  </FilterableTableCell>
                 ))}
                 <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center justify-end gap-2">

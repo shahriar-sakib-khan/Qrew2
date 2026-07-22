@@ -1,6 +1,6 @@
 'use client';
 
-import { MoreHorizontal, UserCog, Ban, ShieldAlert, RefreshCcw } from 'lucide-react';
+import { MoreHorizontal, UserCog, Ban, ShieldAlert, RefreshCcw, KeyRound, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -23,9 +23,10 @@ interface UsersDataTableActionsProps {
   currentUserRole: string;
   onImpersonate: (user: SecurityUserContext) => void;
   onSecurityAction: (user: SecurityUserContext, action: SecurityActionType) => void;
+  onViewDetails?: (user: SecurityUserContext) => void;
 }
 
-export function UsersDataTableActions({ user, currentUserRole, onImpersonate, onSecurityAction }: UsersDataTableActionsProps) {
+export function UsersDataTableActions({ user, currentUserRole, onImpersonate, onSecurityAction, onViewDetails }: UsersDataTableActionsProps) {
   const actorLevel = ROLE_HIERARCHY[currentUserRole] ?? 1;
   const targetLevel = ROLE_HIERARCHY[user.role] ?? 1;
 
@@ -52,6 +53,15 @@ export function UsersDataTableActions({ user, currentUserRole, onImpersonate, on
         <DropdownMenuLabel>Actions</DropdownMenuLabel>
         
         {/* Support Operations */}
+        {onViewDetails && (
+          <DropdownMenuItem 
+            onClick={() => onViewDetails(user)}
+            className="cursor-pointer"
+          >
+            <Eye className="mr-2 h-4 w-4" />
+            View Details
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem 
           onClick={() => onImpersonate(user)}
           className="cursor-pointer"
@@ -70,6 +80,13 @@ export function UsersDataTableActions({ user, currentUserRole, onImpersonate, on
         >
           <RefreshCcw className="mr-2 h-4 w-4" />
           Force Password Reset
+        </DropdownMenuItem>
+        <DropdownMenuItem 
+          onClick={() => onSecurityAction(user, 'reset_mfa')}
+          className="cursor-pointer"
+        >
+          <KeyRound className="mr-2 h-4 w-4" />
+          Reset MFA
         </DropdownMenuItem>
         <DropdownMenuItem 
           onClick={() => onSecurityAction(user, 'suspend')}

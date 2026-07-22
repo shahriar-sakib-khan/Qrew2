@@ -164,8 +164,10 @@ async function seedSST() {
       { roleId: gmRoleId, permissionKey: 'finance:request_funds' },
       { roleId: gmRoleId, permissionKey: 'finance:approve_funds' },
       { roleId: gmRoleId, permissionKey: 'finance:record_expense' },
-      { roleId: gmRoleId, permissionKey: 'finance:view_invoices' },
-      { roleId: gmRoleId, permissionKey: 'finance:manage_invoices' }
+      { roleId: gmRoleId, permissionKey: 'invoice:view' },
+      { roleId: gmRoleId, permissionKey: 'invoice:create' },
+      { roleId: gmRoleId, permissionKey: 'invoice:edit' },
+      { roleId: gmRoleId, permissionKey: 'invoice:delete' }
     ]);
   }
 
@@ -295,8 +297,8 @@ async function seedSST() {
     { entity: 'project', name: 'Terminal Number', key: 'terminal_number', type: 'text', req: false },
     { entity: 'project', name: 'Port Number', key: 'port_number', type: 'text', req: false },
     { entity: 'project', name: 'Port', key: 'port', type: 'single_select', req: true, options: ['CDG', 'Mongla', 'Singapore', 'Dubai'] },
-    { entity: 'project', name: 'GRT', key: 'grt', type: 'boolean', req: false },
-    { entity: 'project', name: 'NRT', key: 'nrt', type: 'boolean', req: false },
+    { entity: 'project', name: 'GRT', key: 'grt', type: 'number', req: false },
+    { entity: 'project', name: 'NRT', key: 'nrt', type: 'number', req: false },
   ];
 
   for (const f of fields) {
@@ -436,8 +438,8 @@ async function seedSST() {
       terminal_number: `T-0${Math.floor(1 + Math.random() * 9)}`,
       port_number: `P-${Math.floor(10 + Math.random() * 89)}`,
       port: port,
-      grt: Math.random() > 0.3,
-      nrt: Math.random() > 0.5
+      grt: Math.floor(20000 + Math.random() * 50000),
+      nrt: Math.floor(10000 + Math.random() * 20000)
     };
 
     await db.insert(projects).values({
@@ -688,6 +690,12 @@ async function seedSST() {
   const invoiceCount = Math.min(16, projectIdsWithExpenses.length);
   const invoiceStatuses = ['draft', 'issued', 'issued', 'paid', 'paid', 'paid', 'void', 'disputed'] as const;
 
+  const { invoiceTypes } = await import('./index');
+  const defaultInvoiceType = await db.query.invoiceTypes.findFirst({
+    where: (it: any, { and, eq }: any) => and(eq(it.organizationId, orgDb.id), eq(it.isDefault, true))
+  });
+  if (!defaultInvoiceType) throw new Error("Default invoice type not found");
+
   for (let i = 0; i < invoiceCount; i++) {
     const projectId = projectIdsWithExpenses[i];
     const projectExpenses = expensesByProject[projectId];
@@ -721,7 +729,7 @@ async function seedSST() {
       organizationId: orgDb.id,
       clientId: projectObj.clientId,
       projectId: projectId,
-      documentType: "general",
+      documentType: defaultInvoiceType.id,
       documentNumber: invNumber,
       status: status,
       generatedByUserId: createdUsers['kabir@sst.com'].id,

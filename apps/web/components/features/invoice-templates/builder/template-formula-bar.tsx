@@ -28,7 +28,7 @@ function stripLeadingEquals(s: string): string {
 
 function useSaveCellMutation() {
   const queryClient = useQueryClient();
-  const { setSelectedCell } = useBuilderContext();
+  const { setSelectedCell, apiBasePath, invalidateKey } = useBuilderContext();
 
   return useMutation({
     mutationFn: async ({
@@ -42,7 +42,61 @@ function useSaveCellMutation() {
       const isFormula = detectFormula(trimmed);
       const formulaValue = stripLeadingEquals(trimmed);
 
-      // Build the PATCH payload for the row-level value fields
+      // ── Handle Section Charge ──
+      if (cell.isSectionCharge && cell.chargeId) {
+        // Section charges use formulaBase and formulaRest
+        // Try to parse out the base (e.g., SEC_TOK_BASE, SEC_TOK_TOTAL, SEC_TOK_CHARGES)
+        let formulaBase = "BASE";
+        let formulaRest = formulaValue;
+        
+        const baseMatch = formulaValue.match(/^SEC_[A-Z0-9_]+_(BASE|TOTAL|CHARGES)\s*(.*)$/);
+        if (baseMatch) {
+          formulaBase = baseMatch[1];
+          formulaRest = baseMatch[2].trim() || "* 1";
+        }
+
+        const res = await fetch(
+          `${apiBasePath}/sections/${cell.sectionId}/section-charges/${cell.chargeId}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({
+              formulaBase,
+              formulaRest,
+            }),
+          }
+        );
+        if (!res.ok) throw new Error("Failed to save section charge");
+        return { json: await res.json(), templateId: cell.templateId };
+      }
+
+      // ── Handle Row Charge ──
+      if (cell.chargeId && cell.row) {
+        const updatedCharges = (cell.row.charges || []).map((c: any) => {
+          if (c.id === cell.chargeId) {
+            return {
+              ...c,
+              formula: formulaValue,
+            };
+          }
+          return c;
+        });
+
+        const res = await fetch(
+          `${apiBasePath}/sections/${cell.sectionId}/rows/${cell.rowId}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ charges: updatedCharges }),
+          }
+        );
+        if (!res.ok) throw new Error("Failed to save row charge");
+        return { json: await res.json(), templateId: cell.templateId };
+      }
+
+      // ── Handle Normal Row ──
       const payload: Record<string, any> = {
         valueType: isFormula ? "formula" : "normal",
         formula: isFormula ? formulaValue : null,
@@ -50,7 +104,7 @@ function useSaveCellMutation() {
       };
 
       const res = await fetch(
-        `${apiUrl}/api/invoice-templates/${cell.templateId}/sections/${cell.sectionId}/rows/${cell.rowId}`,
+        `${apiBasePath}/sections/${cell.sectionId}/rows/${cell.rowId}`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -61,8 +115,8 @@ function useSaveCellMutation() {
       if (!res.ok) throw new Error("Failed to save");
       return { json: await res.json(), templateId: cell.templateId };
     },
-    onSuccess: ({ templateId }) => {
-      queryClient.invalidateQueries({ queryKey: ["template-sections", templateId] });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: invalidateKey });
       setSelectedCell(null);
     },
     onError: () => toast.error("Failed to save cell value"),
@@ -146,11 +200,24 @@ export function TemplateFormulaBar() {
       const tokenToInsert = e.detail;
       setInputValue((prev) => {
         const base = prev ?? "";
-        // If there is no equals sign at the start, optionally prepend one? 
-        // We'll just append it. If they are building a formula, they probably already typed '='.
-        // But for better UX, if it's empty, we could start with '=' + token.
-        if (base === "") return "=" + tokenToInsert;
-        return base + tokenToInsert;
+        if (base === "") return "= " + tokenToInsert + " ";
+        
+        // Prevent sequential tokens
+        const trimmedBase = base.trim();
+        const trimmedTokenToInsert = tokenToInsert.trim();
+        const isOperator = ["+", "-", "*", "/", "(", ")"].includes(trimmedTokenToInsert);
+        
+        if (!isOperator && trimmedBase.length > 0 && trimmedBase !== "=") {
+          const lastChar = trimmedBase[trimmedBase.length - 1];
+          if (/[A-Za-z0-9_\)]/.test(lastChar)) {
+            toast.error("Please add an operator (+, -, *, /) before inserting another token.");
+            return prev;
+          }
+        }
+
+        // Add a space before if it doesn't already end with a space or an equal sign
+        const prefix = (base.endsWith(" ") || base.endsWith("=")) ? "" : " ";
+        return base + prefix + tokenToInsert + " ";
       });
       isDirty.current = true;
       inputRef.current?.focus();
@@ -189,17 +256,29 @@ export function TemplateFormulaBar() {
       const cursor = inputRef.current.selectionStart ?? inputValue.length;
       const before = inputValue.slice(0, cursor);
       const after = inputValue.slice(cursor);
+      
       // Replace the partial word with the full token
       const withoutPartial = before.slice(
         0,
         before.length - lastWord.length
       );
-      const newValue = withoutPartial + token + after;
+      
+      // Prevent sequential tokens
+      const trimmedBase = withoutPartial.trim();
+      if (trimmedBase.length > 0 && trimmedBase !== "=") {
+        const lastChar = trimmedBase[trimmedBase.length - 1];
+        if (/[A-Za-z0-9_\)]/.test(lastChar)) {
+          toast.error("Please add an operator (+, -, *, /) before inserting another token.");
+          return;
+        }
+      }
+
+      const newValue = withoutPartial + token + " " + after;
       setInputValue(newValue);
       isDirty.current = true;
       setTimeout(() => {
         inputRef.current?.focus();
-        const pos = withoutPartial.length + token.length;
+        const pos = withoutPartial.length + token.length + 1;
         inputRef.current?.setSelectionRange(pos, pos);
       }, 0);
     },
@@ -255,7 +334,7 @@ export function TemplateFormulaBar() {
       {/* ── Operator Buttons ── */}
       <div 
         className={cn(
-          "flex items-center gap-1 mb-1 transition-opacity duration-200",
+          "flex items-center gap-1 mb-1 ml-12 sm:ml-48 md:ml-52 transition-opacity duration-200",
           isActive ? "opacity-100" : "opacity-0 pointer-events-none"
         )}
       >

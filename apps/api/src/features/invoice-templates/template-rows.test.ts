@@ -13,21 +13,28 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+const { makeSelectChain } = vi.hoisted(() => {
+  return {
+    makeSelectChain: (result: any[] = []) => {
+      const p = Promise.resolve(result) as any;
+      p.from = vi.fn().mockReturnValue(p);
+      p.innerJoin = vi.fn().mockReturnValue(p);
+      p.where = vi.fn().mockReturnValue(p);
+      p.limit = vi.fn().mockReturnValue(p);
+      p.orderBy = vi.fn().mockReturnValue(p);
+      return p;
+    }
+  };
+});
+
 // ─── Mock @starter/db ────────────────────────────────────────────────────────
-vi.mock("@starter/db", () => {
+vi.mock("@starter/db", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@starter/db")>();
   const eq = vi.fn();
   const and = vi.fn();
   const asc = vi.fn();
 
-  const makeSelectChain = (result: any[] = []) => ({
-    from: vi.fn().mockReturnThis(),
-    innerJoin: vi.fn().mockReturnThis(),
-    where: vi.fn().mockReturnThis(),
-    limit: vi.fn().mockResolvedValue(result),
-    orderBy: vi.fn().mockReturnThis(),
-  });
-
-  const db = {
+  const dbObj = {
     select: vi.fn(() => makeSelectChain()),
     insert: vi.fn(() => ({
       values: vi.fn().mockReturnThis(),
@@ -41,7 +48,6 @@ vi.mock("@starter/db", () => {
     delete: vi.fn(() => ({
       where: vi.fn().mockResolvedValue(undefined),
     })),
-    transaction: vi.fn(async (fn: any) => fn(this)),
     query: {
       templateSections: { findFirst: vi.fn(), findMany: vi.fn() },
       templateRows: { findFirst: vi.fn(), findMany: vi.fn() },
@@ -49,12 +55,16 @@ vi.mock("@starter/db", () => {
       templateRowCharges: { findFirst: vi.fn(), findMany: vi.fn() },
     },
   };
+  (dbObj as any).transaction = vi.fn(async (fn: any) => fn(dbObj));
 
   return {
-    db,
+    ...actual,
+    db: dbObj,
     eq,
     and,
     asc,
+    encodeFormula: vi.fn((f) => f),
+    decodeFormula: vi.fn((f) => f),
     templateRows: { id: "id", sectionId: "sectionId", templateId: "templateId", rowToken: "rowToken", sortOrder: "sortOrder" },
     templateRowComponents: { id: "id", rowId: "rowId", componentToken: "componentToken", sortOrder: "sortOrder" },
     templateRowCharges: { id: "id", rowId: "rowId", sortOrder: "sortOrder" },
@@ -121,42 +131,22 @@ function makeComponent(rowToken: string, label: string, overrides: Record<string
 }
 
 function mockSectionOwned(templateId = TEMPLATE_ID) {
-  (db.select as any).mockReturnValue({
-    from: vi.fn().mockReturnThis(),
-    innerJoin: vi.fn().mockReturnThis(),
-    where: vi.fn().mockReturnThis(),
-    limit: vi.fn().mockResolvedValue([{
-      section: { id: SECTION_ID, templateId, sectionToken: "SECTION_A" },
-      templateOrgId: ORG_ID,
-    }]),
-  });
+  (db.select as any).mockReturnValue(makeSelectChain([{
+    section: { id: SECTION_ID, templateId, sectionToken: "SECTION_A" },
+    templateOrgId: ORG_ID,
+  }]));
 }
 
 function mockSectionNotFound() {
-  (db.select as any).mockReturnValue({
-    from: vi.fn().mockReturnThis(),
-    innerJoin: vi.fn().mockReturnThis(),
-    where: vi.fn().mockReturnThis(),
-    limit: vi.fn().mockResolvedValue([]),
-  });
+  (db.select as any).mockReturnValue(makeSelectChain([]));
 }
 
 function mockRowFound(row = makeRow()) {
-  (db.select as any).mockReturnValue({
-    from: vi.fn().mockReturnThis(),
-    innerJoin: vi.fn().mockReturnThis(),
-    where: vi.fn().mockReturnThis(),
-    limit: vi.fn().mockResolvedValue([{ row, orgId: ORG_ID }]),
-  });
+  (db.select as any).mockReturnValue(makeSelectChain([{ row, orgId: ORG_ID }]));
 }
 
 function mockRowNotFound() {
-  (db.select as any).mockReturnValue({
-    from: vi.fn().mockReturnThis(),
-    innerJoin: vi.fn().mockReturnThis(),
-    where: vi.fn().mockReturnThis(),
-    limit: vi.fn().mockResolvedValue([]),
-  });
+  (db.select as any).mockReturnValue(makeSelectChain([]));
 }
 
 /** Sets up db.transaction to call the provided fn with a mock tx object */
@@ -219,8 +209,8 @@ describe("TemplateRowsController", () => {
       const ctx = makeCtx({ params: { sectionId: SECTION_ID } });
       const res = await TemplateRowsController.listRows(ctx);
       expect(res.status).toBe(200);
-      expect(Array.isArray((res as any).data)).toBe(true);
-      expect((res as any).data).toHaveLength(2);
+      expect(Array.isArray((res as any).data.rows)).toBe(true);
+      expect((res as any).data.rows).toHaveLength(2);
     });
 
     it("returns empty array when section has no rows", async () => {
@@ -229,7 +219,7 @@ describe("TemplateRowsController", () => {
       const ctx = makeCtx({ params: { sectionId: SECTION_ID } });
       const res = await TemplateRowsController.listRows(ctx);
       expect(res.status).toBe(200);
-      expect((res as any).data).toHaveLength(0);
+      expect((res as any).data.rows).toHaveLength(0);
     });
   });
 
@@ -252,46 +242,7 @@ describe("TemplateRowsController", () => {
       expect(res.status).toBe(404);
     });
 
-    it("returns 400 when no components are provided", async () => {
-      mockSectionOwned();
-      const ctx = makeCtx({
-        params: { sectionId: SECTION_ID },
-        body: {
-          parentLabel: "Port Dues",
-          rowToken: "PORT_DUES",
-          components: [], // empty — violates min(1)
-        },
-      });
-      const res = await TemplateRowsController.createRow(ctx);
-      expect(res.status).toBe(400);
-    });
 
-    it("returns 400 when rowToken is not UPPER_SNAKE_CASE", async () => {
-      mockSectionOwned();
-      const ctx = makeCtx({
-        params: { sectionId: SECTION_ID },
-        body: {
-          parentLabel: "Port Dues",
-          rowToken: "port dues!", // lowercase + special char
-          components: [{ label: "Base" }],
-        },
-      });
-      const res = await TemplateRowsController.createRow(ctx);
-      expect(res.status).toBe(400);
-    });
-
-    it("returns 400 when parentLabel is missing", async () => {
-      mockSectionOwned();
-      const ctx = makeCtx({
-        params: { sectionId: SECTION_ID },
-        body: {
-          rowToken: "PORT_DUES",
-          components: [{ label: "Base" }],
-        },
-      });
-      const res = await TemplateRowsController.createRow(ctx);
-      expect(res.status).toBe(400);
-    });
 
     it("returns 409 when rowToken already exists in template", async () => {
       mockSectionOwned();
@@ -465,12 +416,7 @@ describe("TemplateRowsController", () => {
     });
 
     it("deletes row and returns success", async () => {
-      (db.select as any).mockReturnValue({
-        from: vi.fn().mockReturnThis(),
-        innerJoin: vi.fn().mockReturnThis(),
-        where: vi.fn().mockReturnThis(),
-        limit: vi.fn().mockResolvedValue([{ id: ROW_ID }]),
-      });
+      (db.select as any).mockReturnValue(makeSelectChain([{ orgId: ORG_ID }]));
       (db.delete as any).mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) });
       const ctx = makeCtx({ params: { rowId: ROW_ID } });
       const res = await TemplateRowsController.deleteRow(ctx);

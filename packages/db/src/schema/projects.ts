@@ -23,6 +23,8 @@ export const projects = pgTable("projects", {
     .notNull()
     .$onUpdate(() => new Date()),
   customFields: jsonb("custom_fields").$type<Record<string, any>>().default({}),
+  /** Ordered list of status IDs the file has passed through (not including current). */
+  statusHistory: jsonb("status_history").$type<string[]>().default([]),
   lifecycleState: projectLifecycleStateEnum("lifecycle_state").default("open").notNull(),
   archivedAt: timestamp("archived_at", { mode: "date" }),
 });

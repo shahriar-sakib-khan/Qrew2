@@ -1,20 +1,23 @@
 "use client";
 
+import { useMemo } from "react";
 import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { format, parseISO } from "date-fns";
+import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
-import { Edit, Archive, ArchiveRestore, Trash2, FileText } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { Edit, Archive, ArchiveRestore, Trash2, FileText, Lock, CheckCircle2, XCircle } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 import { Can } from "@/components/features/auth/can";
+import { useTableCellFilter } from "@/hooks/use-table-cell-filter";
+import { useColumnResizable } from "@/hooks/use-column-resizable";
+import { FilterableTableHeader, FilterableTableCell } from "@/components/ui/table-filter-components";
 
 interface ListViewProps {
   projects: any[];
@@ -28,6 +31,10 @@ interface ListViewProps {
   showArchivedAt?: boolean;
   isArchivedView?: boolean;
   visibleColumns?: string[];
+  hiddenColumns?: Record<string, boolean>;
+  /** Full statuses list including transitions & statusFields — needed for workflow lock icons */
+  allStatuses?: any[];
+  workflowsEnabled?: boolean;
 }
 
 export function ListView({ 
@@ -41,10 +48,23 @@ export function ListView({
   onViewClient,
   showArchivedAt,
   isArchivedView,
-  visibleColumns
+  visibleColumns,
+  hiddenColumns = {},
+  allStatuses = [],
+  workflowsEnabled = false,
 }: ListViewProps) {
-  const router = useRouter();
-  
+  const {
+    filters,
+    toggleFilter,
+    clearColumnFilter,
+    filterRows,
+    isColumnFiltered,
+  } = useTableCellFilter();
+
+  const { columnWidths, handleResizeStart, resetColumnWidth } = useColumnResizable({
+    tableId: "files-dashboard",
+  });
+
   const formatCurrency = (amount: number | string) => {
     const num = typeof amount === "string" ? parseFloat(amount) : amount;
     return new Intl.NumberFormat("en-US", {
@@ -53,94 +73,296 @@ export function ListView({
     }).format(num || 0);
   };
 
-  const showCol = (key: string) => !visibleColumns || visibleColumns.includes(key);
+  const getVisibleFieldIds = (statusId: string): Set<string> | null => {
+    if (!workflowsEnabled || !allStatuses.length) return null;
+    const statusNode = allStatuses.find((s: any) => s.id === statusId);
+    if (!statusNode) return null;
+    const mappings: any[] = statusNode.statusFields || [];
+    if (mappings.length === 0) return null;
+    return new Set(mappings.map((m: any) => m.fieldId));
+  };
+
+  const showCol = (key: string, isCat1or2: boolean = false) => {
+    if (hiddenColumns[key]) return false;
+    if (isCat1or2 && visibleColumns) {
+      return visibleColumns.includes(key);
+    }
+    return true;
+  };
+
+  const extractors = useMemo(() => {
+    const map: Record<string, (p: any) => any> = {
+      'sys-project-name': (p) => p.name,
+      'sys-project-client': (p) => p.client?.name || "-",
+      'sys-project-status': (p) => p.statusRelation?.name || "Pending",
+      'total_expenses': (p) => formatCurrency(p.totalExpenses),
+      'createdAt': (p) => format(new Date(p.createdAt), "MMM d, yyyy"),
+      'archivedAt': (p) => p.archivedAt ? format(new Date(p.archivedAt), "MMM d, yyyy") : "-",
+    };
+    customFields?.forEach((field: any) => {
+      map[field.id] = (p) => {
+        const val = p.customFields?.[field.fieldKey];
+        if (val && field.fieldType === "date") {
+          try { return format(new Date(val), "MMM d, yyyy"); } catch(e) {}
+        }
+        return val || "-";
+      };
+    });
+    return map;
+  }, [customFields]);
+
+  const displayProjects = useMemo(() => {
+    return filterRows(projects || [], extractors);
+  }, [projects, filterRows, extractors]);
 
   return (
-    <div className="rounded-md border bg-card">
+    <div className="rounded-md border bg-card overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/50">
-            {showCol('sys-project-name') && <TableHead className="w-[250px]">Name</TableHead>}
-            <TableHead>Client</TableHead>
-            {showCol('sys-project-status') && <TableHead>Status</TableHead>}
-            {showCol('total_expenses') && <TableHead>Total Expenses</TableHead>}
-            <TableHead>Created At</TableHead>
-            {showArchivedAt && <TableHead>Archived At</TableHead>}
+            {showCol('sys-project-name', true) && (
+              <FilterableTableHeader
+                columnKey="sys-project-name"
+                title="Name"
+                isFiltered={isColumnFiltered("sys-project-name")}
+                activeValue={filters["sys-project-name"]}
+                onClear={() => clearColumnFilter("sys-project-name")}
+                width={columnWidths["sys-project-name"]}
+                onResizeStart={handleResizeStart}
+                onResetWidth={resetColumnWidth}
+              />
+            )}
+            {showCol('sys-project-client', true) && (
+              <FilterableTableHeader
+                columnKey="sys-project-client"
+                title="Client"
+                isFiltered={isColumnFiltered("sys-project-client")}
+                activeValue={filters["sys-project-client"]}
+                onClear={() => clearColumnFilter("sys-project-client")}
+                width={columnWidths["sys-project-client"]}
+                onResizeStart={handleResizeStart}
+                onResetWidth={resetColumnWidth}
+              />
+            )}
+            {showCol('sys-project-status', true) && (
+              <FilterableTableHeader
+                columnKey="sys-project-status"
+                title="Status"
+                isFiltered={isColumnFiltered("sys-project-status")}
+                activeValue={filters["sys-project-status"]}
+                onClear={() => clearColumnFilter("sys-project-status")}
+                width={columnWidths["sys-project-status"]}
+                onResizeStart={handleResizeStart}
+                onResetWidth={resetColumnWidth}
+              />
+            )}
+            <Can I="finance:view_expenses">
+              {showCol('total_expenses') && (
+                <FilterableTableHeader
+                  columnKey="total_expenses"
+                  title="Total Expenses"
+                  isFiltered={isColumnFiltered("total_expenses")}
+                  activeValue={filters["total_expenses"]}
+                  onClear={() => clearColumnFilter("total_expenses")}
+                  width={columnWidths["total_expenses"]}
+                  onResizeStart={handleResizeStart}
+                  onResetWidth={resetColumnWidth}
+                />
+              )}
+            </Can>
+            {showCol('createdAt') && (
+              <FilterableTableHeader
+                columnKey="createdAt"
+                title="Created At"
+                isFiltered={isColumnFiltered("createdAt")}
+                activeValue={filters["createdAt"]}
+                onClear={() => clearColumnFilter("createdAt")}
+                width={columnWidths["createdAt"]}
+                onResizeStart={handleResizeStart}
+                onResetWidth={resetColumnWidth}
+              />
+            )}
+            {showArchivedAt && showCol('archivedAt') && (
+              <FilterableTableHeader
+                columnKey="archivedAt"
+                title="Archived At"
+                isFiltered={isColumnFiltered("archivedAt")}
+                activeValue={filters["archivedAt"]}
+                onClear={() => clearColumnFilter("archivedAt")}
+                width={columnWidths["archivedAt"]}
+                onResizeStart={handleResizeStart}
+                onResetWidth={resetColumnWidth}
+              />
+            )}
             {customFields?.map((field: any) => (
-              <TableHead key={field.id}>{field.fieldName}</TableHead>
+              showCol(field.id, true) ? (
+                <FilterableTableHeader
+                  key={field.id}
+                  columnKey={field.id}
+                  title={field.fieldName}
+                  isFiltered={isColumnFiltered(field.id)}
+                  activeValue={filters[field.id]}
+                  onClear={() => clearColumnFilter(field.id)}
+                  width={columnWidths[field.id]}
+                  onResizeStart={handleResizeStart}
+                  onResetWidth={resetColumnWidth}
+                />
+              ) : null
             ))}
-            <TableHead className="w-[120px] text-right">Actions</TableHead>
+            <TableCell className="w-[120px] text-right font-medium text-muted-foreground">Actions</TableCell>
           </TableRow>
         </TableHeader>
         <TableBody>
           {isLoading ? (
             <TableRow>
               <TableCell 
-                colSpan={2 + (showCol('sys-project-name') ? 1 : 0) + (showCol('sys-project-status') ? 1 : 0) + (showCol('total_expenses') ? 1 : 0) + (showArchivedAt ? 1 : 0) + (customFields?.length || 0)} 
+                colSpan={20} 
                 className="h-24 text-center text-muted-foreground"
               >
                 Loading files...
               </TableCell>
             </TableRow>
-          ) : projects?.length === 0 ? (
+          ) : displayProjects?.length === 0 ? (
             <TableRow>
               <TableCell 
-                colSpan={2 + (showCol('sys-project-name') ? 1 : 0) + (showCol('sys-project-status') ? 1 : 0) + (showCol('total_expenses') ? 1 : 0) + (showArchivedAt ? 1 : 0) + (customFields?.length || 0)} 
+                colSpan={20} 
                 className="h-24 text-center text-muted-foreground"
               >
                 No files found.
               </TableCell>
             </TableRow>
           ) : (
-            projects?.map((project: any) => (
+            displayProjects?.map((project: any) => (
               <TableRow 
                 key={project.id} 
-                className="hover:bg-muted/50 transition-colors cursor-pointer group"
-                onClick={() => onView?.(project)}
+                className="hover:bg-muted/30 transition-colors"
               >
-                {showCol('sys-project-name') && (
-                  <TableCell className="font-medium text-primary hover:underline">
-                    <div className="flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-muted-foreground" />
-                      {project.name}
-                    </div>
-                  </TableCell>
+                {showCol('sys-project-name', true) && (
+                  <FilterableTableCell
+                    columnKey="sys-project-name"
+                    value={project.name}
+                    isFiltered={isColumnFiltered("sys-project-name")}
+                    onToggleFilter={toggleFilter}
+                    onTextClick={() => onView?.(project)}
+                    width={columnWidths["sys-project-name"]}
+                  >
+                    <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <span>{project.name}</span>
+                  </FilterableTableCell>
                 )}
-                <TableCell onClick={(e) => e.stopPropagation()}>
-                  {project.client ? (
-                    <span 
-                      className="cursor-pointer hover:underline text-primary"
-                      onClick={() => onViewClient?.(project.client)}
+                {showCol('sys-project-client', true) && (
+                  <FilterableTableCell
+                    columnKey="sys-project-client"
+                    value={project.client?.name || "-"}
+                    isFiltered={isColumnFiltered("sys-project-client")}
+                    onToggleFilter={toggleFilter}
+                    onTextClick={project.client ? () => onViewClient?.(project.client) : undefined}
+                    width={columnWidths["sys-project-client"]}
+                  >
+                    {project.client ? project.client.name : "-"}
+                  </FilterableTableCell>
+                )}
+                {showCol('sys-project-status', true) && (
+                  <FilterableTableCell
+                    columnKey="sys-project-status"
+                    value={project.statusRelation?.name || "Pending"}
+                    isFiltered={isColumnFiltered("sys-project-status")}
+                    onToggleFilter={toggleFilter}
+                    width={columnWidths["sys-project-status"]}
+                  >
+                    {(() => {
+                      const statusNode = allStatuses.find((s: any) => s.id === project.status);
+                      const isTerminal = statusNode?.isTerminal;
+                      const isNegative = isTerminal && statusNode?.name?.toLowerCase().match(
+                        /reject|cancel|fail|lost|declin|abort|close/
+                      );
+                      return (
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <Badge variant="secondary" className="capitalize">
+                            {project.statusRelation?.name || "Pending"}
+                          </Badge>
+                          {isTerminal && (
+                            <Badge
+                              variant="outline"
+                              className={isNegative
+                                ? "text-rose-500 border-rose-500/30 bg-rose-500/8 text-[10px] px-1.5 py-0"
+                                : "text-emerald-500 border-emerald-500/30 bg-emerald-500/8 text-[10px] px-1.5 py-0"
+                              }
+                            >
+                              {isNegative
+                                ? <><XCircle className="w-2.5 h-2.5 mr-0.5" />Closed</>
+                                : <><CheckCircle2 className="w-2.5 h-2.5 mr-0.5" />Terminated</>
+                              }
+                            </Badge>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </FilterableTableCell>
+                )}
+                <Can I="finance:view_expenses">
+                  {showCol('total_expenses') && (
+                    <FilterableTableCell
+                      columnKey="total_expenses"
+                      value={formatCurrency(project.totalExpenses)}
+                      isFiltered={isColumnFiltered("total_expenses")}
+                      onToggleFilter={toggleFilter}
+                      width={columnWidths["total_expenses"]}
                     >
-                      {project.client.name}
-                    </span>
-                  ) : "-"}
-                </TableCell>
-                {showCol('sys-project-status') && (
-                  <TableCell>
-                    <Badge variant="secondary" className="capitalize">
-                      {project.statusRelation?.name || "Pending"}
-                    </Badge>
-                  </TableCell>
+                      {formatCurrency(project.totalExpenses)}
+                    </FilterableTableCell>
+                  )}
+                </Can>
+                {showCol('createdAt') && (
+                  <FilterableTableCell
+                    columnKey="createdAt"
+                    value={format(new Date(project.createdAt), "MMM d, yyyy")}
+                    isFiltered={isColumnFiltered("createdAt")}
+                    onToggleFilter={toggleFilter}
+                    width={columnWidths["createdAt"]}
+                  >
+                    {format(new Date(project.createdAt), "MMM d, yyyy")}
+                  </FilterableTableCell>
                 )}
-                {showCol('total_expenses') && (
-                  <TableCell className="font-medium">
-                    {formatCurrency(project.totalExpenses)}
-                  </TableCell>
-                )}
-                <TableCell className="text-muted-foreground">
-                  {format(new Date(project.createdAt), "MMM d, yyyy")}
-                </TableCell>
-                {showArchivedAt && (
-                  <TableCell className="text-muted-foreground">
+                {showArchivedAt && showCol('archivedAt') && (
+                  <FilterableTableCell
+                    columnKey="archivedAt"
+                    value={project.archivedAt ? format(new Date(project.archivedAt), "MMM d, yyyy") : "-"}
+                    isFiltered={isColumnFiltered("archivedAt")}
+                    onToggleFilter={toggleFilter}
+                    width={columnWidths["archivedAt"]}
+                  >
                     {project.archivedAt ? format(new Date(project.archivedAt), "MMM d, yyyy") : "-"}
-                  </TableCell>
+                  </FilterableTableCell>
                 )}
                 {customFields?.map((field: any) => {
+                  if (!showCol(field.id, true)) return null;
+                  const visibleFieldIds = getVisibleFieldIds(project.status);
+                  const isLocked = visibleFieldIds !== null && !visibleFieldIds.has(field.id);
+
+                  if (isLocked) {
+                    return (
+                      <TableCell key={field.id} className="text-muted-foreground/40">
+                        <TooltipProvider delayDuration={100}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="flex items-center gap-1.5">
+                                <Lock className="h-3.5 w-3.5" />
+                                <span className="text-xs italic">Not in stage</span>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                              This field is not part of the file&apos;s current workflow stage.
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </TableCell>
+                    );
+                  }
+
                   const val = project.customFields?.[field.fieldKey];
                   let displayVal = val || "-";
                   
-                  // Format if date
                   if (val && field.fieldType === "date") {
                      try {
                        displayVal = format(new Date(val), "MMM d, yyyy");
@@ -148,9 +370,16 @@ export function ListView({
                   }
 
                   return (
-                    <TableCell key={field.id}>
+                    <FilterableTableCell
+                      key={field.id}
+                      columnKey={field.id}
+                      value={displayVal}
+                      isFiltered={isColumnFiltered(field.id)}
+                      onToggleFilter={toggleFilter}
+                      width={columnWidths[field.id]}
+                    >
                       {displayVal}
-                    </TableCell>
+                    </FilterableTableCell>
                   );
                 })}
                 <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>

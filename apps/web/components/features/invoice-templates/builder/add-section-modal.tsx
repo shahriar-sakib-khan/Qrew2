@@ -16,6 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { useBuilderContext } from "./builder-context";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -72,11 +73,14 @@ export function AddSectionModal({
   isOpen: boolean;
   onClose: () => void;
   templateId: string;
+  draftId?: string;
   insertAtIndex?: number;
   existingSections?: any[];
   editSection?: any;
 }) {
   const queryClient = useQueryClient();
+  const { apiBasePath, invalidateKey, mode } = useBuilderContext();
+  const isDraftMode = mode === "draft";
   const isEdit = !!editSection;
 
   const [name, setName] = useState("");
@@ -116,7 +120,7 @@ export function AddSectionModal({
     mutationFn: async () => {
       if (isEdit) {
         const res = await fetch(
-          `${apiUrl}/api/invoice-templates/${templateId}/sections/${editSection.id}`,
+          `${apiBasePath}/sections/${editSection.id}`,
           {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
@@ -144,7 +148,7 @@ export function AddSectionModal({
         (a, b) => b.sortOrder - a.sortOrder
       )) {
         await fetch(
-          `${apiUrl}/api/invoice-templates/${templateId}/sections/${sec.id}`,
+          `${apiBasePath}/sections/${sec.id}`,
           {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
@@ -154,8 +158,9 @@ export function AddSectionModal({
         );
       }
 
+      // Create new section
       const res = await fetch(
-        `${apiUrl}/api/invoice-templates/${templateId}/sections`,
+        `${apiBasePath}/sections`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -166,6 +171,7 @@ export function AddSectionModal({
             // Send the full SECTION_X token so the server stores it as-is
             sectionToken: fullToken || null,
             orderIndex: atIdx,
+            templateId: templateId,
           }),
         }
       );
@@ -179,7 +185,7 @@ export function AddSectionModal({
       toast.success(isEdit ? "Section updated" : "Section created");
       onClose();
       queryClient.invalidateQueries({
-        queryKey: ["template-sections", templateId],
+        queryKey: invalidateKey,
       });
     },
     onError: (err: any) => toast.error(err.message),

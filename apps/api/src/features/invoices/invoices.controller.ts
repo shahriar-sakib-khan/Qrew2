@@ -1,5 +1,5 @@
 import { Context } from "hono";
-import { db, invoices, invoiceLineItems, expenseCategories, organizationConfigs, templateHeaderFields, templateSections, templateRows } from "@starter/db";
+import { db, invoices, invoiceLineItems, expenseCategories, organizationConfigs, templateHeaderFields, templateSections, templateRows, invoiceDrafts } from "@starter/db";
 import { eq, and, desc } from "drizzle-orm";
 import { z } from "zod";
 import { freezeInvoice } from "./engine/invoice-freeze";
@@ -100,11 +100,24 @@ export class InvoicesController {
       const orgId = c.get("organizationId");
       if (!orgId) return c.json({ error: "Organization context required" }, 401);
 
-      const allInvoices = await db
-        .select()
-        .from(invoices)
-        .where(eq(invoices.organizationId, orgId))
-        .orderBy(desc(invoices.createdAt));
+      const projectId = c.req.query("projectId");
+      const status = c.req.query("status");
+
+      const conditions = [eq(invoices.organizationId, orgId)];
+      if (projectId) conditions.push(eq(invoices.projectId, projectId));
+      if (status) conditions.push(eq(invoices.status, status as any));
+
+      const allInvoices = await db.query.invoices.findMany({
+        where: and(...conditions),
+        orderBy: [desc(invoices.createdAt)],
+        with: {
+          project: {
+            with: {
+              client: true
+            }
+          }
+        }
+      });
 
       return c.json(allInvoices);
     } catch (err: any) {
@@ -122,6 +135,13 @@ export class InvoicesController {
 
       const invoice = await db.query.invoices.findFirst({
         where: and(eq(invoices.id, id), eq(invoices.organizationId, orgId)),
+        with: {
+          project: {
+            with: {
+              client: true
+            }
+          }
+        }
       });
 
       if (!invoice) return c.json({ error: "Invoice not found" }, 404);
@@ -141,7 +161,7 @@ export class InvoicesController {
   static async generateInvoice(c: Context) {
     try {
       const organizationId = c.get("organizationId");
-      const userId = c.get("userId");
+      const userId = (c.get("user") as any).id;
       const body = await c.req.json();
       const parsed = generateSchema.safeParse(body);
 
@@ -205,6 +225,89 @@ export class InvoicesController {
     } catch (err: any) {
       console.error("[InvoicesController.voidInvoice]", err);
       return c.json({ error: "Failed to void invoice" }, 500);
+    }
+  }
+
+  static async markPaid(c: Context) {
+    try {
+      const id = c.req.param("id");
+      const organizationId = c.get("organizationId");
+
+      const [invoice] = await db.update(invoices)
+        .set({ status: "paid", paidAt: new Date() })
+        .where(and(eq(invoices.id, id!), eq(invoices.organizationId, organizationId!)))
+        .returning();
+
+      if (!invoice) return c.json({ error: "Invoice not found" }, 404);
+
+      return c.json(invoice);
+    } catch (err: any) {
+      console.error("[InvoicesController.markPaid]", err);
+      return c.json({ error: "Failed to mark invoice as paid" }, 500);
+    }
+  }
+
+  static async unfreezeInvoice(c: Context) {
+    try {
+      const id = c.req.param("id");
+      const organizationId = c.get("organizationId");
+      const userId = (c.get("user") as any).id;
+
+      // Find the frozen invoice
+      const invoice = await db.query.invoices.findFirst({
+        where: and(
+          eq(invoices.id, id!),
+          eq(invoices.organizationId, organizationId!),
+          eq(invoices.status, "frozen")
+        ),
+      });
+
+      if (!invoice) return c.json({ error: "Frozen invoice not found" }, 404);
+
+      await db.transaction(async (tx) => {
+        // Create draft from the historical snapshot
+        const { historicalFormat, resolvedHeaderValues } = invoice;
+        
+        // Check if draft exists
+        const [existingDraft] = await tx.select().from(invoiceDrafts)
+          .where(and(
+            eq(invoiceDrafts.projectId, invoice.projectId),
+            eq(invoiceDrafts.userId, userId)
+          ))
+          .limit(1);
+
+        if (existingDraft) {
+          await tx.update(invoiceDrafts)
+            .set({
+              sourceTemplateId: invoice.sourceTemplateId,
+              draftHeaderValues: resolvedHeaderValues || {},
+              draftSections: historicalFormat?.sections || [],
+              draftConstants: {},
+              lastAutoSavedAt: new Date(),
+            })
+            .where(eq(invoiceDrafts.id, existingDraft.id));
+        } else {
+          await tx.insert(invoiceDrafts).values({
+            id: crypto.randomUUID(),
+            organizationId: invoice.organizationId,
+            projectId: invoice.projectId,
+            userId: userId,
+            sourceTemplateId: invoice.sourceTemplateId,
+            draftHeaderValues: resolvedHeaderValues || {},
+            draftConstants: {},
+            draftSections: historicalFormat?.sections || [],
+            lastAutoSavedAt: new Date(),
+          });
+        }
+
+        // Delete the frozen invoice (which also deletes line items due to cascade)
+        await tx.delete(invoices).where(eq(invoices.id, id!));
+      });
+
+      return c.json({ success: true, message: "Reverted to draft" });
+    } catch (err: any) {
+      console.error("[InvoicesController.unfreezeInvoice]", err);
+      return c.json({ error: "Failed to unfreeze invoice" }, 500);
     }
   }
 }

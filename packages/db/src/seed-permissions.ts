@@ -22,6 +22,7 @@ const INITIAL_PERMISSIONS = [
   { key: 'file:restore', category: 'Files', description: 'Restore archived files' },
   { key: 'file:delete', category: 'Files', description: 'Permanently delete operational files' },
   { key: 'file:view_archived', category: 'Files', description: 'View archived operational files' },
+  { key: 'file:advance_status', category: 'Files', description: 'Advance a file from one workflow status to another' },
   
   // Financials
   { key: 'finance:view_expenses', category: 'Financials', description: 'View expense and requisition histories' },
@@ -64,6 +65,10 @@ const INITIAL_PERMISSIONS = [
   { key: 'workspace:manage_fields', category: 'Workspace', description: 'Create and edit custom fields for clients, files, and staff' },
   { key: 'workspace:manage_billing', category: 'Workspace', description: 'Manage subscription and billing' },
   { key: 'workspace:manage_settings', category: 'Workspace', description: 'Manage organization settings and defaults' },
+  
+  // Workflows
+  { key: 'workflow:view', category: 'Workflows', description: 'View the workflow configuration, status graph, and stage field assignments' },
+  { key: 'workflow:manage', category: 'Workflows', description: 'Create/edit workflow status nodes, configure transitions, and assign fields per stage' },
   
   // Audit
   { key: 'audit:view', category: 'Audit', description: 'View the activity logs / audit trails for accountability' }

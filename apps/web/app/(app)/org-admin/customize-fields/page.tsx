@@ -1,13 +1,15 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Save, Loader2, Check, X, Edit2, Trash2 } from "lucide-react";
+import { Plus, Save, Loader2, Check, X, Edit2, Trash2, GitBranch, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { apiUrl } from "@/lib/constants";
 import { CustomFieldsDataTable } from "@/components/features/custom-fields/custom-fields-data-table";
 import { AddCustomFieldModal } from "@/components/features/custom-fields/add-custom-field-modal";
 import { AddExpenseCategoryModal } from "@/components/features/expense-categories/add-expense-category-modal";
+import { AddInvoiceTypeModal } from "@/components/features/invoice-types/add-invoice-type-modal";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -23,16 +25,16 @@ import {
 
 const SYSTEM_FIELDS = [
   // Client System Fields
-  { id: "sys-client-name", entityType: "client" as const, fieldName: "Name", fieldKey: "name", fieldType: "text", isRequired: true, options: null, isSeeded: true, isSystem: true },
-  { id: "sys-client-email", entityType: "client" as const, fieldName: "Email", fieldKey: "email", fieldType: "text", isRequired: false, options: null, isSeeded: true, isSystem: true },
+  { id: "sys-client-name", entityType: "client" as const, fieldName: "Name", fieldKey: "name", fieldType: "text", isRequired: true, options: null, isSeeded: true, isSystem: true, isPrivatable: false },
+  { id: "sys-client-email", entityType: "client" as const, fieldName: "Email", fieldKey: "email", fieldType: "text", isRequired: false, options: null, isSeeded: true, isSystem: true, isPrivatable: true },
   // Project System Fields
-  { id: "sys-project-name", entityType: "project" as const, fieldName: "Name", fieldKey: "name", fieldType: "text", isRequired: true, options: null, isSeeded: true, isSystem: true },
-  { id: "sys-project-client", entityType: "project" as const, fieldName: "Client", fieldKey: "clientId", fieldType: "single_select", isRequired: true, options: null, isSeeded: true, isSystem: true },
-  { id: "sys-project-status", entityType: "project" as const, fieldName: "Status", fieldKey: "status", fieldType: "single_select", isRequired: true, options: ["planning", "active", "completed", "on_hold"], isSeeded: true, isSystem: true },
+  { id: "sys-project-name", entityType: "project" as const, fieldName: "Name", fieldKey: "name", fieldType: "text", isRequired: true, options: null, isSeeded: true, isSystem: true, isPrivatable: false },
+  { id: "sys-project-client", entityType: "project" as const, fieldName: "Client", fieldKey: "clientId", fieldType: "single_select", isRequired: true, options: null, isSeeded: true, isSystem: true, isPrivatable: false },
+  { id: "sys-project-status", entityType: "project" as const, fieldName: "Status", fieldKey: "status", fieldType: "single_select", isRequired: true, options: ["planning", "active", "completed", "on_hold"], isSeeded: true, isSystem: true, isPrivatable: false },
   // Staff System Fields
-  { id: "sys-staff-name", entityType: "staff" as const, fieldName: "Name", fieldKey: "name", fieldType: "text", isRequired: true, options: null, isSeeded: true, isSystem: true },
-  { id: "sys-staff-email", entityType: "staff" as const, fieldName: "Email", fieldKey: "email", fieldType: "text", isRequired: true, options: null, isSeeded: true, isSystem: true },
-  { id: "sys-staff-role", entityType: "staff" as const, fieldName: "System Role", fieldKey: "role", fieldType: "single_select", isRequired: true, options: ["user", "admin", "super_admin"], isSeeded: true, isSystem: true },
+  { id: "sys-staff-name", entityType: "staff" as const, fieldName: "Name", fieldKey: "name", fieldType: "text", isRequired: true, options: null, isSeeded: true, isSystem: true, isPrivatable: false },
+  { id: "sys-staff-email", entityType: "staff" as const, fieldName: "Email", fieldKey: "email", fieldType: "text", isRequired: true, options: null, isSeeded: true, isSystem: true, isPrivatable: true },
+  { id: "sys-staff-role", entityType: "staff" as const, fieldName: "System Role", fieldKey: "role", fieldType: "single_select", isRequired: true, options: ["user", "admin", "super_admin"], isSeeded: true, isSystem: true, isPrivatable: false },
 ];
 
 function ExpenseCategoryRow({ cat, isShown, onToggleShow }: { cat: any, isShown: boolean, onToggleShow: () => void }) {
@@ -154,11 +156,115 @@ function ExpenseCategoryRow({ cat, isShown, onToggleShow }: { cat: any, isShown:
   );
 }
 
+function InvoiceTypeRow({ type }: { type: any }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [name, setName] = useState(type.name);
+  const queryClient = useQueryClient();
+
+  const updateMutation = useMutation({
+    mutationFn: async (vars?: { isDefault?: boolean }) => {
+      const res = await fetch(`${apiUrl}/api/invoice-types/${type.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ name, isDefault: vars?.isDefault }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to update type");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast.success("Type updated successfully.");
+      setIsEditing(false);
+      queryClient.invalidateQueries({ queryKey: ["invoice-types"] });
+    },
+    onError: (err: any) => {
+      toast.error(err.message);
+    }
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${apiUrl}/api/invoice-types/${type.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to delete type");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast.success("Type deleted successfully.");
+      queryClient.invalidateQueries({ queryKey: ["invoice-types"] });
+    },
+    onError: (err: any) => {
+      toast.error(err.message);
+    }
+  });
+
+  const handleDelete = () => {
+    if (confirm(`Are you sure you want to delete "${type.name}"?`)) {
+      deleteMutation.mutate();
+    }
+  };
+
+  return (
+    <TableRow>
+      <TableCell className="font-medium">
+        <div className="flex items-center">
+          {isEditing ? (
+            <Input 
+              value={name} 
+              onChange={(e) => setName(e.target.value)}
+              className="h-8 w-full max-w-[200px] text-sm"
+            />
+          ) : (
+            <span>{type.name}</span>
+          )}
+          {type.isDefault && <Badge variant="secondary" className="ml-2">Default</Badge>}
+        </div>
+      </TableCell>
+      <TableCell className="text-right">
+        {isEditing ? (
+          <div className="flex items-center justify-end gap-1">
+            <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600" disabled={updateMutation.isPending} onClick={() => updateMutation.mutate({})}>
+              {updateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+            </Button>
+            <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground" onClick={() => { setIsEditing(false); setName(type.name); }}>
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-end gap-1">
+            {!type.isDefault && (
+              <Button size="sm" variant="outline" className="mr-2" disabled={updateMutation.isPending} onClick={() => updateMutation.mutate({ isDefault: true })}>
+                Make Default
+              </Button>
+            )}
+            <Button size="icon" variant="ghost" className="h-9 w-9 text-muted-foreground hover:text-foreground" onClick={() => setIsEditing(true)}>
+              <Edit2 className="h-5 w-5" />
+            </Button>
+            <Button size="icon" variant="ghost" className="h-9 w-9 text-muted-foreground hover:text-red-600" disabled={deleteMutation.isPending} onClick={handleDelete}>
+              {deleteMutation.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
+            </Button>
+          </div>
+        )}
+      </TableCell>
+    </TableRow>
+  );
+}
+
 export default function CustomizeFieldsPage() {
   const [isAddFieldModalOpen, setIsAddFieldModalOpen] = useState(false);
   const [activeEntityType, setActiveEntityType] = useState<"client" | "project" | "staff">("client");
   const [isAddExpenseCategoryOpen, setIsAddExpenseCategoryOpen] = useState(false);
+  const [isAddInvoiceTypeOpen, setIsAddInvoiceTypeOpen] = useState(false);
 
+  const router = useRouter();
   const queryClient = useQueryClient();
 
   const { data: customFields, isLoading: loadingFields } = useQuery({
@@ -184,12 +290,14 @@ export default function CustomizeFieldsPage() {
   const [sysDetailedFields, setSysDetailedFields] = useState<string[]>([]);
   // Sensitive fields (system level fields saved in orgSettings)
   const [sysSensitiveFields, setSysSensitiveFields] = useState<string[]>([]);
+  const [sysPrivateFields, setSysPrivateFields] = useState<string[]>([]);
   const [categoryColumns, setCategoryColumns] = useState<string[]>([]);
   
   useEffect(() => {
     if (orgSettings) {
       setSysDetailedFields(orgSettings.sysDetailedFields || []);
       setSysSensitiveFields(orgSettings.sysSensitiveFields || []);
+      setSysPrivateFields(orgSettings.sysPrivateFields || []);
       setCategoryColumns(orgSettings.categoryColumns || []); 
     }
   }, [orgSettings]);
@@ -235,6 +343,15 @@ export default function CustomizeFieldsPage() {
     },
   });
 
+  const { data: invoiceTypes, isLoading: loadingInvoiceTypes } = useQuery({
+    queryKey: ["invoice-types"],
+    queryFn: async () => {
+      const res = await fetch(`${apiUrl}/api/invoice-types`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch invoice types");
+      return res.json();
+    },
+  });
+
   // Handle initialization of categoryColumns when categories are loaded for the first time
   useEffect(() => {
     if (expenseCategories && orgSettings && !orgSettings.categoryColumns) {
@@ -259,6 +376,7 @@ export default function CustomizeFieldsPage() {
       updateSettingsMutation.mutate({
         sysDetailedFields: updated,
         sysSensitiveFields,
+        sysPrivateFields,
         categoryColumns,
       });
     } else {
@@ -276,12 +394,31 @@ export default function CustomizeFieldsPage() {
       updateSettingsMutation.mutate({
         sysDetailedFields,
         sysSensitiveFields: updated,
+        sysPrivateFields,
         categoryColumns,
       });
     } else {
       const field = customFields?.find((f: any) => f.id === id);
       if (field) {
         updateCustomFieldMutation.mutate({ id, payload: { isSensitive: !field.isSensitive } });
+      }
+    }
+  };
+
+  const handleTogglePrivate = (id: string, isSystem: boolean) => {
+    if (isSystem) {
+      const updated = sysPrivateFields.includes(id) ? sysPrivateFields.filter(f => f !== id) : [...sysPrivateFields, id];
+      setSysPrivateFields(updated);
+      updateSettingsMutation.mutate({
+        sysDetailedFields,
+        sysSensitiveFields,
+        sysPrivateFields: updated,
+        categoryColumns,
+      });
+    } else {
+      const field = customFields?.find((f: any) => f.id === id);
+      if (field) {
+        updateCustomFieldMutation.mutate({ id, payload: { isPrivate: !field.isPrivate } });
       }
     }
   };
@@ -322,8 +459,10 @@ export default function CustomizeFieldsPage() {
           isLoading={loadingFields} 
           detailedFields={sysDetailedFields}
           sensitiveFields={sysSensitiveFields}
+          privateFields={sysPrivateFields}
           onToggleDetailed={handleToggleDetailed}
           onToggleSensitive={handleToggleSensitive}
+          onTogglePrivate={handleTogglePrivate}
         />
       </section>
 
@@ -334,18 +473,26 @@ export default function CustomizeFieldsPage() {
             <h2 className="text-xl font-bold">Project / File Schema</h2>
             <p className="text-[14.5px] text-muted-foreground mt-1">Fields that appear on Project and File records.</p>
           </div>
-          <Button onClick={() => openAddFieldModal("project")} className="shadow-sm">
-            <Plus className="mr-2 h-4 w-4" />
-            Add Project Field
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => router.push("/org-admin/workflows")} className="shadow-sm">
+              <GitBranch className="mr-2 h-4 w-4" />
+              Configure Workflows
+            </Button>
+            <Button onClick={() => openAddFieldModal("project")} className="shadow-sm">
+              <Plus className="mr-2 h-4 w-4" />
+              Add Project Field
+            </Button>
+          </div>
         </div>
         <CustomFieldsDataTable 
           fields={projectFields} 
           isLoading={loadingFields} 
           detailedFields={sysDetailedFields}
           sensitiveFields={sysSensitiveFields}
+          privateFields={sysPrivateFields}
           onToggleDetailed={handleToggleDetailed}
           onToggleSensitive={handleToggleSensitive}
+          onTogglePrivate={handleTogglePrivate}
         />
       </section>
 
@@ -366,8 +513,10 @@ export default function CustomizeFieldsPage() {
           isLoading={loadingFields} 
           detailedFields={sysDetailedFields}
           sensitiveFields={sysSensitiveFields}
+          privateFields={sysPrivateFields}
           onToggleDetailed={handleToggleDetailed}
           onToggleSensitive={handleToggleSensitive}
+          onTogglePrivate={handleTogglePrivate}
         />
       </section>
 
@@ -421,6 +570,53 @@ export default function CustomizeFieldsPage() {
         </div>
       </section>
 
+      {/* INVOICE TYPES SECTION */}
+      <section className="space-y-5 mt-10">
+        <div className="flex items-center justify-between border-b pb-3">
+          <div>
+            <h2 className="text-xl font-bold">Invoice Types</h2>
+            <p className="text-[14.5px] text-muted-foreground mt-1">Configure types available when creating an invoice or template.</p>
+          </div>
+          <Button onClick={() => setIsAddInvoiceTypeOpen(true)} className="shadow-sm">
+            <Plus className="mr-2 h-4 w-4" />
+            Add Type
+          </Button>
+        </div>
+        <div className="rounded-md border bg-card">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="text-[15px]">Type Name</TableHead>
+
+                <TableHead className="text-[15px] text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loadingInvoiceTypes ? (
+                <TableRow>
+                  <TableCell colSpan={2} className="h-24 text-center text-muted-foreground">
+                    Loading types...
+                  </TableCell>
+                </TableRow>
+              ) : invoiceTypes?.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={2} className="h-24 text-center text-muted-foreground">
+                    No invoice types found.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                invoiceTypes?.map((type: any) => (
+                  <InvoiceTypeRow 
+                    key={type.id} 
+                    type={type} 
+                  />
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </section>
+
       <AddCustomFieldModal 
         isOpen={isAddFieldModalOpen} 
         onClose={() => setIsAddFieldModalOpen(false)}
@@ -429,6 +625,10 @@ export default function CustomizeFieldsPage() {
       <AddExpenseCategoryModal 
         isOpen={isAddExpenseCategoryOpen} 
         onClose={() => setIsAddExpenseCategoryOpen(false)} 
+      />
+      <AddInvoiceTypeModal 
+        isOpen={isAddInvoiceTypeOpen} 
+        onClose={() => setIsAddInvoiceTypeOpen(false)} 
       />
     </div>
   );

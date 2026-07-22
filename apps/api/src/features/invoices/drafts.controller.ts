@@ -2,12 +2,17 @@ import { Context } from "hono";
 import { db, invoiceDrafts } from "@starter/db";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
+import { DraftSeeder } from "./draft-seeder";
 
 const draftSchema = z.object({
   projectId: z.string(),
-  sourceTemplateId: z.string().optional(),
+  sourceTemplateId: z.string().transform((v) => v === "" ? undefined : v).optional(),
   draftHeaderValues: z.record(z.string(), z.string()).optional(),
+  draftHeaderFields: z.array(z.any()).optional(),
   draftSections: z.array(z.any()).optional(),
+  draftConstants: z.record(z.string(), z.any()).optional(),
+  name: z.string().optional(),
+  description: z.string().optional(),
 });
 
 export class DraftsController {
@@ -40,7 +45,10 @@ export class DraftsController {
         ),
         with: {
           project: {
-            with: { client: true }
+            with: {
+              client: true,
+              statusRelation: true,  // Resolve status UUID → { name, color, … }
+            }
           }
         }
       });
@@ -57,7 +65,7 @@ export class DraftsController {
   static async createDraft(c: Context) {
     try {
       const organizationId = c.get("organizationId");
-      const userId = c.get("userId");
+      const userId = (c.get("user") as any).id;
       const body = await c.req.json();
       const parsed = draftSchema.safeParse(body);
 
@@ -75,7 +83,10 @@ export class DraftsController {
           userId,
           sourceTemplateId: payload.sourceTemplateId,
           draftHeaderValues: payload.draftHeaderValues || {},
+          draftHeaderFields: payload.draftHeaderFields || [],
           draftSections: payload.draftSections || [],
+          name: payload.name || "Draft",
+          description: payload.description,
           lastAutoSavedAt: new Date()
         })
         .returning();
@@ -87,10 +98,31 @@ export class DraftsController {
     }
   }
 
+  static async deleteDraft(c: Context) {
+    try {
+      const organizationId = c.get("organizationId");
+      const id = c.req.param("id") as string;
+
+      const [deleted] = await db.delete(invoiceDrafts)
+        .where(and(
+          eq(invoiceDrafts.id, id),
+          eq(invoiceDrafts.organizationId, organizationId)
+        ))
+        .returning({ id: invoiceDrafts.id });
+
+      if (!deleted) return c.json({ error: "Draft not found" }, 404);
+
+      return c.json({ success: true, id: deleted.id });
+    } catch (err: any) {
+      console.error("[DraftsController.deleteDraft]", err);
+      return c.json({ error: "Failed to delete draft" }, 500);
+    }
+  }
+
   static async getDraft(c: Context) {
     try {
       const organizationId = c.get("organizationId");
-      const userId = c.get("userId");
+      const userId = (c.get("user") as any).id;
       const projectId = c.req.query("projectId");
 
       if (!projectId) {
@@ -116,7 +148,7 @@ export class DraftsController {
   static async upsertDraft(c: Context) {
     try {
       const organizationId = c.get("organizationId");
-      const userId = c.get("userId");
+      const userId = (c.get("user") as any).id;
       const body = await c.req.json();
       const parsed = draftSchema.safeParse(body);
 
@@ -136,12 +168,30 @@ export class DraftsController {
         ))
         .limit(1);
 
+      let { draftSections, draftConstants, draftHeaderValues, draftHeaderFields } = payload;
+      
+      if (!existing && (!draftSections || draftSections.length === 0)) {
+        // Only seed from template if creating a NEW draft
+        const templateId = payload.sourceTemplateId;
+        if (templateId) {
+          const seeded = await DraftSeeder.hydrateFromTemplate(templateId, payload.projectId, organizationId);
+          draftSections = seeded.draftSections;
+          draftConstants = seeded.draftConstants;
+          draftHeaderValues = { ...seeded.draftHeaderValues, ...(payload.draftHeaderValues || {}) };
+          draftHeaderFields = seeded.draftHeaderFields;
+        }
+      }
+
       if (existing) {
         const [updated] = await db.update(invoiceDrafts)
           .set({
-            sourceTemplateId: payload.sourceTemplateId,
-            draftHeaderValues: payload.draftHeaderValues || {},
-            draftSections: payload.draftSections || [],
+            ...(payload.sourceTemplateId !== undefined ? { sourceTemplateId: payload.sourceTemplateId } : {}),
+            ...(payload.draftHeaderValues !== undefined ? { draftHeaderValues: payload.draftHeaderValues } : {}),
+            ...(payload.draftHeaderFields !== undefined ? { draftHeaderFields: payload.draftHeaderFields } : {}),
+            ...(payload.draftSections !== undefined ? { draftSections: payload.draftSections } : {}),
+            ...(payload.draftConstants !== undefined ? { draftConstants: payload.draftConstants } : {}),
+            ...(payload.name !== undefined ? { name: payload.name } : {}),
+            ...(payload.description !== undefined ? { description: payload.description } : {}),
             lastAutoSavedAt: new Date()
           })
           .where(eq(invoiceDrafts.id, existing.id))
@@ -155,8 +205,12 @@ export class DraftsController {
             projectId: payload.projectId,
             userId,
             sourceTemplateId: payload.sourceTemplateId,
-            draftHeaderValues: payload.draftHeaderValues || {},
-            draftSections: payload.draftSections || [],
+            draftHeaderValues: draftHeaderValues || {},
+            draftHeaderFields: draftHeaderFields || [],
+            draftSections: draftSections || [],
+            draftConstants: draftConstants || {},
+            name: payload.name || "Draft",
+            description: payload.description,
             lastAutoSavedAt: new Date()
           })
           .returning();
@@ -164,14 +218,14 @@ export class DraftsController {
       }
     } catch (err: any) {
       console.error("[DraftsController.upsertDraft]", err);
-      return c.json({ error: "Failed to upsert draft" }, 500);
+      return c.json({ error: "Failed to upsert draft", details: err.message, stack: err.stack }, 500);
     }
   }
 
   static async deleteDraft(c: Context): Promise<Response> {
     try {
       const organizationId = c.get("organizationId");
-      const userId = c.get("userId");
+      const userId = (c.get("user") as any).id;
       const id = c.req.param("id");
 
       await db.delete(invoiceDrafts)

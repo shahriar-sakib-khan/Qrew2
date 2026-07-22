@@ -7,14 +7,15 @@ import { useMemo } from "react";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { data: session } = useSession();
-  const { can } = usePermissionStore();
+  const permissions = usePermissionStore(state => state.permissions);
+  const can = usePermissionStore(state => state.can);
 
   const navItems = useMemo(() => {
     return NAV_CONFIG.user.filter(item => {
       if (item.name === "Invoices") return can("finance:view_invoices");
       return true;
     });
-  }, [can]);
+  }, [can, permissions]);
 
   return (
     <AppShell session={session} navItems={navItems} theme="default">

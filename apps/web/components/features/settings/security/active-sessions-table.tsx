@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Laptop, Smartphone, Trash2, Loader2 } from "lucide-react";
 import { UAParser } from "ua-parser-js";
 import { authClient, useSession } from "@/lib/auth-client";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { useTableCellFilter } from "@/hooks/use-table-cell-filter";
+import { FilterableTableHeader, FilterableTableCell } from "@/components/ui/table-filter-components";
 
 export function ActiveSessionsTable() {
   const { data: currentSession } = useSession();
@@ -13,13 +15,20 @@ export function ActiveSessionsTable() {
   const [isLoading, setIsLoading] = useState(true);
   const [revokingId, setRevokingId] = useState<string | null>(null);
 
+  const {
+    filters,
+    toggleFilter,
+    clearColumnFilter,
+    filterRows,
+    isColumnFiltered,
+  } = useTableCellFilter();
+
   useEffect(() => {
     fetchSessions();
   }, []);
 
   const fetchSessions = async () => {
     setIsLoading(true);
-    // Better Auth client automatically fetches all active sessions for this user
     const { data, error } = await authClient.listSessions();
     if (data) setSessions(data);
     setIsLoading(false);
@@ -42,6 +51,18 @@ export function ActiveSessionsTable() {
     return { name: `${device} - ${browser}`, isDesktop: result.device.type !== "mobile" };
   };
 
+  const extractors = useMemo(() => {
+    return {
+      'device': (s: any) => parseUserAgent(s.userAgent || "").name,
+      'ip': (s: any) => s.ipAddress || "Unknown IP",
+      'created': (s: any) => new Date(s.createdAt).toLocaleDateString(),
+    };
+  }, []);
+
+  const filteredSessions = useMemo(() => {
+    return filterRows(sessions || [], extractors);
+  }, [sessions, filterRows, extractors]);
+
   if (isLoading) return <div className="flex justify-center p-8"><Loader2 className="animate-spin text-muted-foreground h-6 w-6" /></div>;
 
   return (
@@ -49,26 +70,50 @@ export function ActiveSessionsTable() {
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/30">
-            <TableHead>Device</TableHead>
-            {/* Hide these headers on mobile screens */}
-            <TableHead className="hidden sm:table-cell">IP Address</TableHead>
-            <TableHead className="hidden sm:table-cell">Created</TableHead>
-            <TableHead className="text-right">Action</TableHead>
+            <FilterableTableHeader
+              columnKey="device"
+              title="Device"
+              isFiltered={isColumnFiltered("device")}
+              activeValue={filters["device"]}
+              onClear={() => clearColumnFilter("device")}
+            />
+            <FilterableTableHeader
+              columnKey="ip"
+              title="IP Address"
+              isFiltered={isColumnFiltered("ip")}
+              activeValue={filters["ip"]}
+              onClear={() => clearColumnFilter("ip")}
+              className="hidden sm:table-cell"
+            />
+            <FilterableTableHeader
+              columnKey="created"
+              title="Created"
+              isFiltered={isColumnFiltered("created")}
+              activeValue={filters["created"]}
+              onClear={() => clearColumnFilter("created")}
+              className="hidden sm:table-cell"
+            />
+            <TableCell className="text-right font-medium text-muted-foreground">Action</TableCell>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {sessions.length === 0 ? (
+          {filteredSessions.length === 0 ? (
             <TableRow>
               <TableCell colSpan={4} className="text-center py-6 text-muted-foreground">No active sessions found.</TableCell>
             </TableRow>
           ) : (
-            sessions.map((session) => {
+            filteredSessions.map((session) => {
               const { name, isDesktop } = parseUserAgent(session.userAgent || "");
               const isCurrent = session.id === currentSession?.session?.id;
 
               return (
-                <TableRow key={session.id}>
-                  <TableCell className="font-medium align-top sm:align-middle">
+                <TableRow key={session.id} className="hover:bg-muted/30 transition-colors">
+                  <FilterableTableCell
+                    columnKey="device"
+                    value={name}
+                    isFiltered={isColumnFiltered("device")}
+                    onToggleFilter={toggleFilter}
+                  >
                     <div className="flex items-start sm:items-center gap-3">
                       <div className="mt-1 sm:mt-0">
                         {isDesktop ? <Laptop className="h-4 w-4 text-muted-foreground" /> : <Smartphone className="h-4 w-4 text-muted-foreground" />}
@@ -82,18 +127,32 @@ export function ActiveSessionsTable() {
                             </span>
                           )}
                         </div>
-                        {/* Mobile-only view: Stack the IP and Date under the device name so they don't scroll off-screen */}
                         <div className="sm:hidden flex flex-col text-xs text-muted-foreground font-normal">
                           <span>{session.ipAddress || "Unknown IP"}</span>
                           <span>{new Date(session.createdAt).toLocaleDateString()}</span>
                         </div>
                       </div>
                     </div>
-                  </TableCell>
-                  {/* Hide these exact cells on mobile */}
-                  <TableCell className="hidden sm:table-cell text-muted-foreground">{session.ipAddress || "Unknown IP"}</TableCell>
-                  <TableCell className="hidden sm:table-cell text-muted-foreground">{new Date(session.createdAt).toLocaleDateString()}</TableCell>
-                  <TableCell className="text-right align-top sm:align-middle">
+                  </FilterableTableCell>
+                  <FilterableTableCell
+                    columnKey="ip"
+                    value={session.ipAddress || "Unknown IP"}
+                    isFiltered={isColumnFiltered("ip")}
+                    onToggleFilter={toggleFilter}
+                    className="hidden sm:table-cell"
+                  >
+                    {session.ipAddress || "Unknown IP"}
+                  </FilterableTableCell>
+                  <FilterableTableCell
+                    columnKey="created"
+                    value={new Date(session.createdAt).toLocaleDateString()}
+                    isFiltered={isColumnFiltered("created")}
+                    onToggleFilter={toggleFilter}
+                    className="hidden sm:table-cell"
+                  >
+                    {new Date(session.createdAt).toLocaleDateString()}
+                  </FilterableTableCell>
+                  <TableCell className="text-right align-top sm:align-middle" onClick={(e) => e.stopPropagation()}>
                     {!isCurrent && (
                       <Button
                         variant="ghost"
@@ -103,7 +162,6 @@ export function ActiveSessionsTable() {
                         disabled={revokingId === session.token}
                       >
                         {revokingId === session.token ? <Loader2 className="h-4 w-4 sm:mr-2 animate-spin" /> : <Trash2 className="h-4 w-4 sm:mr-2" />}
-                        {/* Hide text on very small screens to save space, keeping just the icon */}
                         <span className="hidden sm:inline">Revoke</span>
                       </Button>
                     )}

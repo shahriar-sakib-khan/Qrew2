@@ -4,6 +4,7 @@ import { InvoiceTemplatesController } from "./invoice-templates.controller";
 import { TemplateSectionsController } from "./template-sections.controller";
 import { TemplateRowsController } from "./template-rows.controller";
 import { TemplateSectionChargesController } from "./template-section-charges.controller";
+import { TemplateConstantsController } from "./template-constants.controller";
 
 export const invoiceTemplatesRouter = new Hono();
 
@@ -36,6 +37,33 @@ invoiceTemplatesRouter.delete(
   "/:id",
   requireOrgPermission("finance:manage_invoices"),
   InvoiceTemplatesController.deleteTemplate
+);
+
+// ── Header Fields ─────────────────────────────────────────────────────────────
+import { TemplateHeaderFieldsController } from "./template-header-fields.controller";
+
+invoiceTemplatesRouter.get(
+  "/:templateId/header-fields",
+  requireOrgPermission("finance:view_invoices"),
+  TemplateHeaderFieldsController.listHeaderFields
+);
+
+invoiceTemplatesRouter.post(
+  "/:templateId/header-fields",
+  requireOrgPermission("finance:manage_invoices"),
+  TemplateHeaderFieldsController.createHeaderField
+);
+
+invoiceTemplatesRouter.delete(
+  "/:templateId/header-fields/:fieldId",
+  requireOrgPermission("finance:manage_invoices"),
+  TemplateHeaderFieldsController.deleteHeaderField
+);
+
+invoiceTemplatesRouter.put(
+  "/:templateId/header-fields/reorder",
+  requireOrgPermission("finance:manage_invoices"),
+  TemplateHeaderFieldsController.reorderHeaderFields
 );
 
 // ── Sections ──────────────────────────────────────────────────────────────────
@@ -118,4 +146,29 @@ invoiceTemplatesRouter.delete(
   "/:templateId/sections/:sectionId/section-charges/:chargeId",
   requireOrgPermission("finance:manage_invoices"),
   TemplateSectionChargesController.deleteSectionCharge
+);
+
+// ── Template Constants ────────────────────────────────────────────────────────
+invoiceTemplatesRouter.get(
+  "/:templateId/constants",
+  requireOrgPermission("finance:view_invoices"),
+  TemplateConstantsController.listConstants
+);
+
+invoiceTemplatesRouter.post(
+  "/:templateId/constants",
+  requireOrgPermission("finance:manage_invoices"),
+  TemplateConstantsController.createConstant
+);
+
+invoiceTemplatesRouter.patch(
+  "/:templateId/constants/:constantId",
+  requireOrgPermission("finance:manage_invoices"),
+  TemplateConstantsController.updateConstant
+);
+
+invoiceTemplatesRouter.delete(
+  "/:templateId/constants/:constantId",
+  requireOrgPermission("finance:manage_invoices"),
+  TemplateConstantsController.deleteConstant
 );

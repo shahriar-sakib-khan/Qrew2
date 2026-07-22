@@ -65,6 +65,9 @@ function toSnakeCase(label: string): string {
 
 const rowChargeSchema = z.object({
   id: z.string().optional(),
+  /** Explicit token — used by the new token-first add-charge modal.
+   * If omitted, falls back to the legacy `{rowToken}_{toSnakeCase(label)}` derivation. */
+  chargeToken: z.string().optional(),
   label: z.string().min(1),
   subDescription: z.string().optional().nullable(),
   qualifier: z.string().optional().nullable(),
@@ -242,7 +245,8 @@ export class TemplateRowsController {
               subDescription: charge.subDescription ?? null,
               qualifier: charge.qualifier ?? null,
               tags: charge.tags ?? [],
-              chargeToken: `${rowToken}_${toSnakeCase(charge.label)}`,
+              // Use explicit chargeToken if provided; fall back to label-derived token.
+              chargeToken: charge.chargeToken ?? `${rowToken}_${toSnakeCase(charge.label)}`,
               formula: encodeFormula(charge.formula, tokenToId) ?? charge.formula,
               sortOrder: charge.sortOrder ?? i,
             })
@@ -360,7 +364,8 @@ export class TemplateRowsController {
                 subDescription: charge.subDescription ?? null,
                 qualifier: charge.qualifier ?? null,
                 tags: charge.tags ?? [],
-                chargeToken: `${newRowToken}_${toSnakeCase(charge.label)}`,
+                // Use explicit chargeToken if provided; fall back to label-derived token.
+                chargeToken: charge.chargeToken ?? `${newRowToken}_${toSnakeCase(charge.label)}`,
                 formula: encodeFormula(charge.formula, tokenToId) ?? charge.formula,
                 sortOrder: charge.sortOrder ?? i,
               })

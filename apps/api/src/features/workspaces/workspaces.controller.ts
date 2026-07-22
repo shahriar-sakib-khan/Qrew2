@@ -291,6 +291,23 @@ export class WorkspacesController {
       const activeOrgId = sessionData.session.activeOrganizationId;
       if (!activeOrgId) return c.json({ error: 'No active workspace selected' }, 400);
 
+      c.set('organizationId', activeOrgId);
+      
+      const currentMember = await db.query.members.findFirst({
+        where: and(
+          eq(members.userId, sessionData.user.id),
+          eq(members.organizationId, activeOrgId)
+        )
+      });
+      const isOwner = sessionData.user.role === 'super_admin' || currentMember?.role === 'owner';
+      c.set('isOwner', isOwner);
+
+      if (!isOwner) {
+         const { PermissionService } = await import('../../features/permissions/permission.service');
+         const userPermissions = await PermissionService.resolvePermissions(sessionData.user.id, activeOrgId);
+         c.set('userPermissions', userPermissions);
+      }
+
       const staffList = await db.select({
         memberId: members.id,
         userId: users.id,
@@ -345,7 +362,11 @@ export class WorkspacesController {
         };
       });
 
-      return c.json({ staff }, 200);
+      const { scrubEntityData, getScrubberConfig } = await import('../../infra/lib/data-scrubber');
+      const scrubberConfig = await getScrubberConfig(c, 'staff');
+      const scrubbedStaff = staff.map(s => scrubEntityData(s, scrubberConfig, 'staff'));
+
+      return c.json({ staff: scrubbedStaff }, 200);
     } catch (error) {
       console.error('[WorkspacesController.listStaff] Failed:', error);
       return c.json({ error: 'Internal Server Error' }, 500);
@@ -491,6 +512,76 @@ export class WorkspacesController {
       return c.json({ success: true, metadata: newMetadata });
     } catch (error) {
       console.error('[WorkspacesController.updateSettings] Failed:', error);
+      return c.json({ error: 'Internal Server Error' }, 500);
+    }
+  }
+
+  static async getUserPreferences(c: Context) {
+    try {
+      const sessionData = await auth.api.getSession({ headers: c.req.raw.headers });
+      if (!sessionData?.session) return c.json({ error: 'Unauthorized' }, 401);
+      
+      const orgId = sessionData.session.activeOrganizationId;
+      if (!orgId) return c.json({ error: 'No active workspace selected' }, 400);
+
+      const userId = sessionData.user.id;
+      const { organizations } = await import('@starter/db');
+
+      const org = await db.query.organizations.findFirst({
+        where: eq(organizations.id, orgId)
+      });
+      if (!org) return c.json({ error: 'Organization not found' }, 404);
+
+      let metadata: any = {};
+      try {
+        if (org.metadata) metadata = JSON.parse(org.metadata);
+      } catch (e) {}
+
+      const userPrefs = metadata[`userPrefs_${userId}`] || {};
+      return c.json({ preferences: userPrefs });
+    } catch (error) {
+      console.error('[WorkspacesController.getUserPreferences] Failed:', error);
+      return c.json({ error: 'Internal Server Error' }, 500);
+    }
+  }
+
+  static async updateUserPreferences(c: Context) {
+    try {
+      const sessionData = await auth.api.getSession({ headers: c.req.raw.headers });
+      if (!sessionData?.session) return c.json({ error: 'Unauthorized' }, 401);
+      
+      const orgId = sessionData.session.activeOrganizationId;
+      if (!orgId) return c.json({ error: 'No active workspace selected' }, 400);
+
+      const userId = sessionData.user.id;
+      const body = await c.req.json();
+      const preferences = body.preferences || {};
+
+      const { organizations } = await import('@starter/db');
+
+      const org = await db.query.organizations.findFirst({
+        where: eq(organizations.id, orgId)
+      });
+      if (!org) return c.json({ error: 'Organization not found' }, 404);
+
+      let currentMetadata: any = {};
+      try {
+        if (org.metadata) currentMetadata = JSON.parse(org.metadata);
+      } catch (e) {}
+
+      const key = `userPrefs_${userId}`;
+      const currentUserPrefs = currentMetadata[key] || {};
+      const updatedUserPrefs = { ...currentUserPrefs, ...preferences };
+
+      const newMetadata = { ...currentMetadata, [key]: updatedUserPrefs };
+
+      await db.update(organizations)
+        .set({ metadata: JSON.stringify(newMetadata) })
+        .where(eq(organizations.id, orgId));
+
+      return c.json({ success: true, preferences: updatedUserPrefs });
+    } catch (error) {
+      console.error('[WorkspacesController.updateUserPreferences] Failed:', error);
       return c.json({ error: 'Internal Server Error' }, 500);
     }
   }

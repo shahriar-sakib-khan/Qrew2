@@ -26,6 +26,10 @@ workspacesRouter.get('/permissions/me', PermissionsController.getMyPermissions);
 workspacesRouter.get('/settings', WorkspacesController.getSettings);
 workspacesRouter.patch('/settings', requireOrgPermission('org:manage'), WorkspacesController.updateSettings);
 
+// GET/PATCH /api/workspaces/user-preferences
+workspacesRouter.get('/user-preferences', WorkspacesController.getUserPreferences);
+workspacesRouter.patch('/user-preferences', WorkspacesController.updateUserPreferences);
+
 // POST /api/workspaces/staff/invite
 workspacesRouter.post(
   '/staff/invite', 

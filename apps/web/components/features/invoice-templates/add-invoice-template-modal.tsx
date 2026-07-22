@@ -1,10 +1,10 @@
 "use client";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { apiUrl } from "@/lib/constants";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import {
@@ -16,13 +16,22 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
-export function AddInvoiceTemplateModal({ 
+export function AddEditInvoiceTemplateModal({ 
   isOpen, 
-  onClose, 
+  onClose,
+  editTemplate,
 }: { 
   isOpen: boolean; 
-  onClose: () => void; 
+  onClose: () => void;
+  editTemplate?: any;
 }) {
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -30,12 +39,53 @@ export function AddInvoiceTemplateModal({
   const [formData, setFormData] = useState({
     name: "",
     description: "",
+    documentType: "", // will hold the invoice type ID
   });
+
+  // Pre-fill on open if editing
+  useEffect(() => {
+    if (isOpen) {
+      if (editTemplate) {
+        setFormData({
+          name: editTemplate.name || "",
+          description: editTemplate.description || "",
+          documentType: editTemplate.documentType || "",
+        });
+      } else {
+        setFormData({
+          name: "",
+          description: "",
+          documentType: "",
+        });
+      }
+    }
+  }, [isOpen, editTemplate]);
+
+  const { data: invoiceTypes } = useQuery({
+    queryKey: ["invoice-types"],
+    queryFn: async () => {
+      const res = await fetch(`${apiUrl}/api/invoice-types`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch invoice types");
+      return res.json();
+    },
+  });
+
+  // Set default type if not selected
+  if (invoiceTypes?.length && !formData.documentType) {
+    const defaultType = invoiceTypes.find((t: any) => t.isDefault) || invoiceTypes[0];
+    if (defaultType) {
+      setFormData(prev => ({ ...prev, documentType: defaultType.id }));
+    }
+  }
 
   const mutation = useMutation({
     mutationFn: async (payload: any) => {
-      const res = await fetch(`${apiUrl}/api/invoice-templates`, {
-        method: "POST",
+      const url = editTemplate 
+        ? `${apiUrl}/api/invoice-templates/${editTemplate.id}`
+        : `${apiUrl}/api/invoice-templates`;
+
+      const res = await fetch(url, {
+        method: editTemplate ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify(payload),
@@ -48,10 +98,12 @@ export function AddInvoiceTemplateModal({
       return res.json();
     },
     onSuccess: (data) => {
-      toast.success("Template created");
+      toast.success(editTemplate ? "Template updated" : "Template created");
       onClose();
       queryClient.invalidateQueries({ queryKey: ["invoice-templates"] });
-      router.push(`/org-admin/invoice-templates/${data.id}`);
+      if (!editTemplate) {
+        router.push(`/org-admin/invoice-templates/${data.id}`);
+      }
     },
     onError: (err: any) => {
       toast.error(err.message);
@@ -67,7 +119,7 @@ export function AddInvoiceTemplateModal({
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Create Invoice Template</DialogTitle>
+          <DialogTitle>{editTemplate ? "Edit Invoice Template" : "Create Invoice Template"}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
@@ -91,13 +143,32 @@ export function AddInvoiceTemplateModal({
             />
           </div>
 
+          <div className="space-y-2">
+            <Label>Invoice Type</Label>
+            <Select 
+              value={formData.documentType} 
+              onValueChange={(val) => setFormData({ ...formData, documentType: val })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select type..." />
+              </SelectTrigger>
+              <SelectContent>
+                {invoiceTypes?.map((type: any) => (
+                  <SelectItem key={type.id} value={type.id}>
+                    {type.name} {type.isDefault ? "(Default)" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
             <Button type="submit" disabled={mutation.isPending}>
               {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Create Template
+              {editTemplate ? "Save Changes" : "Create Template"}
             </Button>
           </DialogFooter>
         </form>
