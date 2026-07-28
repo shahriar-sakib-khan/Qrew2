@@ -1,0 +1,110 @@
+# ============================================================
+# GitHub Actions CI Pipeline
+# ============================================================
+#
+# WHAT IS THIS FILE?
+# This is a "workflow" — a set of automated instructions that
+# GitHub runs on a fresh Linux machine every time you push code.
+#
+# ANALOGY:
+# Think of this as a robot security guard at a factory.
+# Before any new car (code) rolls off the assembly line and
+# gets shipped to the dealership (Render/Vercel), the robot
+# runs a standardized checklist:
+#   1. Does it compile? (Typecheck)
+#   2. Do all the moving parts work? (Tests)
+# If anything fails, a red alarm sounds and the deployment stops.
+#
+# This prevents broken code from ever reaching your users.
+# ============================================================
+
+name: CI — Typecheck & Test
+
+# TRIGGERS: When does this pipeline run?
+on:
+  push:
+    branches:
+      - main        # Every commit pushed directly to main
+  pull_request:
+    branches:
+      - main        # Every Pull Request targeting main
+
+jobs:
+  # ── Job 1: Typecheck ────────────────────────────────────
+  # Runs TypeScript's compiler in "check only" mode (--noEmit).
+  # It doesn't produce any output files — just validates that
+  # your types are correct across the entire monorepo.
+  # This would have caught the "undici-types" inference error
+  # BEFORE it ever reached Vercel/Render.
+  typecheck:
+    name: 🔍 Typecheck
+    runs-on: ubuntu-latest   # GitHub gives us a free Ubuntu machine
+
+    steps:
+      # Step 1: Download your code from GitHub onto the machine
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Step 2: Install pnpm. We install it BEFORE Node.js so
+      # the "setup-node" action can use pnpm's cache directory.
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.27.0
+
+      # Step 3: Install Node.js 22 and set up dependency caching.
+      # "cache: pnpm" tells GitHub to save your node_modules between runs.
+      # If your pnpm-lock.yaml hasn't changed, it skips pnpm install entirely.
+      # This turns a 90-second install into a 3-second cache restore.
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # Step 4: Install all dependencies from the lockfile.
+      # --frozen-lockfile = fail if lockfile is out of date (no surprises in CI).
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Step 5: Run TypeScript typecheck across the entire monorepo via turbo.
+      # turbo is smart: if only apps/web changed, it skips typechecking apps/api.
+      - name: Run typecheck
+        run: pnpm turbo run typecheck
+
+  # ── Job 2: Test ─────────────────────────────────────────
+  # Runs your Vitest unit tests.
+  # This job runs IN PARALLEL with the typecheck job above.
+  # Both start at the same time — so total CI time is the
+  # duration of the SLOWER job, not the sum of both.
+  test:
+    name: 🧪 Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.27.0
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Build the packages first (e.g., @starter/db needs to compile
+      # before the api tests can import from it)
+      - name: Build packages
+        run: pnpm turbo run build --filter=@starter/db
+
+      # Run tests only for the API (no point running frontend tests
+      # since you don't have any yet)
+      - name: Run API tests
+        run: pnpm turbo run test --filter=@starter/api
