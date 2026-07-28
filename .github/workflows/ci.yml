@@ -38,7 +38,11 @@ jobs:
   # BEFORE it ever reached Vercel/Render.
   typecheck:
     name: 🔍 Typecheck
-    runs-on: ubuntu-latest   # GitHub gives us a free Ubuntu machine
+    runs-on: ubuntu-latest
+
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_dummy
+      NODE_ENV: test   # GitHub gives us a free Ubuntu machine
 
     steps:
       # Step 1: Download your code from GitHub onto the machine
@@ -80,6 +84,13 @@ jobs:
   test:
     name: 🧪 Unit Tests
     runs-on: ubuntu-latest
+
+    # Provide a dummy DATABASE_URL so @starter/db's env guard doesn't throw
+    # when tests call importOriginal(). The DB is fully mocked — this value
+    # is never actually used to make a real connection.
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_dummy
+      NODE_ENV: test
 
     steps:
       - name: Checkout repository
