@@ -44,7 +44,7 @@ async function isOrgOwnerOrAdmin(userId: string, orgId: string): Promise<boolean
 // ─── Controller ───────────────────────────────────────────────────────────
 
 export class CustomFieldsController {
-  static async listDefinitions(c: Context) {
+  static async listDefinitions(c: Context): Promise<any> {
     const sessionData = await auth.api.getSession({ headers: c.req.raw.headers });
     const orgId = sessionData?.session?.activeOrganizationId;
     const userId = sessionData?.user?.id;
@@ -81,7 +81,7 @@ export class CustomFieldsController {
     return c.json(definitions);
   }
 
-  static async createDefinition(c: Context) {
+  static async createDefinition(c: Context): Promise<any> {
     const sessionData = await auth.api.getSession({ headers: c.req.raw.headers });
     const orgId = sessionData?.session?.activeOrganizationId;
 
@@ -129,7 +129,7 @@ export class CustomFieldsController {
     return c.json(newDef, 201);
   }
 
-  static async deleteDefinition(c: Context) {
+  static async deleteDefinition(c: Context): Promise<any> {
     const sessionData = await auth.api.getSession({ headers: c.req.raw.headers });
     const orgId = sessionData?.session?.activeOrganizationId;
 
@@ -158,7 +158,7 @@ export class CustomFieldsController {
     return c.json({ success: true });
   }
 
-  static async updateDefinition(c: Context) {
+  static async updateDefinition(c: Context): Promise<any> {
     const sessionData = await auth.api.getSession({ headers: c.req.raw.headers });
     const orgId = sessionData?.session?.activeOrganizationId;
 

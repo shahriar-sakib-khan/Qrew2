@@ -1,5 +1,19 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+// Mock @starter/db before any imports that transitively load it.
+// data-scrubber.ts imports { db } from "@starter/db" at the top level.
+// Without this mock, the db package's env guard throws "DATABASE_URL is not set"
+// in a clean CI environment, crashing the entire test file.
+vi.mock("@starter/db", () => ({
+  db: {},
+  organizations: {},
+  customFieldDefinitions: {},
+  eq: vi.fn(),
+  and: vi.fn(),
+}));
+
 import { scrubEntityData, ScrubberContext } from './data-scrubber';
+
 
 describe('Data Scrubber', () => {
   const dummyProject = {

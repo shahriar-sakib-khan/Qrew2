@@ -22,6 +22,18 @@ export class WorkspacesController {
       const memberId = uuidv4();
       const userId = sessionData.user.id;
 
+      // Check quota: max 5 owned workspaces per standard user account
+      if (sessionData.user.role === 'user') {
+        const [{ ownedCount }] = await db
+          .select({ ownedCount: sql<number>`count(*)::int` })
+          .from(schema.members)
+          .where(and(eq(schema.members.userId, userId), eq(schema.members.role, 'owner')));
+
+        if (ownedCount >= 5) {
+          return c.json({ error: 'Workspace limit reached (maximum 5 owned workspaces per account).' }, 403);
+        }
+      }
+
       await db.transaction(async (tx) => {
         // 1. Create Organization
         await tx.insert(schema.organizations).values({
@@ -76,8 +88,31 @@ export class WorkspacesController {
         return c.json({ error: 'Invalid role selected.' }, 400);
       }
 
-      const normalizedEmail = email.toLowerCase();
+      const normalizedEmail = email.toLowerCase().trim();
       
+      // Check if user with this email is already a member of the workspace
+      const existingUserByEmail = await db.query.users.findFirst({
+        where: eq(users.email, normalizedEmail)
+      });
+
+      if (existingUserByEmail) {
+        const existingMember = await db.query.members.findFirst({
+          where: and(eq(members.userId, existingUserByEmail.id), eq(members.organizationId, activeOrgId))
+        });
+        if (existingMember) {
+          return c.json({ error: 'User is already a member of this workspace' }, 400);
+        }
+      }
+
+      // Remove any existing pending invitation for this email in the organization
+      await db.delete(schema.invitations).where(
+        and(
+          eq(schema.invitations.organizationId, activeOrgId),
+          eq(schema.invitations.email, normalizedEmail),
+          eq(schema.invitations.status, 'pending')
+        )
+      );
+
       // Get org details for the email
       const org = await db.query.organizations.findFirst({
         where: eq(schema.organizations.id, activeOrgId)
@@ -238,45 +273,53 @@ export class WorkspacesController {
         return c.json({ error: 'Invitation has expired' }, 400);
       }
 
-      if (invite.email !== sessionData.user.email) {
+      // Enforce email verification before accepting invitation
+      if (!sessionData.user.emailVerified) {
+        return c.json({ error: 'Email verification required to accept workspace invitations' }, 403);
+      }
+
+      // Case-insensitive email comparison
+      if (invite.email.toLowerCase() !== sessionData.user.email.toLowerCase()) {
         return c.json({ error: 'This invitation is for a different email address' }, 403);
       }
 
-      // Check if user is already a member
-      const alreadyMember = await db.query.members.findFirst({
-        where: and(eq(members.userId, sessionData.user.id), eq(members.organizationId, invite.organizationId))
-      });
-
-      if (alreadyMember) {
-        // Just delete the invite
-        await db.delete(schema.invitations).where(eq(schema.invitations.id, inviteId));
-        return c.json({ success: true, message: 'Already a member' }, 200);
-      }
-
-      // Bind to organization (Better Auth base role)
-      const newMemberId = uuidv4();
-      await db.insert(members).values({
-        id: newMemberId,
-        organizationId: invite.organizationId,
-        userId: sessionData.user.id,
-        role: 'member',
-      });
-
-      // Bind to Custom PBAC role if provided
-      if (invite.role) {
-        await db.insert(orgMemberRoles).values({
-          id: uuidv4(),
-          organizationId: invite.organizationId,
-          memberId: newMemberId,
-          roleId: invite.role, // role column holds our PBAC roleId
-          assignedBy: invite.inviterId,
+      // Atomic transaction for invitation acceptance
+      return await db.transaction(async (tx) => {
+        // Check if user is already a member
+        const alreadyMember = await tx.query.members.findFirst({
+          where: and(eq(members.userId, sessionData.user.id), eq(members.organizationId, invite.organizationId))
         });
-      }
 
-      // Update invitation status to accepted or just delete it
-      await db.delete(schema.invitations).where(eq(schema.invitations.id, inviteId));
+        if (alreadyMember) {
+          await tx.delete(schema.invitations).where(eq(schema.invitations.id, inviteId));
+          return c.json({ success: true, message: 'Already a member' }, 200);
+        }
 
-      return c.json({ success: true, organizationId: invite.organizationId }, 200);
+        // Bind to organization (Better Auth base role)
+        const newMemberId = uuidv4();
+        await tx.insert(members).values({
+          id: newMemberId,
+          organizationId: invite.organizationId,
+          userId: sessionData.user.id,
+          role: 'member',
+        });
+
+        // Bind to Custom PBAC role if provided
+        if (invite.role) {
+          await tx.insert(orgMemberRoles).values({
+            id: uuidv4(),
+            organizationId: invite.organizationId,
+            memberId: newMemberId,
+            roleId: invite.role, // role column holds our PBAC roleId
+            assignedBy: invite.inviterId,
+          });
+        }
+
+        // Delete invitation after successful acceptance
+        await tx.delete(schema.invitations).where(eq(schema.invitations.id, inviteId));
+
+        return c.json({ success: true, organizationId: invite.organizationId }, 200);
+      });
     } catch (error) {
       console.error('[WorkspacesController.acceptInvitation] Failed:', error);
       return c.json({ error: 'Internal Server Error' }, 500);

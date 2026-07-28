@@ -99,9 +99,12 @@ function makeCtx(body?: object, params: Record<string, string> = {}, query: Reco
       param: (k: string) => params[k],
       query: (k: string) => query[k],
     },
-    json: (data: any, status?: number) => ({ _data: data, _status: status ?? 200 }),
+    // Return as `any` so callers can access ._data and ._status without
+    // TypeScript complaining about union narrowing on Hono's TypedResponse type.
+    json: (data: any, status?: number): any => ({ _data: data, _status: status ?? 200 }),
   };
 }
+
 
 // ─── Tests ────────────────────────────────────────────────────────────────
 

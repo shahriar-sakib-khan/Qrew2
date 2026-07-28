@@ -176,9 +176,11 @@ describe("PATCH /statuses/:id", () => {
   it("updates name and color of a non-system status", async () => {
     const existing = makeStatus();
     const updated = makeStatus({ name: "In Review", color: "#f59e0b" });
-    mockSelect.mockReturnValue({
-      from: () => ({ where: () => Promise.resolve([existing]) }),
-    });
+    // First select: fetch the existing status by ID ✓
+    // Second select: unique-name check — must return [] so it doesn't think name is taken
+    mockSelect
+      .mockReturnValueOnce({ from: () => ({ where: () => Promise.resolve([existing]) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => Promise.resolve([]) }) }); // name not taken
     mockUpdate.mockReturnValue({
       set: () => ({ where: () => ({ returning: () => Promise.resolve([updated]) }) }),
     });
