@@ -453,7 +453,7 @@ export class ProjectsController {
     return c.json(updated);
   }
 
-  static async proxyAttachment(c: Context) {
+  static async proxyAttachment(c: Context): Promise<any> {
     const orgId = c.get('organizationId');
     const projectId = c.req.param('id');
     const attachmentId = c.req.param('attachmentId');
