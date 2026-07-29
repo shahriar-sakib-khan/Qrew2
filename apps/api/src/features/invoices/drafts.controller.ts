@@ -98,26 +98,6 @@ export class DraftsController {
     }
   }
 
-  static async deleteDraft(c: Context) {
-    try {
-      const organizationId = c.get("organizationId");
-      const id = c.req.param("id") as string;
-
-      const [deleted] = await db.delete(invoiceDrafts)
-        .where(and(
-          eq(invoiceDrafts.id, id),
-          eq(invoiceDrafts.organizationId, organizationId)
-        ))
-        .returning({ id: invoiceDrafts.id });
-
-      if (!deleted) return c.json({ error: "Draft not found" }, 404);
-
-      return c.json({ success: true, id: deleted.id });
-    } catch (err: any) {
-      console.error("[DraftsController.deleteDraft]", err);
-      return c.json({ error: "Failed to delete draft" }, 500);
-    }
-  }
 
   static async getDraft(c: Context) {
     try {

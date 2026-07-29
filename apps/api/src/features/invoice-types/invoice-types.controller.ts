@@ -27,7 +27,7 @@ export class InvoiceTypesController {
       const orgId = c.get("organizationId");
       if (!orgId) return c.json({ error: "Unauthorized" }, 401);
 
-      const body = await c.req.json();
+      const body = await c.req.json() as any;
       const { name, isDefault } = body;
 
       if (!name) return c.json({ error: "Name is required" }, 400);
@@ -61,8 +61,8 @@ export class InvoiceTypesController {
       const orgId = c.get("organizationId");
       if (!orgId) return c.json({ error: "Unauthorized" }, 401);
 
-      const typeId = c.req.param("id");
-      const body = await c.req.json();
+      const typeId = c.req.param("id") as string;
+      const body = await c.req.json() as any;
       const { name, isDefault } = body;
 
       if (isDefault) {
@@ -93,7 +93,7 @@ export class InvoiceTypesController {
       const orgId = c.get("organizationId");
       if (!orgId) return c.json({ error: "Unauthorized" }, 401);
 
-      const typeId = c.req.param("id");
+      const typeId = c.req.param("id") as string;
 
       await db
         .delete(invoiceTypes)

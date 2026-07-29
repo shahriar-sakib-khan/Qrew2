@@ -121,7 +121,7 @@ describe("GET /statuses", () => {
     app.route("/", projectStatusesRoute);
     const res = await app.fetch(makeRequest("GET", "/"));
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(Array.isArray(body)).toBe(true);
   });
 });
@@ -137,7 +137,7 @@ describe("POST /statuses", () => {
     app.route("/", projectStatusesRoute);
     const res = await app.fetch(makeRequest("POST", "/", { name: "Active" }));
     expect(res.status).toBe(201);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.name).toBe("Active");
   });
 
@@ -151,7 +151,7 @@ describe("POST /statuses", () => {
       makeRequest("POST", "/", { name: "Completed", color: "#22c55e", isTerminal: true })
     );
     expect(res.status).toBe(201);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.isTerminal).toBe(true);
   });
 
@@ -206,7 +206,7 @@ describe("PATCH /statuses/:id", () => {
     app.route("/", projectStatusesRoute);
     const res = await app.fetch(makeRequest("PATCH", `/${STATUS_ID}`, { name: "DifferentName" }));
     expect(res.status).toBe(403);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.error).toContain("cannot be renamed");
   });
 
@@ -238,7 +238,7 @@ describe("DELETE /statuses/:id", () => {
     app.route("/", projectStatusesRoute);
     const res = await app.fetch(makeRequest("DELETE", `/${STATUS_ID}`));
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.success).toBe(true);
   });
 
@@ -288,7 +288,7 @@ describe("PUT /statuses/:id/transitions", () => {
       makeRequest("PUT", `/${STATUS_ID}/transitions`, { toStatusIds: [STATUS_ID_2] })
     );
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.toStatusIds).toContain(STATUS_ID_2);
   });
 
@@ -315,7 +315,7 @@ describe("PUT /statuses/:id/transitions", () => {
       makeRequest("PUT", `/${STATUS_ID}/transitions`, { toStatusIds: [STATUS_ID_2] })
     );
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.error).toContain("Terminal");
   });
 
@@ -332,7 +332,7 @@ describe("PUT /statuses/:id/transitions", () => {
       makeRequest("PUT", `/${STATUS_ID}/transitions`, { toStatusIds: [STATUS_ID] })
     );
     expect(res.status).toBe(400);
-    expect((await res.json()).error).toContain("itself");
+    expect((await res.json() as any).error).toContain("itself");
   });
 
   it("rejects if a target status does not exist in the org", async () => {
@@ -347,7 +347,7 @@ describe("PUT /statuses/:id/transitions", () => {
       makeRequest("PUT", `/${STATUS_ID}/transitions`, { toStatusIds: ["non-existent"] })
     );
     expect(res.status).toBe(400);
-    expect((await res.json()).error).toContain("not found");
+    expect((await res.json() as any).error).toContain("not found");
   });
 });
 
@@ -371,7 +371,7 @@ describe("PUT /statuses/:id/fields", () => {
       })
     );
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.fieldCount).toBe(1);
   });
 
@@ -405,7 +405,7 @@ describe("PUT /statuses/:id/fields", () => {
       makeRequest("PUT", `/${STATUS_ID}/fields`, { fields: [] })
     );
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.fieldCount).toBe(0);
   });
 
@@ -423,7 +423,7 @@ describe("PUT /statuses/:id/fields", () => {
       })
     );
     expect(res.status).toBe(400);
-    expect((await res.json()).error).toContain("invalid");
+    expect((await res.json() as any).error).toContain("invalid");
   });
 
   it("returns 404 when status not found", async () => {

@@ -5,7 +5,7 @@ import { z } from "zod";
 
 const createHeaderFieldSchema = z.object({
   label: z.string().min(1),
-  fieldType: z.enum(["manual", "org_config", "file_field"]),
+  fieldType: z.enum(["manual", "org_constant", "file_field"]),
   fileFieldKey: z.string().optional().nullable(),
   orgConfigKey: z.string().optional().nullable(),
   defaultManualValue: z.string().optional().nullable(),

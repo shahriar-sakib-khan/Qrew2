@@ -3,7 +3,7 @@ import { db, invoiceDrafts } from "@starter/db";
 import { eq, and } from "drizzle-orm";
 
 async function getDraft(c: Context) {
-  const draftId = c.req.param("id");
+  const draftId = c.req.param("id") as string;
   const organizationId = c.get("organizationId");
   const [draft] = await db.select().from(invoiceDrafts)
     .where(and(eq(invoiceDrafts.id, draftId), eq(invoiceDrafts.organizationId, organizationId)))

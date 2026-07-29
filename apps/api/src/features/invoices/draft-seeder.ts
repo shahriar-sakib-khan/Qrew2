@@ -44,7 +44,7 @@ export class DraftSeeder {
       if (project) {
         if (th.fileFieldKey === "clientId") val = project.client?.name || "";
         else if (th.fileFieldKey === "name" || th.fileFieldKey === "status") val = project[th.fileFieldKey] || "";
-        else if (project.customFields) val = project.customFields[th.fileFieldKey] || "";
+        else if (th.fileFieldKey && project.customFields) val = (project.customFields as any)[th.fileFieldKey] || "";
       }
       draftHeaderValues[th.id] = String(val ?? "");
     }
