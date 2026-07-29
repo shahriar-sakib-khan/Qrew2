@@ -28,8 +28,9 @@ const { makeSelectChain } = vi.hoisted(() => {
 });
 
 // ─── Mock @starter/db ────────────────────────────────────────────────────────
-vi.mock("@starter/db", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@starter/db")>();
+// We mock EVERYTHING explicitly — no importOriginal — so the real @starter/db
+// module never executes. This avoids the DATABASE_URL env guard throwing in CI.
+vi.mock("@starter/db", () => {
   const eq = vi.fn();
   const and = vi.fn();
   const asc = vi.fn();
@@ -54,17 +55,16 @@ vi.mock("@starter/db", async (importOriginal) => {
       templateRowComponents: { findFirst: vi.fn(), findMany: vi.fn() },
       templateRowCharges: { findFirst: vi.fn(), findMany: vi.fn() },
     },
-  };
-  (dbObj as any).transaction = vi.fn(async (fn: any) => fn(dbObj));
+    transaction: vi.fn(async (fn: any) => fn(dbObj)),
+  } as any;
 
   return {
-    ...actual,
     db: dbObj,
     eq,
     and,
     asc,
-    encodeFormula: vi.fn((f) => f),
-    decodeFormula: vi.fn((f) => f),
+    encodeFormula: vi.fn((f: any) => f),
+    decodeFormula: vi.fn((f: any) => f),
     templateRows: { id: "id", sectionId: "sectionId", templateId: "templateId", rowToken: "rowToken", sortOrder: "sortOrder" },
     templateRowComponents: { id: "id", rowId: "rowId", componentToken: "componentToken", sortOrder: "sortOrder" },
     templateRowCharges: { id: "id", rowId: "rowId", sortOrder: "sortOrder" },
@@ -72,6 +72,7 @@ vi.mock("@starter/db", async (importOriginal) => {
     invoiceTemplates: { id: "id", organizationId: "organizationId" },
   };
 });
+
 
 import { TemplateRowsController } from "./template-rows.controller";
 import { db } from "@starter/db";

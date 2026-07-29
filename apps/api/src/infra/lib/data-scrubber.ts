@@ -37,7 +37,7 @@ export async function getScrubberConfig(
   // Load custom field definitions for the requested entity (or all if "all")
   let defsWhere = eq(customFieldDefinitions.organizationId, orgId);
   if (entityType !== "all") {
-    defsWhere = and(defsWhere, eq(customFieldDefinitions.entityType, entityType));
+    defsWhere = and(defsWhere, eq(customFieldDefinitions.entityType, entityType))!;
   }
   
   const defs = await db.query.customFieldDefinitions.findMany({
@@ -137,7 +137,7 @@ export function scrubEntityData<T extends Record<string, any>>(
     }
 
     if (hasChanges) {
-      result.customFields = scrubbedCustomFields;
+      (result as any).customFields = scrubbedCustomFields;
     }
   }
 

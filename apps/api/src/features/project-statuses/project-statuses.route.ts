@@ -139,17 +139,21 @@ projectStatusesRoute.get("/", requireOrgPermission("file:view"), async (c) => {
   ]);
 
   // Group transitions and fields by statusId
-  const transitionsByStatus: Record<string, typeof transitions> = {};
+  type Transition = (typeof transitions)[number];
+  type FieldMapping = (typeof fieldMappings)[number];
+
+  const transitionsByStatus: Record<string, Transition[]> = {};
   for (const t of transitions) {
     if (!transitionsByStatus[t.fromStatusId]) transitionsByStatus[t.fromStatusId] = [];
-    transitionsByStatus[t.fromStatusId].push(t);
+    transitionsByStatus[t.fromStatusId]!.push(t);
   }
 
-  const fieldsByStatus: Record<string, typeof fieldMappings> = {};
+  const fieldsByStatus: Record<string, FieldMapping[]> = {};
   for (const f of fieldMappings) {
     if (!fieldsByStatus[f.statusId]) fieldsByStatus[f.statusId] = [];
-    fieldsByStatus[f.statusId].push(f);
+    fieldsByStatus[f.statusId]!.push(f);
   }
+
 
   const enriched = statuses.map((s) => ({
     ...s,

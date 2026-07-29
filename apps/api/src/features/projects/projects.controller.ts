@@ -500,7 +500,7 @@ export class ProjectsController {
    * 
    * On success, updates the project's `status` field.
    */
-  static async advanceStatus(c: Context) {
+  static async advanceStatus(c: Context): Promise<any> {
     const orgId = c.get('organizationId');
     const id = c.req.param('id');
     if (!id) return c.json({ error: 'Missing project ID' }, 400);
