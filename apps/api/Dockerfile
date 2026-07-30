@@ -35,8 +35,8 @@ FROM base AS pruner
 
 WORKDIR /app
 
-# Install turbo globally in this stage to run the prune command
-RUN pnpm add -g turbo@^2
+# Install turbo globally using npm (pnpm global bin dir is not set by default in Alpine)
+RUN npm install -g turbo@^2
 
 # Copy the full monorepo into this temporary stage
 COPY . .
