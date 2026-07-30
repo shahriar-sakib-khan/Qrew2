@@ -89,14 +89,10 @@ WORKDIR /app
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nodejs
 
-# Copy in ONLY what's needed to run:
-# 1. The compiled JavaScript output (dist/)
-# 2. The pruned node_modules (production packages only)
-# 3. The package.json (needed by Node to know the entry point)
-COPY --from=builder --chown=nodejs:nodejs /app/apps/api/dist ./dist
-COPY --from=builder --chown=nodejs:nodejs /app/apps/api/package.json ./package.json
-COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=nodejs:nodejs /app/packages ./packages
+# Copy the entire pruned and built project from the builder stage.
+# This is required because pnpm uses a virtual store and symlinks in node_modules,
+# and cherry-picking folders breaks the workspace module resolution.
+COPY --from=builder --chown=nodejs:nodejs /app .
 
 # Switch to the non-root user
 USER nodejs
@@ -104,6 +100,9 @@ USER nodejs
 # Tell Docker which port your Hono server listens on.
 # This is metadata only — the actual port binding happens in your app code.
 EXPOSE 3001
+
+# Set the working directory to the specific app we want to run
+WORKDIR /app/apps/api
 
 # The command that runs when Render starts the container.
 # We run the compiled JS directly with Node for maximum performance.
