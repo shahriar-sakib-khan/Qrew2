@@ -105,5 +105,6 @@ EXPOSE 3001
 WORKDIR /app/apps/api
 
 # The command that runs when Render starts the container.
-# We run the compiled JS directly with Node for maximum performance.
-CMD ["node", "dist/index.js"]
+# We use tsx to run the compiled JS because Node strictly requires .js extensions
+# for relative ESM imports, which tsc does not emit. tsx resolves this automatically.
+CMD ["pnpm", "exec", "tsx", "dist/index.js"]
