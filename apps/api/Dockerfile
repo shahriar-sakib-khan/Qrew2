@@ -103,5 +103,5 @@ USER nodejs
 EXPOSE 3001
 
 # The command that runs when Render starts the container.
-# We use tsx instead of node because of ESM module resolution (discussed earlier).
-CMD ["pnpm", "--filter=@starter/api", "start"]
+# We run the compiled JS directly with Node for maximum performance.
+CMD ["node", "dist/index.js"]
