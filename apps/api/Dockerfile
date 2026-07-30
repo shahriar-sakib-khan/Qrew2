@@ -67,6 +67,9 @@ RUN pnpm install --frozen-lockfile --prod=false
 # COPY 2: Now copy the actual source code
 COPY --from=pruner /app/out/full/ .
 
+# Explicitly copy the root tsconfig because turbo prune omits it by default
+COPY tsconfig.base.json .
+
 # Run the TypeScript compiler via turbo (this calls tsc in apps/api)
 # This creates apps/api/dist/
 RUN pnpm turbo run build --filter=@starter/api
