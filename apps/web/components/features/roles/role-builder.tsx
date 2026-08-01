@@ -23,7 +23,7 @@ import {
   FieldDescription 
 } from "@/components/ui/field";
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
 interface RoleBuilderProps {
   roleId?: string; // undefined = create mode, string = edit mode

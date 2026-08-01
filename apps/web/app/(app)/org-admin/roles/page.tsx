@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
 export default function RolesPage() {
   const router = useRouter();

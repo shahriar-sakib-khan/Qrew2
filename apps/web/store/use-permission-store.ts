@@ -20,7 +20,7 @@ export const usePermissionStore = create<PermissionState>((set, get) => ({
 
   loadPermissions: async () => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
       const res = await fetch(`${apiUrl}/api/workspaces/permissions/me`, {
         // Essential: send the session cookie so Hono knows who is asking
         credentials: 'include', 

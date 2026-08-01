@@ -4,10 +4,10 @@ const nextConfig = {
   async rewrites() {
     return [
       {
-        // Intercept any request to /api/* on port 3000
+        // Intercept any request to /api/* on port 5000
         source: "/api/:path*",
         // Silently forward it to the backend (uses env var in prod, defaults to localhost)
-        destination: `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/api/:path*`,
+        destination: `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/api/:path*`,
       },
     ];
   },
@@ -20,7 +20,7 @@ const nextConfig = {
         headers: [
           {
             key: "Content-Security-Policy",
-            value: `default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: https://lh3.googleusercontent.com https://*.r2.dev; connect-src 'self' http://localhost:3001 ${process.env.NEXT_PUBLIC_API_URL ? process.env.NEXT_PUBLIC_API_URL : ""} https://*.cloudflarestorage.com;`,
+            value: `default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: https://lh3.googleusercontent.com https://*.r2.dev; connect-src 'self' http://localhost:3000 ${process.env.NEXT_PUBLIC_API_URL ? process.env.NEXT_PUBLIC_API_URL : ""} https://*.cloudflarestorage.com;`,
           },
           {
             // Prevents "MIME-sniffing".

@@ -16,7 +16,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Field, FieldLabel, FieldError } from "@/components/ui/field";
 import { BackgroundEffects } from "@/components/layout/background-effects";
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
 // Schemas for embedded forms
 const loginSchema = z.object({

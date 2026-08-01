@@ -101,7 +101,7 @@ app.onError((err, c) => {
 // ---------------------------------------------------------------
 // Server Initialization
 // ---------------------------------------------------------------
-const PORT = Number(process.env.PORT ?? 3001)
+const PORT = Number(process.env.PORT ?? 3000)
 
 serve(
   {
