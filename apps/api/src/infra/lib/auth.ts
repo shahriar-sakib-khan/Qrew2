@@ -78,8 +78,6 @@ export const auth = betterAuth({
   trustedOrigins: [
     process.env.NEXT_PUBLIC_APP_URL ? process.env.NEXT_PUBLIC_APP_URL.replace(/['"]/g, '').replace(/\/+$/, '') : '',
     'http://localhost:5000',
-    'http://localhost:5001',
-    'http://localhost:5002',
     'https://qrew-six.vercel.app'
   ].filter(Boolean),
   session: {

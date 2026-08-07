@@ -33,9 +33,9 @@ export async function middleware(request: NextRequest) {
   }
 
   // Robust Fetch Logic
-  const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+  const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'; // backend
   const apiUrl = rawApiUrl.endsWith('/') ? rawApiUrl.slice(0, -1) : rawApiUrl;
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:5000';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:5000'; // frontend
   const cookieHeader = request.headers.get('cookie') || '';
 
   let sessionData = null;

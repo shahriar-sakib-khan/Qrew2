@@ -4,9 +4,9 @@ const nextConfig = {
   async rewrites() {
     return [
       {
-        // Intercept any request to /api/* on port 5000
+        // Intercept any request to /api/* on port 5000 (frontend)
         source: "/api/:path*",
-        // Silently forward it to the backend (uses env var in prod, defaults to localhost)
+        // Silently forward it to the backend on port 3000 (or env var in prod)
         destination: `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/api/:path*`,
       },
     ];
