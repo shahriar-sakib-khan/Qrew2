@@ -7,7 +7,6 @@ import { apiUrl } from "@/lib/constants";
 import { CustomFieldsDataTable } from "@/components/features/custom-fields/custom-fields-data-table";
 import { AddCustomFieldModal } from "@/components/features/custom-fields/add-custom-field-modal";
 import { AddExpenseCategoryModal } from "@/components/features/expense-categories/add-expense-category-modal";
-import { AddInvoiceTypeModal } from "@/components/features/invoice-types/add-invoice-type-modal";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -156,113 +155,10 @@ function ExpenseCategoryRow({ cat, isShown, onToggleShow }: { cat: any, isShown:
   );
 }
 
-function InvoiceTypeRow({ type }: { type: any }) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [name, setName] = useState(type.name);
-  const queryClient = useQueryClient();
-
-  const updateMutation = useMutation({
-    mutationFn: async (vars?: { isDefault?: boolean }) => {
-      const res = await fetch(`${apiUrl}/api/invoice-types/${type.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ name, isDefault: vars?.isDefault }),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to update type");
-      }
-      return res.json();
-    },
-    onSuccess: () => {
-      toast.success("Type updated successfully.");
-      setIsEditing(false);
-      queryClient.invalidateQueries({ queryKey: ["invoice-types"] });
-    },
-    onError: (err: any) => {
-      toast.error(err.message);
-    }
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch(`${apiUrl}/api/invoice-types/${type.id}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to delete type");
-      }
-      return res.json();
-    },
-    onSuccess: () => {
-      toast.success("Type deleted successfully.");
-      queryClient.invalidateQueries({ queryKey: ["invoice-types"] });
-    },
-    onError: (err: any) => {
-      toast.error(err.message);
-    }
-  });
-
-  const handleDelete = () => {
-    if (confirm(`Are you sure you want to delete "${type.name}"?`)) {
-      deleteMutation.mutate();
-    }
-  };
-
-  return (
-    <TableRow>
-      <TableCell className="font-medium">
-        <div className="flex items-center">
-          {isEditing ? (
-            <Input 
-              value={name} 
-              onChange={(e) => setName(e.target.value)}
-              className="h-8 w-full max-w-[200px] text-sm"
-            />
-          ) : (
-            <span>{type.name}</span>
-          )}
-          {type.isDefault && <Badge variant="secondary" className="ml-2">Default</Badge>}
-        </div>
-      </TableCell>
-      <TableCell className="text-right">
-        {isEditing ? (
-          <div className="flex items-center justify-end gap-1">
-            <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600" disabled={updateMutation.isPending} onClick={() => updateMutation.mutate({})}>
-              {updateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-            </Button>
-            <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground" onClick={() => { setIsEditing(false); setName(type.name); }}>
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-        ) : (
-          <div className="flex items-center justify-end gap-1">
-            {!type.isDefault && (
-              <Button size="sm" variant="outline" className="mr-2" disabled={updateMutation.isPending} onClick={() => updateMutation.mutate({ isDefault: true })}>
-                Make Default
-              </Button>
-            )}
-            <Button size="icon" variant="ghost" className="h-9 w-9 text-muted-foreground hover:text-foreground" onClick={() => setIsEditing(true)}>
-              <Edit2 className="h-5 w-5" />
-            </Button>
-            <Button size="icon" variant="ghost" className="h-9 w-9 text-muted-foreground hover:text-red-600" disabled={deleteMutation.isPending} onClick={handleDelete}>
-              {deleteMutation.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
-            </Button>
-          </div>
-        )}
-      </TableCell>
-    </TableRow>
-  );
-}
-
 export default function CustomizeFieldsPage() {
   const [isAddFieldModalOpen, setIsAddFieldModalOpen] = useState(false);
   const [activeEntityType, setActiveEntityType] = useState<"client" | "project" | "staff">("client");
   const [isAddExpenseCategoryOpen, setIsAddExpenseCategoryOpen] = useState(false);
-  const [isAddInvoiceTypeOpen, setIsAddInvoiceTypeOpen] = useState(false);
 
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -339,15 +235,6 @@ export default function CustomizeFieldsPage() {
     queryFn: async () => {
       const res = await fetch(`${apiUrl}/api/expense-categories`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch expense categories");
-      return res.json();
-    },
-  });
-
-  const { data: invoiceTypes, isLoading: loadingInvoiceTypes } = useQuery({
-    queryKey: ["invoice-types"],
-    queryFn: async () => {
-      const res = await fetch(`${apiUrl}/api/invoice-types`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch invoice types");
       return res.json();
     },
   });
@@ -570,53 +457,6 @@ export default function CustomizeFieldsPage() {
         </div>
       </section>
 
-      {/* INVOICE TYPES SECTION */}
-      <section className="space-y-5 mt-10">
-        <div className="flex items-center justify-between border-b pb-3">
-          <div>
-            <h2 className="text-xl font-bold">Invoice Types</h2>
-            <p className="text-[14.5px] text-muted-foreground mt-1">Configure types available when creating an invoice or template.</p>
-          </div>
-          <Button onClick={() => setIsAddInvoiceTypeOpen(true)} className="shadow-sm">
-            <Plus className="mr-2 h-4 w-4" />
-            Add Type
-          </Button>
-        </div>
-        <div className="rounded-md border bg-card">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="text-[15px]">Type Name</TableHead>
-
-                <TableHead className="text-[15px] text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loadingInvoiceTypes ? (
-                <TableRow>
-                  <TableCell colSpan={2} className="h-24 text-center text-muted-foreground">
-                    Loading types...
-                  </TableCell>
-                </TableRow>
-              ) : invoiceTypes?.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={2} className="h-24 text-center text-muted-foreground">
-                    No invoice types found.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                invoiceTypes?.map((type: any) => (
-                  <InvoiceTypeRow 
-                    key={type.id} 
-                    type={type} 
-                  />
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </section>
-
       <AddCustomFieldModal 
         isOpen={isAddFieldModalOpen} 
         onClose={() => setIsAddFieldModalOpen(false)}
@@ -625,10 +465,6 @@ export default function CustomizeFieldsPage() {
       <AddExpenseCategoryModal 
         isOpen={isAddExpenseCategoryOpen} 
         onClose={() => setIsAddExpenseCategoryOpen(false)} 
-      />
-      <AddInvoiceTypeModal 
-        isOpen={isAddInvoiceTypeOpen} 
-        onClose={() => setIsAddInvoiceTypeOpen(false)} 
       />
     </div>
   );

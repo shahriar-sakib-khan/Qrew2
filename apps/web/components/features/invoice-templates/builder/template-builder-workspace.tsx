@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { apiUrl } from "@/lib/constants";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, X } from "lucide-react";
@@ -287,18 +287,55 @@ export function FileDetailsHeaderBox({
 
 // ─── Inner workspace (inside BuilderProvider) ─────────────────────────────────
 
-function WorkspaceInner({ templateId, draftId, zoomLevel = 0, project }: { templateId?: string, draftId?: string, zoomLevel?: number, project?: any }) {
+function WorkspaceInner({ templateId, draftId, zoomLevel = 0, onZoomChange, project }: { templateId?: string, draftId?: string, zoomLevel?: number, onZoomChange?: React.Dispatch<React.SetStateAction<number>>, project?: any }) {
   const { setTokenMap, tokenPoolOpen, apiBasePath, invalidateKey, mode } = useBuilderContext();
   const queryClient = useQueryClient();
   const [insertAtIndex, setInsertAtIndex] = useState<number | null>(null);
   const [isAddHeaderModalOpen, setIsAddHeaderModalOpen] = useState(false);
   const [fieldToDelete, setFieldToDelete] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleOpenModal = () => setIsAddHeaderModalOpen(true);
     window.addEventListener("open-add-header-field-modal", handleOpenModal);
     return () => window.removeEventListener("open-add-header-field-modal", handleOpenModal);
   }, []);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || !onZoomChange) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      if (e.ctrlKey) {
+        e.preventDefault();
+        if (e.deltaY < 0) onZoomChange(z => Math.min(z + 1, 8));
+        else if (e.deltaY > 0) onZoomChange(z => Math.max(z - 1, -4));
+      }
+    };
+
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    return () => el.removeEventListener("wheel", handleWheel);
+  }, [onZoomChange]);
+
+  useEffect(() => {
+    if (!onZoomChange) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey) {
+        if (e.key === "=" || e.key === "+") {
+          e.preventDefault();
+          onZoomChange(z => Math.min(z + 1, 8));
+        } else if (e.key === "-") {
+          e.preventDefault();
+          onZoomChange(z => Math.max(z - 1, -4));
+        } else if (e.key === "0") {
+          e.preventDefault();
+          onZoomChange(0);
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onZoomChange]);
 
   const { data: sections, isLoading } = useQuery({
     queryKey: invalidateKey,
@@ -409,12 +446,14 @@ function WorkspaceInner({ templateId, draftId, zoomLevel = 0, project }: { templ
     // Extra left padding to give the outside-border token (w-28 = 112px) space to render.
     // overflow-visible is required so absolute-positioned tokens escape the container border.
     <div
+      ref={containerRef}
       className={cn(
-        "px-2 sm:px-4 max-w-5xl mx-auto w-full pb-6 overflow-visible transition-all duration-200",
+        "px-2 sm:px-4 max-w-5xl mx-auto w-full pb-6 overflow-visible transition-all duration-200 outline-none",
         tokenPoolOpen
           ? "xl:pl-36 xl:pr-32 2xl:pl-40 2xl:pr-52"
           : "md:pl-36 md:pr-32 lg:pl-40 lg:pr-52"
       )}
+      tabIndex={0}
     >
       {/* ── File Details Header Box ── */}
       <FileDetailsHeaderBox 
@@ -537,12 +576,14 @@ export function TemplateBuilderWorkspace({
   templateId,
   draftId,
   zoomLevel = 0,
+  onZoomChange,
   project,
 }: {
   templateId?: string;
   draftId?: string;
   zoomLevel?: number;
+  onZoomChange?: React.Dispatch<React.SetStateAction<number>>;
   project?: any;
 }) {
-  return <WorkspaceInner templateId={templateId} draftId={draftId} zoomLevel={zoomLevel} project={project} />;
+  return <WorkspaceInner templateId={templateId} draftId={draftId} zoomLevel={zoomLevel} onZoomChange={onZoomChange} project={project} />;
 }

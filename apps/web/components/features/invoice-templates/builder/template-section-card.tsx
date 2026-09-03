@@ -19,9 +19,11 @@ import { cn } from "@/lib/utils";
 function SectionChargeLabelCell({
   charge,
   sectionId,
+  zoomLevel = 0,
 }: {
   charge: any;
   sectionId: string;
+  zoomLevel?: number;
 }) {
   const { apiBasePath, invalidateKey } = useBuilderContext();
   const queryClient = useQueryClient();
@@ -77,8 +79,9 @@ function SectionChargeLabelCell({
         }}
         className={cn(
           "w-full bg-transparent border-none outline-none focus:outline-none text-right",
-          "text-sm font-medium text-foreground/80 leading-snug caret-primary",
+          "font-medium text-foreground/80 leading-snug caret-primary",
         )}
+        style={{ fontSize: 14 + zoomLevel }}
         placeholder="Enter label…"
       />
     );
@@ -89,7 +92,8 @@ function SectionChargeLabelCell({
       tabIndex={0}
       onClick={() => setEditing(true)}
       onKeyDown={(e) => e.key === "Enter" && setEditing(true)}
-      className="text-sm font-medium text-foreground/80 leading-snug hover:text-foreground cursor-text"
+      className="font-medium text-foreground/80 leading-snug hover:text-foreground cursor-text"
+      style={{ fontSize: 14 + zoomLevel }}
     >
       {draft || "Click to label…"}
     </span>
@@ -111,6 +115,7 @@ function SectionChargeLine({
   mode,
   templateId,
   sectionId,
+  zoomLevel = 0,
 }: {
   charge: any;
   sectionToken: string;
@@ -121,6 +126,7 @@ function SectionChargeLine({
   mode: string;
   templateId: string;
   sectionId: string;
+  zoomLevel?: number;
 }) {
   const { selectedCell, setSelectedCell } = useBuilderContext();
 
@@ -133,6 +139,7 @@ function SectionChargeLine({
     <TableRow
       token={charge.chargeToken}
       formula={fullFormula}
+      zoomLevel={zoomLevel}
       onClickUsd1={() => {
         if (mode !== "fill") {
           setSelectedCell(cellFromSectionCharge({ templateId, sectionId, charge, sectionToken }));
@@ -158,10 +165,10 @@ function SectionChargeLine({
       }
       labelContent={
         <div className="flex items-center justify-end gap-2 w-full pr-1">
-          <SectionChargeLabelCell charge={charge} sectionId={sectionId} />
+          <SectionChargeLabelCell charge={charge} sectionId={sectionId} zoomLevel={zoomLevel} />
         </div>
       }
-      usd1={computedVal != null ? <span>{fmt(computedVal)}</span> : undefined}
+      usd1={computedVal != null ? <span style={{ fontSize: 16 + zoomLevel }}>{fmt(computedVal)}</span> : undefined}
     />
   );
 }
@@ -177,6 +184,7 @@ export function TemplateSectionCard({
   slOffset = 0,
   sectionColor,
   tokenMap,
+  zoomLevel = 0,
 }: {
   templateId: string;
   draftId?: string;
@@ -187,6 +195,7 @@ export function TemplateSectionCard({
   slOffset?: number;
   sectionColor: SectionColor;
   tokenMap: TokenMap;
+  zoomLevel?: number;
 }) {
   const queryClient = useQueryClient();
   const { apiBasePath, invalidateKey, mode } = useBuilderContext();
@@ -287,13 +296,13 @@ export function TemplateSectionCard({
               </div>
             )}
             <h3
-              className="font-semibold text-sm uppercase tracking-wider truncate"
-              style={{ color: sectionColor.border }}
+              className="font-semibold uppercase tracking-wider truncate"
+              style={{ color: sectionColor.border, fontSize: 14 + zoomLevel }}
             >
               {displayName || `Section ${sectionToken.split("_").pop()}`}
             </h3>
             {/* Token badge — hover only */}
-            <span className="font-mono text-[10px] text-muted-foreground/40 bg-muted/50 px-1.5 rounded opacity-0 group-hover/sec:opacity-100 transition-opacity select-all">
+            <span className="font-mono text-muted-foreground/40 bg-muted/50 px-1.5 rounded opacity-0 group-hover/sec:opacity-100 transition-opacity select-all" style={{ fontSize: 10 + zoomLevel }}>
               {sectionToken}
             </span>
           </div>
@@ -323,6 +332,7 @@ export function TemplateSectionCard({
         sectionColor={sectionColor}
         tokenMap={tokenMap}
         allSections={allSections}
+        zoomLevel={zoomLevel}
       />
 
       {/* ── Section charges — visually distinct (section color, bolder) ── */}
@@ -342,6 +352,7 @@ export function TemplateSectionCard({
                 onDelete={() => deleteSectionChargeMutation.mutate(charge.id)}
                 templateId={templateId}
                 sectionId={section.id}
+                zoomLevel={zoomLevel}
               />
             ))}
         </div>

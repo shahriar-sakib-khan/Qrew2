@@ -7,10 +7,8 @@ import { freezeInvoice } from "./engine/invoice-freeze";
 const generateSchema = z.object({
   projectId: z.string(),
   clientId: z.string(),
-  documentType: z.enum(["pda", "fda", "proforma", "general"]),
   sourceTemplateId: z.string().optional(),
   sourceTemplateVersion: z.number().optional(),
-  draftRows: z.array(z.any()).default([]),
   headerFieldValues: z.record(z.string(), z.string()).default({}),
   issuedToClientName: z.string(),
   currency: z.string().default("USD"),

@@ -1,6 +1,3 @@
-// @ts-nocheck
-// TODO: [V2 Migration] BigNumber ↔ mathjs type incompatibility — needs type-casting fix
-// or replacement of mathjs with a pure BigNumber AST walker.
 /**
  * AST Evaluator Service — Invoice Engine V2
  *
@@ -25,7 +22,7 @@
  * text-interpolator.service.ts.
  */
 
-import { create, all, type MathJsInstance } from "mathjs";
+import { create, all, type MathJsInstance, type BigNumber } from "mathjs";
 import {
   type EvaluatorSection,
   type EvaluatorRow,
@@ -52,11 +49,11 @@ const math: MathJsInstance = create(all, {
 const ZERO = math.bignumber("0");
 const FIXED_SCALE = 6;
 
-function toFixed(val: ReturnType<typeof math.bignumber>): string {
+function toFixed(val: BigNumber): string {
   return math.format(val, { notation: "fixed", precision: FIXED_SCALE });
 }
 
-function safeBN(val: string | number | null | undefined): ReturnType<typeof math.bignumber> {
+function safeBN(val: string | number | null | undefined): BigNumber {
   try {
     if (val == null || val === "") return ZERO;
     return math.bignumber(String(val));
@@ -73,9 +70,6 @@ function safeBN(val: string | number | null | undefined): ReturnType<typeof math
  * Evaluates a bare-token formula expression against the current scope.
  * Returns the BigNumber result or throws an EngineError on failure.
  *
- * Formula example: "PORT_DUES * 0.15 + FILE_GRT"
- * Scope example:   { PORT_DUES: "1000.000000", FILE_GRT: "4668.000000" }
- *
  * @param noticeCollector - If provided, unknown tokens are zero-filled and
  *   an UNRESOLVED_REFERENCE notice is pushed here instead of throwing.
  */
@@ -84,9 +78,7 @@ function evalFormula(
   scope: EngineContext,
   contextLabel: string,
   noticeCollector?: EngineError[]
-): ReturnType<typeof math.bignumber> {
-  // ── Zero-fill any tokens that are not yet in scope ──
-  // Match bare UPPER_CASE identifiers (not pure numbers)
+): BigNumber {
   const TOKEN_RE = /\b([A-Z_][A-Z0-9_]*)\b/g;
   let resolvedFormula = formula;
   if (noticeCollector !== undefined) {
@@ -104,7 +96,6 @@ function evalFormula(
         token: tok,
         formula,
       } as EngineError);
-      // Replace the bare token with 0 so mathjs doesn't crash
       resolvedFormula = resolvedFormula.replace(
         new RegExp(`\\b${tok}\\b`, "g"),
         "0"
@@ -116,10 +107,10 @@ function evalFormula(
     const result = math.evaluate(resolvedFormula, scope);
     if (result == null) throw new Error("Null result");
     return math.bignumber(result.toString());
-  } catch (err) {
+  } catch (err: any) {
     throw {
       code: "EVALUATION_FAILED",
-      message: `Failed to evaluate formula in ${contextLabel}: "${formula}". Error: ${(err as Error).message ?? String(err)}`,
+      message: `Failed to evaluate formula in ${contextLabel}: "${formula}". Error: ${err?.message ?? String(err)}`,
       formula,
     } as EngineError;
   }
@@ -133,7 +124,7 @@ function evaluateRowCharge(
   charge: EvaluatorRowCharge,
   scope: EngineContext,
   rowLabel: string
-): { result: EvaluatedRowCharge; value: ReturnType<typeof math.bignumber> } {
+): { result: EvaluatedRowCharge; value: BigNumber } {
   const value = evalFormula(
     charge.formula,
     scope,
@@ -164,7 +155,7 @@ function evaluateSectionCharge(
   sectionToken: string,
   scope: EngineContext,
   sectionLabel: string
-): { result: EvaluatedSectionCharge; value: ReturnType<typeof math.bignumber> } {
+): { result: EvaluatedSectionCharge; value: BigNumber } {
   const baseTokenName = `SEC_${sectionToken}_${sc.formulaBase}`;
   const fullFormula = `${baseTokenName}${sc.formulaRest}`;
 
@@ -203,55 +194,53 @@ function evaluateRow(
   idToToken: RowIdToTokenMap
 ): { result: EvaluatedRow; errors: EngineError[] } {
   const errors: EngineError[] = [];
-  const notices: EngineError[] = []; // soft, non-blocking
+  const notices: EngineError[] = [];
   const evaluatedCharges: EvaluatedRowCharge[] = [];
   let baseValue = ZERO;
   let chargesValue = ZERO;
 
   // ── Evaluate row base value ──
-  if (row.valueType === 'formula') {
+  if (row.valueType === "formula") {
     if (!row.formula) {
       errors.push({
-        code: 'INVALID_FORMULA_SYNTAX',
+        code: "INVALID_FORMULA_SYNTAX",
         message: `Row "${row.parentLabel}" has valueType=formula but no formula is set.`,
         rowToken: row.rowToken,
       });
     } else {
       try {
         const decodedFormula = decodeFormulaForEval(row.formula, idToToken);
-        // Pass noticeCollector so unknown tokens are zero-filled gracefully
         baseValue = evalFormula(decodedFormula, scope, `row "${row.parentLabel}"`, notices);
-      } catch (err) {
+      } catch (err: any) {
         errors.push({ ...(err as EngineError), rowToken: row.rowToken });
       }
     }
   } else {
-    // normal — use manualValue (staff override) > initialValue > 0
     const raw = row.manualValue ?? row.initialValue ?? null;
     baseValue = safeBN(raw);
   }
 
-  // ── Publish row base token ──
+  // ── Publish row base tokens ──
   scope[row.rowToken] = toFixed(baseValue);
+  scope[`${row.rowToken}_BASE`] = toFixed(baseValue);
 
   // ── Evaluate row charges ──
   const sortedCharges = [...row.charges].sort((a, b) => a.sortOrder - b.sortOrder);
   for (const charge of sortedCharges) {
     try {
-      // Decode charge formula too
       const decodedCharge = { ...charge, formula: decodeFormulaForEval(charge.formula, idToToken) };
       const { result, value } = evaluateRowCharge(decodedCharge, scope, row.parentLabel);
       evaluatedCharges.push(result);
       scope[charge.chargeToken] = toFixed(value);
-      chargesValue = math.add(chargesValue, value) as ReturnType<typeof math.bignumber>;
-    } catch (err) {
+      chargesValue = math.add(chargesValue, value) as BigNumber;
+    } catch (err: any) {
       errors.push({ ...(err as EngineError), rowToken: row.rowToken });
-      scope[charge.chargeToken] = '0.000000';
+      scope[charge.chargeToken] = "0.000000";
     }
   }
 
   // ── Publish row total token ──
-  const totalValue = math.add(baseValue, chargesValue) as ReturnType<typeof math.bignumber>;
+  const totalValue = math.add(baseValue, chargesValue) as BigNumber;
   scope[`${row.rowToken}_TOTAL`] = toFixed(totalValue);
 
   return {
@@ -288,29 +277,24 @@ function evaluateSection(
   const sectionLabel = section.displayName ?? `Section ${autoName}`;
 
   let sectionBase = ZERO;
-  let sectionChargesTotal = ZERO;
+  let rowChargesSum = ZERO;
 
-  // Sort rows by sortOrder
   const sortedRows = [...section.rows].sort((a, b) => a.sortOrder - b.sortOrder);
 
-  // ── Evaluate rows ──
   for (const row of sortedRows) {
     const { result, errors: rowErrors } = evaluateRow(row, scope, sectionToken, idToToken);
     evaluatedRows.push(result);
     errors.push(...rowErrors);
 
-    sectionBase = math.add(sectionBase, safeBN(result.baseValue)) as ReturnType<typeof math.bignumber>;
-    sectionChargesTotal = math.add(
-      sectionChargesTotal,
-      safeBN(result.chargesValue)
-    ) as ReturnType<typeof math.bignumber>;
+    sectionBase = math.add(sectionBase, safeBN(result.baseValue)) as BigNumber;
+    rowChargesSum = math.add(rowChargesSum, safeBN(result.chargesValue)) as BigNumber;
   }
 
-  const sectionTotal = math.add(sectionBase, sectionChargesTotal) as ReturnType<typeof math.bignumber>;
+  const sectionTotal = math.add(sectionBase, rowChargesSum) as BigNumber;
 
   // ── Section aggregate tokens ──
   scope[`SEC_${sectionToken}_BASE`] = toFixed(sectionBase);
-  scope[`SEC_${sectionToken}_CHARGES`] = toFixed(sectionChargesTotal);
+  scope[`SEC_${sectionToken}_CHARGES`] = toFixed(rowChargesSum);
   scope[`SEC_${sectionToken}_TOTAL`] = toFixed(sectionTotal);
 
   // ── Section charges ──
@@ -320,7 +304,7 @@ function evaluateSection(
       const { result, value } = evaluateSectionCharge(sc, sectionToken, scope, sectionLabel);
       evaluatedSectionCharges.push(result);
       scope[sc.chargeToken] = toFixed(value);
-    } catch (err) {
+    } catch (err: any) {
       errors.push(err as EngineError);
       scope[sc.chargeToken] = "0.000000";
     }
@@ -336,7 +320,7 @@ function evaluateSection(
       rows: evaluatedRows,
       sectionCharges: evaluatedSectionCharges,
       sectionBase: toFixed(sectionBase),
-      sectionChargesTotal: toFixed(sectionChargesTotal),
+      sectionChargesTotal: toFixed(rowChargesSum),
       sectionTotal: toFixed(sectionTotal),
     },
   };
@@ -352,7 +336,7 @@ export class AstEvaluatorService {
    * structure plus the grand total and any evaluation errors.
    *
    * @param sections     - All sections in sortOrder (already DAG-validated)
-   * @param initialScope - Pre-resolved external tokens (FILE_*, ORG_*, CAT_*)
+   * @param initialScope - Pre-resolved external tokens (FILE_*, GBL_*, TPL_*, EXP_*)
    * @param idToToken    - Map of rowId → rowToken for formula decoding
    */
   static evaluate(
@@ -368,10 +352,7 @@ export class AstEvaluatorService {
     const evaluatedSections: EvaluatedSection[] = [];
     let grandTotal = ZERO;
 
-    // Build mutable scope, starting with external tokens
     const scope: EngineContext = { ...initialScope };
-
-    // Sort sections by sortOrder
     const sortedSections = [...sections].sort((a, b) => a.sortOrder - b.sortOrder);
 
     for (const section of sortedSections) {
@@ -379,16 +360,13 @@ export class AstEvaluatorService {
       evaluatedSections.push(result);
       errors.push(...sectionErrors);
 
-      // Grand total accumulates section totals + section charge values
-      grandTotal = math.add(grandTotal, safeBN(result.sectionTotal)) as ReturnType<typeof math.bignumber>;
+      grandTotal = math.add(grandTotal, safeBN(result.sectionTotal)) as BigNumber;
 
-      // Add section charge values to grand total
       for (const sc of result.sectionCharges) {
-        grandTotal = math.add(grandTotal, safeBN(sc.value)) as ReturnType<typeof math.bignumber>;
+        grandTotal = math.add(grandTotal, safeBN(sc.value)) as BigNumber;
       }
     }
 
-    // Inject INVOICE_TOTAL into scope (useful for any post-evaluation references)
     scope["INVOICE_TOTAL"] = toFixed(grandTotal);
 
     return {
@@ -398,3 +376,4 @@ export class AstEvaluatorService {
     };
   }
 }
+

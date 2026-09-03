@@ -283,32 +283,24 @@ describe("TemplateSectionChargesController", () => {
       expect((res as any).data.formulaBase).toBe("BASE");
     });
 
-    it("creates charge with formulaBase=TOTAL successfully", async () => {
+    it("returns 400 when creating charge with formulaBase=TOTAL", async () => {
       mockSectionOwned();
-      (db.query.templateSectionCharges.findFirst as any).mockResolvedValue(null);
-      const newCharge = makeCharge({ formulaBase: "TOTAL", chargeToken: `SEC_${SECTION_TOKEN}_TAX` });
-      mockInsertReturns(newCharge);
-
       const ctx = makeCtx({
         params: { sectionId: SECTION_ID, templateId: TEMPLATE_ID },
         body: { label: "Tax", formulaBase: "TOTAL", formulaRest: "* 0.05" },
       });
       const res = await TemplateSectionChargesController.createSectionCharge(ctx);
-      expect(res.status).toBe(201);
+      expect(res.status).toBe(400);
     });
 
-    it("creates charge with formulaBase=CHARGES successfully", async () => {
+    it("returns 400 when creating charge with formulaBase=CHARGES", async () => {
       mockSectionOwned();
-      (db.query.templateSectionCharges.findFirst as any).mockResolvedValue(null);
-      const newCharge = makeCharge({ formulaBase: "CHARGES" });
-      mockInsertReturns(newCharge);
-
       const ctx = makeCtx({
         params: { sectionId: SECTION_ID, templateId: TEMPLATE_ID },
         body: { label: "Admin Fee", formulaBase: "CHARGES", formulaRest: "* 0.02" },
       });
       const res = await TemplateSectionChargesController.createSectionCharge(ctx);
-      expect(res.status).toBe(201);
+      expect(res.status).toBe(400);
     });
 
     it("accepts null for optional fields (subDescription, qualifier)", async () => {
@@ -359,15 +351,11 @@ describe("TemplateSectionChargesController", () => {
       expect((res as any).data.formulaRest).toBe("* 0.15");
     });
 
-    it("updates formulaBase from BASE to TOTAL", async () => {
+    it("returns 400 when updating formulaBase to TOTAL", async () => {
       mockChargeOwned();
-      const updated = makeCharge({ formulaBase: "TOTAL" });
-      mockUpdateReturns(updated);
-
       const ctx = makeCtx({ params: { chargeId: CHARGE_ID }, body: { formulaBase: "TOTAL" } });
       const res = await TemplateSectionChargesController.updateSectionCharge(ctx);
-      expect(res.status).toBe(200);
-      expect((res as any).data.formulaBase).toBe("TOTAL");
+      expect(res.status).toBe(400);
     });
 
     it("returns 400 for invalid formulaBase in update", async () => {

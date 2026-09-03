@@ -143,29 +143,32 @@ export class DagValidatorService {
       const sectionLabel = section.displayName ?? `Section ${sectionLetter}`;
 
       for (const row of section.rows) {
-        // The set of tokens that this row's charges are ALLOWED to reference
+        // The set of tokens that this row's charges are ALLOWED to reference (base only)
         const rowChargeAllowedTokens = new Set<string>([
           row.rowToken,
-          `${row.rowToken}_TOTAL`,
+          `${row.rowToken}_BASE`,
         ]);
 
         // ── Row base value formula (if formula type) ──
-        // Forward references are allowed (evaluator will zero-fill unknown
-        // tokens at eval time and produce UNRESOLVED_REFERENCE notices).
-        // We still record them here as informational notices, not errors.
         if (row.formula) {
           const refs = extractTokens(row.formula);
           for (const ref of refs) {
-            if (!allKnownTokens.has(ref)) {
-              // Non-blocking: the evaluator handles this gracefully via zero-fill.
-              // Do NOT push to errors — push as a FORWARD_REFERENCE notice only.
-              // (Downstream the evaluator will emit UNRESOLVED_REFERENCE notices.)
+            if (!allKnownTokens.has(ref) && !externalTokens.has(ref)) {
+              errors.push({
+                code: "FORWARD_REFERENCE",
+                message: `Row "${row.parentLabel}" references "${ref}" which has not been defined yet.`,
+                rowToken: row.rowToken,
+                token: ref,
+                formula: row.formula
+              });
             }
           }
         }
 
         // Parent row base token — available after row evaluation
         allKnownTokens.add(row.rowToken);
+        allKnownTokens.add(`${row.rowToken}_BASE`);
+        allKnownTokens.add(`${row.rowToken}_TOTAL`);
         topologicalOrder.push(row.rowToken);
 
         // ── Row charges ──
@@ -173,13 +176,12 @@ export class DagValidatorService {
           const refs = extractTokens(charge.formula);
           for (const ref of refs) {
             if (!rowChargeAllowedTokens.has(ref) && !externalTokens.has(ref)) {
-              // Determine if it's a scope violation or forward reference
               const code = allKnownTokens.has(ref)
                 ? "CHARGE_SCOPE_VIOLATION"
                 : "FORWARD_REFERENCE";
               const message =
                 code === "CHARGE_SCOPE_VIOLATION"
-                  ? `Row charge "${charge.label}" in row "${row.parentLabel}" references "${ref}" which is outside this row's scope. Row charges may only reference their parent row's tokens.`
+                  ? `Row charge "${charge.label}" in row "${row.parentLabel}" references "${ref}". Row charges may only reference their parent row's base value (${row.rowToken} or ${row.rowToken}_BASE) or external constants.`
                   : `Row charge "${charge.label}" in row "${row.parentLabel}" references "${ref}" which has not been defined yet.`;
               errors.push({ code, message, rowToken: row.rowToken, token: ref, formula: charge.formula });
             }
@@ -202,10 +204,18 @@ export class DagValidatorService {
       allKnownTokens.add(secCharges);
       topologicalOrder.push(secBase, secTotal, secCharges);
 
-      const sectionChargeAllowedTokens = new Set<string>([secBase, secTotal, secCharges]);
+      // Section charges may ONLY reference section base
+      const sectionChargeAllowedTokens = new Set<string>([secBase]);
 
       // ── Section charges ──
       for (const sc of section.sectionCharges) {
+        if (sc.formulaBase !== "BASE") {
+          errors.push({
+            code: "CHARGE_SCOPE_VIOLATION",
+            message: `Section charge "${sc.label}" in section "${sectionLabel}" has formulaBase="${sc.formulaBase}". Section charges are strictly restricted to formulaBase="BASE".`,
+            token: sc.chargeToken,
+          });
+        }
         const baseToken = `SEC_${sectionToken}_${sc.formulaBase}`;
         const fullFormula = `${baseToken}${sc.formulaRest}`;
         const refs = extractTokens(fullFormula);
@@ -214,7 +224,7 @@ export class DagValidatorService {
             const code = allKnownTokens.has(ref) ? "CHARGE_SCOPE_VIOLATION" : "FORWARD_REFERENCE";
             const message =
               code === "CHARGE_SCOPE_VIOLATION"
-                ? `Section charge "${sc.label}" in section "${sectionLabel}" references "${ref}" which is outside this section's scope. Section charges may only reference SEC_${sectionToken}_BASE/TOTAL/CHARGES.`
+                ? `Section charge "${sc.label}" in section "${sectionLabel}" references "${ref}". Section charges may only reference SEC_${sectionToken}_BASE or external constants.`
                 : `Section charge "${sc.label}" in section "${sectionLabel}" references "${ref}" which has not been defined.`;
             errors.push({ code, message, token: ref, formula: fullFormula });
           }

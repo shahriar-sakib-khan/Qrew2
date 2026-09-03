@@ -1,31 +1,25 @@
-// V2 Freeze Engine — persists pre-evaluated V2 sections from the engine preview.
-// The frontend sends EvaluatedSection[] (already computed by AstEvaluatorService),
-// so the freeze does NOT re-evaluate. It simply validates, writes, and locks.
 import {
   db,
   invoices,
   invoiceLineItems,
   invoiceDrafts,
-  invoiceReservedNumbers,
-  templateHeaderFields,
   invoiceTemplates,
+  templateRows,
 } from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { generateDocumentNumber } from "./document-number";
 import { resolveScope } from "./token-resolver.service";
-import type { EvaluatedSection, EvaluatedRow } from "./types";
+import { DagValidatorService } from "./dag-validator.service";
+import { AstEvaluatorService } from "./ast-evaluator.service";
 
 interface FreezeParams {
   organizationId: string;
   projectId: string;
   clientId: string;
   userId: string;
-  documentType: "pda" | "fda" | "proforma" | "general";
   sourceTemplateId?: string;
   sourceTemplateVersion?: number;
-  /** V2 EvaluatedSection[] from the frontend preview — already computed, no re-eval needed */
-  draftRows: EvaluatedSection[];
-  headerFieldValues: Record<string, string>;
+  headerFieldValues?: Record<string, string>;
   issuedToClientName: string;
   currency?: string;
   notes?: string;
@@ -34,26 +28,68 @@ interface FreezeParams {
 /**
  * The Atomic Freeze Transaction (V2)
  *
- * Accepts pre-evaluated EvaluatedSection[] from the frontend.
- * Persists them to the DB atomically — no re-evaluation inside the transaction.
- * Any failure = full rollback. No partial state can persist.
+ * Loads draft from DB, resolves scope, runs DAG validator and AST evaluator server-side.
+ * Rejects with 422 if any formula remains unresolved or produces an error.
+ * Persists to DB atomically — any failure = full rollback.
  */
 export async function freezeInvoice(params: FreezeParams) {
   return await db.transaction(async (tx) => {
     // ─────────────────────────────────────────────────────────────────────
-    // STEP 1: Compute grand total from evaluated sections
+    // STEP 1: Load draft sections from invoice_drafts DB table
     // ─────────────────────────────────────────────────────────────────────
+    const [draft] = await tx
+      .select()
+      .from(invoiceDrafts)
+      .where(
+        and(
+          eq(invoiceDrafts.projectId, params.projectId),
+          eq(invoiceDrafts.userId, params.userId)
+        )
+      )
+      .limit(1);
+
+    const draftSections: any[] = draft?.draftSections ?? [];
+
+    // ─────────────────────────────────────────────────────────────────────
+    // STEP 2: Server-side token resolution & DAG validation
+    // ─────────────────────────────────────────────────────────────────────
+    const headerFieldValues = params.headerFieldValues ?? draft?.draftHeaderValues ?? {};
+    const scope = await resolveScope({
+      projectId: params.projectId,
+      organizationId: params.organizationId,
+      templateId: params.sourceTemplateId ?? "",
+      db: tx,
+      headerFieldValues,
+    });
+
+    const dagResult = DagValidatorService.validate(draftSections, new Set(Object.keys(scope)));
+    if (!dagResult.valid) {
+      throw new Error(`CANNOT_FREEZE_UNRESOLVED: Template has dependency errors: ${dagResult.errors.map(e => e.message).join("; ")}`);
+    }
+
+    // Build row index for formula decoding
+    const rows = await tx
+      .select({ id: templateRows.id, rowToken: templateRows.rowToken })
+      .from(templateRows)
+      .where(eq(templateRows.templateId, params.sourceTemplateId ?? ""));
+    const idToToken: Record<string, string> = {};
+    for (const r of rows) idToToken[r.id] = r.rowToken;
+
+    // ─────────────────────────────────────────────────────────────────────
+    // STEP 3: Server-side AST Evaluation
+    // ─────────────────────────────────────────────────────────────────────
+    const evalResult = AstEvaluatorService.evaluate(draftSections, scope, idToToken);
+    if (evalResult.errors.length > 0) {
+      throw new Error(`CANNOT_FREEZE_UNRESOLVED: Evaluation errors: ${evalResult.errors.map(e => e.message).join("; ")}`);
+    }
+
     let totalBase = 0;
     let totalCharges = 0;
-
-    for (const section of params.draftRows) {
-      // Section base = sum of row baseValues
+    for (const section of evalResult.evaluatedSections) {
       totalBase += parseFloat(section.sectionBase ?? "0");
-      // Section charges total
       totalCharges += parseFloat(section.sectionChargesTotal ?? "0");
-      // Row charges are already summed into sectionTotal by the evaluator
-      for (const row of section.rows ?? []) {
-        totalCharges += parseFloat(row.chargesValue ?? "0");
+      for (const r of section.rows ?? []) {
+        totalCharges += parseFloat(r.chargesValue ?? "0");
       }
     }
 
@@ -62,7 +98,7 @@ export async function freezeInvoice(params: FreezeParams) {
     const totalChargesStr = totalCharges.toFixed(6);
 
     // ─────────────────────────────────────────────────────────────────────
-    // STEP 2: Insert invoice placeholder (status='draft')
+    // STEP 4: Insert invoice placeholder (status='draft')
     // ─────────────────────────────────────────────────────────────────────
     const [invoice] = await tx
       .insert(invoices)
@@ -71,7 +107,6 @@ export async function freezeInvoice(params: FreezeParams) {
         organizationId: params.organizationId,
         projectId: params.projectId,
         clientId: params.clientId,
-        documentType: params.documentType,
         documentNumber: "PENDING",
         status: "draft",
         sourceTemplateId: params.sourceTemplateId ?? null,
@@ -80,7 +115,7 @@ export async function freezeInvoice(params: FreezeParams) {
         issuedToClientName: params.issuedToClientName,
         currency: params.currency ?? "USD",
         totalBaseAmount: totalBaseStr,
-        totalChargesAmount: totalChargesStr,  // ← correct column name
+        totalChargesAmount: totalChargesStr,
         grandTotalAmount: grandTotal,
         notes: params.notes ?? null,
         schemaVersion: "2.0",
@@ -88,34 +123,22 @@ export async function freezeInvoice(params: FreezeParams) {
       .returning();
 
     // ─────────────────────────────────────────────────────────────────────
-    // STEP 3: Generate document number (SELECT FOR UPDATE NOWAIT)
+    // STEP 5: Generate document number using atomic sequence
     // ─────────────────────────────────────────────────────────────────────
     const documentNumber = await generateDocumentNumber({
       organizationId: params.organizationId,
       projectId: params.projectId,
-      documentType: params.documentType,
       sourceTemplateId: params.sourceTemplateId,
       tx,
     });
 
     // ─────────────────────────────────────────────────────────────────────
-    // STEP 4: Re-resolve scope for historicalFormat (audit trail)
-    // ─────────────────────────────────────────────────────────────────────
-    const scope = await resolveScope({
-      projectId: params.projectId,
-      organizationId: params.organizationId,
-      templateId: params.sourceTemplateId ?? "",
-      db: tx,
-      headerFieldValues: params.headerFieldValues,
-    });
-
-    // ─────────────────────────────────────────────────────────────────────
-    // STEP 5: Write line items from V2 EvaluatedSection[] rows
+    // STEP 6: Write line items from SERVER-evaluated sections
     // ─────────────────────────────────────────────────────────────────────
     const lineItemInserts: any[] = [];
     let displayOrder = 0;
 
-    for (const section of params.draftRows) {
+    for (const section of evalResult.evaluatedSections) {
       for (const row of section.rows ?? []) {
         lineItemInserts.push({
           id: crypto.randomUUID(),
@@ -138,7 +161,6 @@ export async function freezeInvoice(params: FreezeParams) {
           displayOrder: displayOrder++,
         });
 
-        // Write row charges as sub-line items
         for (const charge of row.charges ?? []) {
           lineItemInserts.push({
             id: crypto.randomUUID(),
@@ -163,7 +185,6 @@ export async function freezeInvoice(params: FreezeParams) {
         }
       }
 
-      // Write section charges as line items
       for (const sc of section.sectionCharges ?? []) {
         lineItemInserts.push({
           id: crypto.randomUUID(),
@@ -193,7 +214,7 @@ export async function freezeInvoice(params: FreezeParams) {
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // STEP 6: Fetch template name for historicalFormat
+    // STEP 7: Fetch template name & build historicalFormat
     // ─────────────────────────────────────────────────────────────────────
     let templateName = "Custom Invoice";
     if (params.sourceTemplateId) {
@@ -212,17 +233,16 @@ export async function freezeInvoice(params: FreezeParams) {
       tokens: scope,
     };
 
-    // Snapshot the V2 evaluated sections as the historical format
     const historicalFormat = {
       schemaVersion: "2.0",
       templateId: params.sourceTemplateId ?? "custom",
       templateVersion: params.sourceTemplateVersion ?? 1,
       templateName,
-      sections: params.draftRows,
+      sections: evalResult.evaluatedSections,
     };
 
     // ─────────────────────────────────────────────────────────────────────
-    // STEP 7: Atomic status change to 'frozen'
+    // STEP 8: Atomic status change to 'frozen'
     // ─────────────────────────────────────────────────────────────────────
     const [frozen] = await tx
       .update(invoices)
@@ -231,28 +251,15 @@ export async function freezeInvoice(params: FreezeParams) {
         documentNumber,
         historicalFormat,
         resolvedScope,
-        resolvedHeaderValues: params.headerFieldValues,
+        resolvedHeaderValues: headerFieldValues,
         totalBaseAmount: totalBaseStr,
-        totalChargesAmount: totalChargesStr,  // ← correct column name
+        totalChargesAmount: totalChargesStr,
         grandTotalAmount: grandTotal,
         frozenAt: new Date(),
         schemaVersion: "2.0",
       })
       .where(eq(invoices.id, invoice.id))
       .returning();
-
-    // ─────────────────────────────────────────────────────────────────────
-    // STEP 8: Mark reserved number as used
-    // ─────────────────────────────────────────────────────────────────────
-    await tx
-      .update(invoiceReservedNumbers)
-      .set({ isUsed: true, usedByInvoiceId: frozen.id })
-      .where(
-        and(
-          eq(invoiceReservedNumbers.projectId, params.projectId),
-          eq(invoiceReservedNumbers.documentType, params.documentType)
-        )
-      );
 
     // ─────────────────────────────────────────────────────────────────────
     // STEP 9: Delete the draft
@@ -267,6 +274,6 @@ export async function freezeInvoice(params: FreezeParams) {
       );
 
     return frozen;
-    // ON ANY THROW: entire transaction rolls back. No partial state persists.
   });
 }
+

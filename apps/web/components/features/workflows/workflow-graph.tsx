@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Trash2, Flag, CheckCircle2, XCircle, Shield, Link2, X, Minus } from "lucide-react";
+import { Plus, Trash2, Flag, CheckCircle2, XCircle, Shield, Link2, X, Minus, Pencil } from "lucide-react";
 
 // --- Constants ---------------------------------------------------------------
 
@@ -21,6 +21,8 @@ interface Status {
   isInitial: boolean;
   isTerminal: boolean;
   isSystem: boolean;
+  gridColumn?: number | null;
+  gridRow?: number | null;
   transitions: { toStatusId: string }[];
   statusFields: { fieldId: string; isRequiredToEnter: boolean }[];
   createdAt: string | Date;
@@ -30,8 +32,8 @@ interface LayoutNode {
   status: Status;
   cx: number;
   cy: number;
-  layer: number;
-  track: number; // integer grid row (0 = center, negative = above, positive = below)
+  col: number;
+  row: number;
 }
 
 // --- Layout: Bounding-Box Tree (Reingold-Tilford style) ----------------------
@@ -281,40 +283,47 @@ function computeLayout(statuses: Status[]): LayoutNode[] {
     }
   });
 
-  // -- Convert track integers to pixel Y coordinates -------------------------
-  const minTrack = Math.min(...Object.values(trackMap));
-  const maxTrack = Math.max(...Object.values(trackMap));
-  const totalH = (maxTrack - minTrack) * STEP + NODE_D;
+  // -- Compute final pixel coordinates based on Grid Grid positions ---
+  const nodes = statuses.map((s) => {
+    const computedCol = layer[s.id] ?? 0;
+    const computedRow = trackMap[s.id] ?? 0;
+    return {
+      status: s,
+      col: s.gridColumn ?? computedCol,
+      row: s.gridRow ?? computedRow,
+      cx: 0,
+      cy: 0,
+    };
+  });
+
+  const allRows = nodes.map(n => n.row);
+  const minRow = allRows.length > 0 ? Math.min(0, ...allRows) : 0;
+  const maxRow = allRows.length > 0 ? Math.max(0, ...allRows) : 0;
+  
+  const totalH = (maxRow - minRow) * 136 + 56;
   const canvasMinH = 400;
   const verticalOffset = totalH < canvasMinH ? (canvasMinH - totalH) / 2 : PAD;
 
-  return statuses.map((s) => {
-    const col = layer[s.id] ?? 0;
-    const track = trackMap[s.id] ?? 0;
-    return {
-      status: s,
-      cx: PAD + NODE_R + col * (NODE_D + LAYER_GAP),
-      cy: (track - minTrack) * STEP + verticalOffset + NODE_R,
-      layer: col,
-      track,
-    };
+  nodes.forEach(n => {
+    n.cx = PAD + NODE_R + n.col * 206;
+    n.cy = (n.row - minRow) * 136 + verticalOffset + NODE_R;
   });
+
+  return nodes;
 }
 
 // --- Edge Path ---------------------------------------------------------------
-// All edges are drawn as a straight line from one circle's surface to another.
-// No rails, no curves, no bends — ever.
+// Adaptive Cubic Bezier routing to avoid overlapping nodes and edges.
 
 function edgePath(
   from: LayoutNode,
   to: LayoutNode,
-  _allEdges: { from: LayoutNode; to: LayoutNode }[],
-  _edgeIndex: number
+  isBidirectional: boolean
 ): { d: string; mx: number; my: number } {
   const { cx: x1, cy: y1 } = from;
   const { cx: x2, cy: y2 } = to;
 
-  // Self-loop guard — shouldn't happen but keep as safety
+  // Self-loop guard
   if (from.status.id === to.status.id) {
     const top = y1 - NODE_R - 24;
     return {
@@ -323,30 +332,50 @@ function edgePath(
     };
   }
 
-  // Straight line from circle surface to circle surface
-  const dx = x2 - x1;
-  const dy = y2 - y1;
-  const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-  const ux = dx / dist;
-  const uy = dy / dist;
+  const isSameCol = from.col === to.col;
+  const isMultiRow = Math.abs(from.row - to.row) > 1 || (isSameCol && Math.abs(from.row - to.row) >= 1);
+  const isBackwards = to.col < from.col;
 
-  const fromX = x1 + NODE_R * ux;
-  const fromY = y1 + NODE_R * uy;
-  const toX   = x2 - NODE_R * ux;
-  const toY   = y2 - NODE_R * uy;
+  let cp1x = x1 + 100;
+  let cp1y = y1;
+  let cp2x = x2 - 100;
+  let cp2y = y2;
 
-  return {
-    d: `M${fromX},${fromY} L${toX},${toY}`,
-    mx: (fromX + toX) / 2,
-    my: (fromY + toY) / 2,
-  };
+  if (isSameCol || isMultiRow) {
+    const deflection = isBidirectional ? 140 : 100;
+    cp1x = x1 + deflection;
+    cp2x = x2 - deflection;
+  }
+
+  if (isBackwards && !isSameCol) {
+    cp1x = x1 + 80;
+    cp1y = y1 + 140;
+    cp2x = x2 - 80;
+    cp2y = y2 + 140;
+  }
+
+  // Calculate curve midpoint (t=0.5) for bezier
+  const mx = 0.125 * x1 + 0.375 * cp1x + 0.375 * cp2x + 0.125 * x2;
+  const my = 0.125 * y1 + 0.375 * cp1y + 0.375 * cp2y + 0.125 * y2;
+
+  // Precise boundary points
+  const d1 = Math.hypot(cp1x - x1, cp1y - y1) || 1;
+  const startX = x1 + (NODE_R * (cp1x - x1) / d1);
+  const startY = y1 + (NODE_R * (cp1y - y1) / d1);
+
+  const d2 = Math.hypot(x2 - cp2x, y2 - cp2y) || 1;
+  const endX = x2 - (NODE_R * (x2 - cp2x) / d2);
+  const endY = y2 - (NODE_R * (y2 - cp2y) / d2);
+
+  return { d: `M ${startX},${startY} C ${cp1x},${cp1y} ${cp2x},${cp2y} ${endX},${endY}`, mx, my };
 }
 
 // --- Node Styling -------------------------------------------------------------
 
 function nodeStyle(s: Status) {
   if (s.isInitial) return { ring: "#6366f1", dot: "#6366f1", glow: "rgba(99,102,241,0.18)", label: "#818cf8" };
-  if (s.isTerminal) {
+  const isDynamicTerminal = !s.isInitial && (s.transitions?.length === 0);
+  if (isDynamicTerminal) {
     const neg = s.name.toLowerCase().match(/reject|cancel|fail|lost|declin|abort/);
     if (neg) return { ring: "#f43f5e", dot: "#f43f5e", glow: "rgba(244,63,94,0.18)", label: "#fb7185" };
     return { ring: "#10b981", dot: "#10b981", glow: "rgba(16,185,129,0.18)", label: "#34d399" };
@@ -365,6 +394,9 @@ function WorkflowNodeCircle({
   isConnectSource,
   isConnectTarget,
   connectMode,
+  onDragStart,
+  onDragMove,
+  onDragEnd,
 }: {
   node: LayoutNode;
   onClick: () => void;
@@ -373,6 +405,9 @@ function WorkflowNodeCircle({
   isConnectSource: boolean;
   isConnectTarget: boolean;
   connectMode: boolean;
+  onDragStart?: (e: React.PointerEvent, id: string, cx: number, cy: number) => void;
+  onDragMove?: (e: React.PointerEvent) => void;
+  onDragEnd?: (e: React.PointerEvent) => void;
 }) {
   const s = node.status;
   const style = nodeStyle(s);
@@ -393,12 +428,18 @@ function WorkflowNodeCircle({
 
   // Short label to show inside the circle (up to 4 chars)
   const shortLabel = s.name.length <= 4 ? s.name : s.name.slice(0, 3) + "…";
-  const isNegTerminal = s.isTerminal &&
+  
+  const isDynamicTerminal = !s.isInitial && (s.transitions?.length === 0);
+  const isNegTerminal = isDynamicTerminal &&
     s.name.toLowerCase().match(/reject|cancel|fail|lost|declin|abort|close/);
 
   return (
     <div
-      onClick={onClick}
+      onPointerDown={(e) => onDragStart?.(e, node.status.id, node.cx, node.cy)}
+      onPointerMove={onDragMove}
+      onPointerUp={onDragEnd}
+      onPointerCancel={onDragEnd}
+
       style={{
         position: "absolute",
         left: node.cx - NODE_R,
@@ -417,13 +458,13 @@ function WorkflowNodeCircle({
         }}
       >
         {/* Inner content: icon for special nodes, abbreviated name otherwise */}
-        {s.isTerminal && !isNegTerminal && (
+        {isDynamicTerminal && !isNegTerminal && (
           <CheckCircle2 className="w-4 h-4" style={{ color: style.dot }} />
         )}
-        {s.isTerminal && isNegTerminal && (
+        {isDynamicTerminal && isNegTerminal && (
           <XCircle className="w-4 h-4" style={{ color: style.dot }} />
         )}
-        {!s.isTerminal && (
+        {!isDynamicTerminal && (
           <span
             className="text-[9px] font-bold leading-none text-center pointer-events-none select-none"
             style={{ color: style.dot }}
@@ -440,15 +481,26 @@ function WorkflowNodeCircle({
           <div className="w-2 h-2 bg-popover border-b border-r rotate-45 mx-auto -mt-1 border-t-0 border-l-0" />
         </div>
 
+        {!connectMode && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onClick(); }}
+            className="absolute -top-2 -left-2 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 bg-background border border-slate-400 text-slate-500 rounded-full shadow-sm hover:bg-slate-50 hover:text-slate-800"
+            title="Configure stage"
+          >
+            <Pencil className="h-2.5 w-2.5" />
+          </button>
+        )}
+
         {!s.isSystem && !connectMode && (
           <button
             onClick={(e) => { e.stopPropagation(); onDelete(); }}
             className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 bg-background border border-red-400 text-red-500 rounded-full shadow-sm hover:bg-red-50"
+            title="Delete stage"
           >
             <Trash2 className="h-2.5 w-2.5" />
           </button>
         )}
-        {!connectMode && !s.isTerminal && (
+        {!connectMode && !isDynamicTerminal && (
           <button
             onClick={(e) => { e.stopPropagation(); onBranch(); }}
             className="absolute -bottom-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 bg-background border border-indigo-400 text-indigo-500 rounded-full shadow-sm hover:bg-indigo-50"
@@ -469,7 +521,7 @@ function WorkflowNodeCircle({
         </span>
         <div className="flex items-center justify-center gap-1 mt-0.5">
           {s.isInitial  && <Flag        className="h-2.5 w-2.5 text-indigo-400" />}
-          {s.isTerminal && <CheckCircle2 className="h-2.5 w-2.5 opacity-60" style={{ color: style.ring }} />}
+          {isDynamicTerminal && <CheckCircle2 className="h-2.5 w-2.5 opacity-60" style={{ color: style.ring }} />}
           {s.isSystem   && <Shield      className="h-2.5 w-2.5 text-violet-400 opacity-60" />}
         </div>
       </div>
@@ -488,6 +540,8 @@ export function WorkflowGraph({
   onAddBranch,
   onConnectNodes,
   onDeleteEdge,
+  onMoveNode,
+  onSwapNodes,
 }: {
   statuses: Status[];
   customFields: any[];
@@ -498,13 +552,21 @@ export function WorkflowGraph({
   onAddBranch: (id: string) => void;
   onConnectNodes: (fromId: string, toId: string) => void;
   onDeleteEdge: (fromId: string, toId: string) => void;
+  onMoveNode?: (id: string, col: number, row: number) => void;
+  onSwapNodes?: (sourceId: string, targetId: string, targetCol: number, targetRow: number, sourceCol: number, sourceRow: number) => void;
 }) {
+  const [dragState, setDragState] = useState<{ id: string; pointerStartX: number; pointerStartY: number; nodeStartX: number; nodeStartY: number; currentX: number; currentY: number } | null>(null);
   const [hoveredEdge, setHoveredEdge] = useState<string | null>(null);
   const [connectState, setConnectState] = useState<null | "source" | string>(null);
   const isConnectMode = connectState !== null;
   const connectSourceId = connectState !== null && connectState !== "source" ? connectState : null;
 
-  const layoutNodes = computeLayout(statuses);
+  const layoutNodes = computeLayout(statuses).map(n => {
+    if (dragState && dragState.id === n.status.id) {
+      return { ...n, cx: dragState.currentX, cy: dragState.currentY };
+    }
+    return n;
+  });
   const nodeMap = Object.fromEntries(layoutNodes.map((n) => [n.status.id, n]));
 
   const canvasW = layoutNodes.length > 0
@@ -515,12 +577,12 @@ export function WorkflowGraph({
     : 400;
 
   const [zoom, setZoom] = useState(1);
-  const minTrack = layoutNodes.length > 0 ? Math.min(...layoutNodes.map(n => n.track)) : 0;
+  const minRow = layoutNodes.length > 0 ? Math.min(...layoutNodes.map(n => n.row)) : 0;
   
   let y0 = PAD + NODE_R;
   if (layoutNodes.length > 0) {
-    const track0Node = layoutNodes.find(n => n.track === 0) || layoutNodes[0];
-    y0 = track0Node.cy - track0Node.track * 136;
+    const row0Node = layoutNodes.find(n => n.row === 0) || layoutNodes[0];
+    y0 = row0Node.cy - row0Node.row * 136;
   }
   
   // Create abundant headers to cover a massive scrolling canvas
@@ -544,17 +606,69 @@ export function WorkflowGraph({
     })
   );
 
-  const edgeData = edges.map(({ fromNode, toNode, edgeId }, i) => {
-    const { d, mx, my } = edgePath(
-      fromNode,
-      toNode,
-      edges.map((e) => ({ from: e.fromNode, to: e.toNode })),
-      i
-    );
+  const edgeData = edges.map(({ fromNode, toNode, edgeId }) => {
+    const isBidirectional = edges.some(e => e.fromNode.status.id === toNode.status.id && e.toNode.status.id === fromNode.status.id);
+    const { d, mx, my } = edgePath(fromNode, toNode, isBidirectional);
     return { fromNode, toNode, edgeId, d, mx, my };
   });
 
-  const handleNodeClick = (node: LayoutNode) => {
+  
+  const handlePointerDown = (e: React.PointerEvent, id: string, nodeCx: number, nodeCy: number) => {
+    if (isConnectMode || disabled) return;
+    e.stopPropagation();
+    e.preventDefault();
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    setDragState({
+      id,
+      pointerStartX: e.clientX,
+      pointerStartY: e.clientY,
+      nodeStartX: nodeCx,
+      nodeStartY: nodeCy,
+      currentX: nodeCx,
+      currentY: nodeCy
+    });
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!dragState) return;
+    const deltaX = (e.clientX - dragState.pointerStartX) / zoom;
+    const deltaY = (e.clientY - dragState.pointerStartY) / zoom;
+    setDragState(prev => prev ? { ...prev, currentX: prev.nodeStartX + deltaX, currentY: prev.nodeStartY + deltaY } : null);
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (!dragState) return;
+    (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+
+    const allRows = layoutNodes.map(n => n.row);
+    const minRow = allRows.length > 0 ? Math.min(0, ...allRows) : 0;
+    const maxRow = allRows.length > 0 ? Math.max(0, ...allRows) : 0;
+    const totalH = (maxRow - minRow) * 136 + 56;
+    const canvasMinH = 400;
+    const verticalOffset = totalH < canvasMinH ? (canvasMinH - totalH) / 2 : PAD;
+
+    const newCol = Math.max(0, Math.round((dragState.currentX - PAD - NODE_R) / 206));
+    const newRow = Math.round((dragState.currentY - verticalOffset - NODE_R) / 136) + minRow;
+
+    const collidedNode = layoutNodes.find(n => n.col === newCol && n.row === newRow && n.status.id !== dragState.id);
+    
+    if (collidedNode && onSwapNodes) {
+        const sourceLayoutNode = layoutNodes.find(n => n.status.id === dragState.id);
+        onSwapNodes(
+            dragState.id, 
+            collidedNode.status.id, 
+            collidedNode.col, 
+            collidedNode.row, 
+            sourceLayoutNode ? sourceLayoutNode.col : 0, 
+            sourceLayoutNode ? sourceLayoutNode.row : 0
+        );
+    } else if (onMoveNode) {
+        onMoveNode(dragState.id, newCol, newRow);
+    }
+
+    setDragState(null);
+  };
+const handleNodeClick = (node: LayoutNode) => {
     if (connectState === "source") {
       // Guard: terminal node cannot be a source
       if (node.status.isTerminal) return;
@@ -659,7 +773,7 @@ export function WorkflowGraph({
 
             {/* Grid Headers */}
             {colHeaders.map(c => (
-              <text key={`col-lbl-${c}`} x={98 + c * 206} y={y0 + minTrack * 136 - 75} fill="#64748b" fontSize="12" fontWeight="600" textAnchor="middle" opacity="0.8">
+              <text key={`col-lbl-${c}`} x={98 + c * 206} y={y0 + minRow * 136 - 75} fill="#64748b" fontSize="12" fontWeight="600" textAnchor="middle" opacity="0.8">
                 Col {c}
               </text>
             ))}
@@ -719,17 +833,19 @@ export function WorkflowGraph({
               >
                 <Plus className="h-3 w-3" />
               </button>
-              <button
-                onClick={(e) => { e.stopPropagation(); onDeleteEdge(fromNode.status.id, toNode.status.id); }}
-                className={`w-[22px] h-[22px] rounded-sm border-2 bg-background flex items-center justify-center transition-all duration-150 ${
-                  isHovered
-                    ? "opacity-100 border-red-400 text-red-500 shadow-md hover:bg-red-50 scale-110"
-                    : "opacity-0 border-slate-400 text-slate-400"
-                }`}
-                title={`Delete connection ${fromNode.status.name} to ${toNode.status.name}`}
-              >
-                <X className="h-3 w-3 stroke-[3]" />
-              </button>
+              {(!fromNode.status.isInitial || !toNode.status.isSystem) && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onDeleteEdge(fromNode.status.id, toNode.status.id); }}
+                  className={`w-[22px] h-[22px] rounded-sm border-2 bg-background flex items-center justify-center transition-all duration-150 ${
+                    isHovered
+                      ? "opacity-100 border-red-400 text-red-500 shadow-md hover:bg-red-50 scale-110"
+                      : "opacity-0 border-slate-400 text-slate-400"
+                  }`}
+                  title={`Delete connection ${fromNode.status.name} to ${toNode.status.name}`}
+                >
+                  <X className="h-3 w-3 stroke-[3]" />
+                </button>
+              )}
             </div>
           );
         })}
@@ -744,6 +860,9 @@ export function WorkflowGraph({
             isConnectSource={connectSourceId === node.status.id}
             isConnectTarget={connectSourceId !== null && connectSourceId !== node.status.id}
             connectMode={isConnectMode}
+            onDragStart={handlePointerDown}
+            onDragMove={handlePointerMove}
+            onDragEnd={handlePointerUp}
           />
         ))}
         </div>

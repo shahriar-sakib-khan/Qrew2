@@ -63,7 +63,7 @@ export default function SignInPage() {
     setLoadingType("google");
     setGlobalError(null);
 
-    // Explicitly construct the absolute URL to force the backend to redirect to port 5000
+    // Explicitly construct the absolute URL to force the backend to redirect to port 5002
     await signIn.social({
       provider: "google",
       callbackURL: `${window.location.origin}/sign-in`

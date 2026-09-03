@@ -18,6 +18,8 @@ import {
 import { eq, and, asc } from "drizzle-orm";
 import { z } from "zod";
 
+import * as math from "mathjs";
+
 function toSnakeCase(label: string): string {
   return label
     .toUpperCase()
@@ -28,6 +30,16 @@ function toSnakeCase(label: string): string {
     .replace(/^_|_$/g, "");
 }
 
+function validateFormulaRest(formulaBase: string, formulaRest: string): boolean {
+  try {
+    const expr = `SEC_TEST_${formulaBase}${formulaRest.startsWith(' ') ? '' : ' '}${formulaRest.trim()}`;
+    math.parse(expr);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const createSectionChargeSchema = z.object({
   /** Explicit chargeToken from the token-first modal. If omitted, derived from label. */
   chargeToken: z.string().optional(),
@@ -35,7 +47,7 @@ const createSectionChargeSchema = z.object({
   subDescription: z.string().optional().nullable(),
   qualifier: z.string().optional().nullable(),
   tags: z.array(z.string()).optional().default([]),
-  formulaBase: z.enum(["BASE", "TOTAL", "CHARGES"]),
+  formulaBase: z.enum(["BASE"]),
   formulaRest: z.string().min(1, "formulaRest is required (e.g. \" * 0.10\")"),
   orderIndex: z.number().int().min(0).default(0),
 });
@@ -98,8 +110,10 @@ export class TemplateSectionChargesController {
     const parsed = createSectionChargeSchema.safeParse(body);
     if (!parsed.success) return c.json({ error: parsed.error }, 400);
 
-    // Derive chargeToken — prefer the explicit token sent by the modal,
-    // fall back to the legacy label-derived token for API backward compat.
+    if (!validateFormulaRest(parsed.data.formulaBase, parsed.data.formulaRest)) {
+      return c.json({ error: `Invalid formula syntax in formulaRest: "${parsed.data.formulaRest}"` }, 422);
+    }
+
     const chargeToken =
       parsed.data.chargeToken ??
       `SEC_${sectionToken}_${toSnakeCase(parsed.data.label)}`;
@@ -159,6 +173,13 @@ export class TemplateSectionChargesController {
     const body = await c.req.json();
     const parsed = updateSectionChargeSchema.safeParse(body);
     if (!parsed.success) return c.json({ error: parsed.error }, 400);
+
+    const existing = chargeCheck[0].charge;
+    const nextBase = parsed.data.formulaBase ?? existing.formulaBase;
+    const nextRest = parsed.data.formulaRest ?? existing.formulaRest;
+    if (!validateFormulaRest(nextBase, nextRest)) {
+      return c.json({ error: `Invalid formula syntax in formulaRest: "${nextRest}"` }, 422);
+    }
 
     const [updated] = await db
       .update(templateSectionCharges)

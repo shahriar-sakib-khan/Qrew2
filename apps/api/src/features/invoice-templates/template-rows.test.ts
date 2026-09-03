@@ -52,7 +52,6 @@ vi.mock("@starter/db", () => {
     query: {
       templateSections: { findFirst: vi.fn(), findMany: vi.fn() },
       templateRows: { findFirst: vi.fn(), findMany: vi.fn() },
-      templateRowComponents: { findFirst: vi.fn(), findMany: vi.fn() },
       templateRowCharges: { findFirst: vi.fn(), findMany: vi.fn() },
     },
     transaction: vi.fn(async (fn: any) => fn(dbObj)),
@@ -66,7 +65,6 @@ vi.mock("@starter/db", () => {
     encodeFormula: vi.fn((f: any) => f),
     decodeFormula: vi.fn((f: any) => f),
     templateRows: { id: "id", sectionId: "sectionId", templateId: "templateId", rowToken: "rowToken", sortOrder: "sortOrder" },
-    templateRowComponents: { id: "id", rowId: "rowId", componentToken: "componentToken", sortOrder: "sortOrder" },
     templateRowCharges: { id: "id", rowId: "rowId", sortOrder: "sortOrder" },
     templateSections: { id: "id", templateId: "templateId" },
     invoiceTemplates: { id: "id", organizationId: "organizationId" },
@@ -260,36 +258,12 @@ describe("TemplateRowsController", () => {
       expect(res.status).toBe(409);
     });
 
-    it("creates row with components and no charges (default empty)", async () => {
-      mockSectionOwned();
-      (db.query.templateRows.findFirst as any).mockResolvedValue(null); // no collision
-      (db.query.templateRowComponents.findFirst as any).mockResolvedValue(null); // no comp collision
-
-      const row = makeRow();
-      const component = makeComponent("PORT_DUES", "Base Rate");
-      mockTransaction({ ...row, components: [component], charges: [] });
-
-      const ctx = makeCtx({
-        params: { sectionId: SECTION_ID },
-        body: {
-          parentLabel: "Port Dues",
-          rowToken: "PORT_DUES",
-          orderIndex: 0,
-          components: [{ label: "Base Rate", valueType: "normal", sortOrder: 0 }],
-          // no charges field → defaults to []
-        },
-      });
-      const res = await TemplateRowsController.createRow(ctx);
-      expect(res.status).toBe(201);
-    });
-
-    it("creates row with both components and charges", async () => {
+    it("creates row with charges successfully", async () => {
       mockSectionOwned();
       (db.query.templateRows.findFirst as any).mockResolvedValue(null);
-      (db.query.templateRowComponents.findFirst as any).mockResolvedValue(null);
 
       const row = makeRow();
-      mockTransaction({ ...row, components: [makeComponent("PORT_DUES", "Base")], charges: [{ id: "chg-001", label: "Levy" }] });
+      mockTransaction({ ...row, charges: [{ id: "chg-001", label: "Levy" }] });
 
       const ctx = makeCtx({
         params: { sectionId: SECTION_ID },
@@ -297,58 +271,7 @@ describe("TemplateRowsController", () => {
           parentLabel: "Port Dues",
           rowToken: "PORT_DUES",
           orderIndex: 0,
-          components: [{ label: "Base", valueType: "normal" }],
           charges: [{ label: "Levy", formula: "PORT_DUES_BASE * 0.05" }],
-        },
-      });
-      const res = await TemplateRowsController.createRow(ctx);
-      expect(res.status).toBe(201);
-    });
-
-    it("accepts null for optional component fields (subDescription, qualifier, formula)", async () => {
-      mockSectionOwned();
-      (db.query.templateRows.findFirst as any).mockResolvedValue(null);
-      (db.query.templateRowComponents.findFirst as any).mockResolvedValue(null);
-      const row = makeRow();
-      mockTransaction({ ...row, components: [makeComponent("PORT_DUES", "Base")], charges: [] });
-
-      const ctx = makeCtx({
-        params: { sectionId: SECTION_ID },
-        body: {
-          parentLabel: "Port Dues",
-          rowToken: "PORT_DUES",
-          orderIndex: 0,
-          components: [{
-            label: "Base",
-            subDescription: null, // explicit null — must not fail Zod
-            qualifier: null,
-            formula: null,
-            valueType: "normal",
-          }],
-        },
-      });
-      const res = await TemplateRowsController.createRow(ctx);
-      expect(res.status).toBe(201);
-    });
-
-    it("formula component requires valueType=formula", async () => {
-      mockSectionOwned();
-      (db.query.templateRows.findFirst as any).mockResolvedValue(null);
-      (db.query.templateRowComponents.findFirst as any).mockResolvedValue(null);
-      const row = makeRow();
-      mockTransaction({ ...row, components: [makeComponent("PORT_DUES", "Computed", { valueType: "formula", formula: "PORT_DUES_BASE * 2" })], charges: [] });
-
-      const ctx = makeCtx({
-        params: { sectionId: SECTION_ID },
-        body: {
-          parentLabel: "Port Dues",
-          rowToken: "PORT_DUES",
-          orderIndex: 0,
-          components: [{
-            label: "Computed",
-            valueType: "formula",
-            formula: "PORT_DUES_BASE * 2",
-          }],
         },
       });
       const res = await TemplateRowsController.createRow(ctx);

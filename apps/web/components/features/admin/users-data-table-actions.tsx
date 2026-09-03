@@ -49,12 +49,12 @@ export function UsersDataTableActions({ user, currentUserRole, onImpersonate, on
           <MoreHorizontal className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-[200px]">
+      <DropdownMenuContent align="end" className="w-50">
         <DropdownMenuLabel>Actions</DropdownMenuLabel>
-        
+
         {/* Support Operations */}
         {onViewDetails && (
-          <DropdownMenuItem 
+          <DropdownMenuItem
             onClick={() => onViewDetails(user)}
             className="cursor-pointer"
           >
@@ -62,33 +62,33 @@ export function UsersDataTableActions({ user, currentUserRole, onImpersonate, on
             View Details
           </DropdownMenuItem>
         )}
-        <DropdownMenuItem 
+        <DropdownMenuItem
           onClick={() => onImpersonate(user)}
           className="cursor-pointer"
         >
           <UserCog className="mr-2 h-4 w-4" />
           Impersonate
         </DropdownMenuItem>
-        
+
         <DropdownMenuSeparator />
-        
+
         {/* Security Operations */}
         <DropdownMenuLabel className="text-xs text-muted-foreground">Security</DropdownMenuLabel>
-        <DropdownMenuItem 
+        <DropdownMenuItem
           onClick={() => onSecurityAction(user, 'require_reset')}
           className="cursor-pointer"
         >
           <RefreshCcw className="mr-2 h-4 w-4" />
           Force Password Reset
         </DropdownMenuItem>
-        <DropdownMenuItem 
+        <DropdownMenuItem
           onClick={() => onSecurityAction(user, 'reset_mfa')}
           className="cursor-pointer"
         >
           <KeyRound className="mr-2 h-4 w-4" />
           Reset MFA
         </DropdownMenuItem>
-        <DropdownMenuItem 
+        <DropdownMenuItem
           onClick={() => onSecurityAction(user, 'suspend')}
           className="cursor-pointer text-amber-600 focus:text-amber-600 focus:bg-amber-50 dark:focus:bg-amber-950"
         >
@@ -96,7 +96,7 @@ export function UsersDataTableActions({ user, currentUserRole, onImpersonate, on
           Suspend Account
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem 
+        <DropdownMenuItem
           onClick={() => onSecurityAction(user, 'ban')}
           className="cursor-pointer text-destructive focus:text-destructive focus:bg-destructive/10"
         >

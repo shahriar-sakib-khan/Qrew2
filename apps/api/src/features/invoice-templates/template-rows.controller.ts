@@ -13,7 +13,6 @@ import { Context } from "hono";
 import {
   db,
   templateRows,
-  templateRowComponents,
   templateRowCharges,
   templateSections,
   invoiceTemplates,

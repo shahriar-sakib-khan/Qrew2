@@ -23,6 +23,11 @@ export const projectStatuses = pgTable("project_statuses", {
   isInitial: boolean("is_initial").notNull().default(false),
   isTerminal: boolean("is_terminal").notNull().default(false),
 
+  // Persistent Grid Coordinates (Manual Node Drag and Drop)
+  gridColumn: integer("grid_column"), // X-axis (0, 1, 2, ...)
+  gridRow: integer("grid_row"),       // Y-axis (..., -2, -1, 0, 1, 2, ...)
+
+
   createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { mode: "date" })
     .defaultNow()

@@ -19,6 +19,7 @@ export default function TemplateBuilderPage() {
   const templateId = params.id as string;
   const [tokenPoolOpen, setTokenPoolOpen] = useState(true);
   const [zoomLevel, setZoomLevel] = useState(0);
+  const [poolWidth, setPoolWidth] = useState(320);
   const [previewOpen, setPreviewOpen] = useState(false);
 
   const { data: template, isLoading } = useQuery({
@@ -80,11 +81,11 @@ export default function TemplateBuilderPage() {
             size="icon"
             className="h-6 w-6 text-muted-foreground"
             onClick={() => setZoomLevel(z => Math.max(z - 1, -4))}
-            title="Decrease Font Size"
+            title="Workspace Zoom Out"
           >
             <span className="text-lg leading-none font-medium mb-1">-</span>
           </Button>
-          <span className="text-xs font-mono w-4 text-center select-none text-muted-foreground">
+          <span className="text-xs font-mono w-4 text-center select-none text-muted-foreground" title="Workspace Zoom">
             {zoomLevel > 0 ? `+${zoomLevel}` : zoomLevel}
           </span>
           <Button
@@ -92,7 +93,7 @@ export default function TemplateBuilderPage() {
             size="icon"
             className="h-6 w-6 text-muted-foreground"
             onClick={() => setZoomLevel(z => Math.min(z + 1, 8))}
-            title="Increase Font Size"
+            title="Workspace Zoom In"
           >
             <span className="text-lg leading-none font-medium mb-1">+</span>
           </Button>
@@ -147,21 +148,46 @@ export default function TemplateBuilderPage() {
             tokenPoolOpen && "md:border-r md:border-border"
           )}
         >
-          <TemplateBuilderWorkspace templateId={templateId} zoomLevel={zoomLevel} />
+          <TemplateBuilderWorkspace templateId={templateId} zoomLevel={zoomLevel} onZoomChange={setZoomLevel} />
         </div>
 
         {/* Token pool — collapsible */}
         <div
           className={cn(
-            "h-full bg-background border-l border-border overflow-hidden transition-all duration-200",
-            tokenPoolOpen
-              ? "flex w-64 lg:w-72 xl:w-80 shrink-0"
-              : "hidden",
+            "h-full bg-background border-l border-border overflow-visible transition-all duration-200 relative",
+            tokenPoolOpen ? "flex shrink-0" : "hidden",
             // Absolute drawer on small screens, relative panel on desktop
             "absolute md:relative inset-y-0 right-0 z-40 md:z-0 shadow-2xl md:shadow-none"
           )}
+          style={{ width: tokenPoolOpen ? poolWidth : 0 }}
         >
-          <TemplateTokenPool templateId={templateId} zoomLevel={zoomLevel} />
+          {tokenPoolOpen && (
+            <div 
+              className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-primary/50 transition-colors z-50 -ml-[1px]"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                const startX = e.clientX;
+                const startWidth = poolWidth;
+                
+                const handleMouseMove = (moveEvent: MouseEvent) => {
+                  const delta = startX - moveEvent.clientX;
+                  const newWidth = Math.min(Math.max(startWidth + delta, 240), 600);
+                  setPoolWidth(newWidth);
+                };
+                
+                const handleMouseUp = () => {
+                  window.removeEventListener("mousemove", handleMouseMove);
+                  window.removeEventListener("mouseup", handleMouseUp);
+                };
+                
+                window.addEventListener("mousemove", handleMouseMove);
+                window.addEventListener("mouseup", handleMouseUp);
+              }}
+            />
+          )}
+          <div className="flex-1 w-full h-full overflow-hidden">
+            <TemplateTokenPool templateId={templateId} />
+          </div>
         </div>
         </div>
       </BuilderProvider>

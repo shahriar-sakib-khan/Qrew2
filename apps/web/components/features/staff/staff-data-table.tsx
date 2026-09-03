@@ -62,7 +62,7 @@ interface StaffDataTableProps {
 }
 
 export function StaffDataTable({ isReadOnly = true }: StaffDataTableProps) {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
   const router = useRouter();
 
   // State for Edit Modal and AlertDialog

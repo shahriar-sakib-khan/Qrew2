@@ -70,11 +70,13 @@ function LabelCell({
   templateId,
   sectionId,
   value,
+  zoomLevel = 0,
 }: {
   rowId: string;
   templateId: string;
   sectionId: string;
   value: string;
+  zoomLevel?: number;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
@@ -138,13 +140,17 @@ function LabelCell({
           }}
           className={cn(
             "w-full bg-transparent border-none outline-none focus:outline-none",
-            "text-sm font-medium text-foreground leading-snug caret-primary",
+            "font-medium text-foreground leading-snug caret-primary",
             "placeholder:text-muted-foreground/40"
           )}
+          style={{ fontSize: 14 + zoomLevel }}
           placeholder="Enter row label…"
         />
       ) : (
-        <span className={cn("text-sm font-medium text-foreground leading-snug", !value && "text-muted-foreground/30")}>
+        <span 
+          className={cn("font-medium text-foreground leading-snug", !value && "text-muted-foreground/30")}
+          style={{ fontSize: 14 + zoomLevel }}
+        >
           {value || "Click to add label…"}
         </span>
       )}
@@ -162,11 +168,13 @@ function ChargeLabelCell({
   allCharges,
   rowId,
   sectionId,
+  zoomLevel = 0,
 }: {
   charge: any;
   allCharges: any[];
   rowId: string;
   sectionId: string;
+  zoomLevel?: number;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(charge.label);
@@ -213,8 +221,9 @@ function ChargeLabelCell({
         }}
         className={cn(
           "w-full bg-transparent border-none outline-none focus:outline-none text-right",
-          "text-sm font-medium text-foreground/80 leading-snug caret-primary",
+          "font-medium text-foreground/80 leading-snug caret-primary",
         )}
+        style={{ fontSize: 14 + zoomLevel }}
         placeholder="Enter label…"
       />
     );
@@ -225,7 +234,8 @@ function ChargeLabelCell({
       tabIndex={0}
       onClick={() => setEditing(true)}
       onKeyDown={(e) => e.key === "Enter" && setEditing(true)}
-      className="text-sm font-medium text-foreground/80 leading-snug hover:text-foreground cursor-text"
+      className="font-medium text-foreground/80 leading-snug hover:text-foreground cursor-text"
+      style={{ fontSize: 14 + zoomLevel }}
     >
       {draft || "Click to label…"}
     </span>
@@ -273,6 +283,7 @@ export function TableRow({
   isUsd1Selected?: boolean;
   isUsd2Selected?: boolean;
   notices?: any[];
+  zoomLevel?: number;
 }) {
   const { tokenPoolOpen, selectedCell } = useBuilderContext();
   const isFormulaMode = !!selectedCell;
@@ -311,9 +322,9 @@ export function TableRow({
           title={isFormulaMode ? "Insert into formula" : "Copy token"}
         >
           <span className={cn(
-            "font-mono text-xs font-semibold truncate leading-none",
+            "font-mono font-semibold truncate leading-none",
             isFormulaMode ? "text-primary/70" : "text-muted-foreground/70"
-          )}>
+          )} style={{ fontSize: 12 + zoomLevel }}>
             {token}
           </span>
         </div>
@@ -322,7 +333,7 @@ export function TableRow({
       {/* Formula — outside the table right border via absolute positioning */}
       {formula && (
         <div className="absolute left-full top-0 bottom-0 w-48 flex items-center justify-start pl-3 select-none pointer-events-none z-10">
-          <span className="font-mono text-xs font-semibold text-muted-foreground/70 truncate leading-none bg-muted/40 px-2 py-1 rounded-md" title={`= ${formula}`}>
+          <span className="font-mono font-semibold text-muted-foreground/70 truncate leading-none bg-muted/40 px-2 py-1 rounded-md" title={`= ${formula}`} style={{ fontSize: 12 + zoomLevel }}>
             = {formula}
           </span>
         </div>
@@ -331,7 +342,7 @@ export function TableRow({
       {/* SL column */}
       <div 
         className={cn(
-          "w-10 shrink-0 flex items-center justify-center border-r border-border text-sm font-bold transition-colors select-none",
+          "w-10 shrink-0 flex items-center justify-center border-r border-border font-bold transition-colors select-none",
           token ? (
             isFormulaMode 
               ? "cursor-pointer text-primary hover:bg-primary/10" 
@@ -340,12 +351,13 @@ export function TableRow({
         )}
         onClick={(e) => token && handleTokenClick(e, token)}
         title={token ? (isFormulaMode ? "Insert into formula" : "Copy token") : undefined}
+        style={{ fontSize: 14 + zoomLevel }}
       >
         {sl}
       </div>
 
       {/* Label column */}
-      <div className="flex-1 px-3 py-1.5 flex items-center gap-2 border-r border-border min-w-0 overflow-hidden text-sm md:text-base font-medium">
+      <div className="flex-1 px-3 py-1.5 flex items-center gap-2 border-r border-border min-w-0 overflow-hidden font-medium" style={{ fontSize: 14 + zoomLevel }}>
         {labelContent}
         {notices && notices.length > 0 && <UnresolvedNoticeButton notices={notices} />}
       </div>
@@ -354,9 +366,10 @@ export function TableRow({
       <div
         className={cn(
           "w-20 shrink-0 flex items-center justify-end border-r border-border",
-          "text-base font-bold text-foreground tabular-nums",
+          "font-bold text-foreground tabular-nums",
           onClickUsd1 ? "p-1" : "px-2 py-1"
         )}
+        style={{ fontSize: 16 + zoomLevel }}
       >
         <ClickableCell
           onClick={onClickUsd1}
@@ -377,9 +390,10 @@ export function TableRow({
       <div
         className={cn(
           "w-20 shrink-0 flex items-center justify-end",
-          "text-base font-bold text-foreground tabular-nums",
+          "font-bold text-foreground tabular-nums",
           onClickUsd2 ? "p-1" : "px-2 py-1"
         )}
+        style={{ fontSize: 16 + zoomLevel }}
       >
         <ClickableCell
           onClick={onClickUsd2}
@@ -533,6 +547,7 @@ export function RowChargeLine({
   allSections,
   onClickUsd1,
   isUsd1Selected,
+  zoomLevel = 0,
 }: {
   charge: any;
   sectionColor?: SectionColor;
@@ -547,11 +562,13 @@ export function RowChargeLine({
   allSections?: any[];
   onClickUsd1?: () => void;
   isUsd1Selected?: boolean;
+  zoomLevel?: number;
 }) {
   return (
     <TableRow
       token={charge.chargeToken}
       formula={allSections && charge.formula ? decodeFormula(charge.formula, allSections) : charge.formula}
+      zoomLevel={zoomLevel}
       onClickUsd1={onClickUsd1}
       isUsd1Selected={isUsd1Selected}
       style={
@@ -593,9 +610,10 @@ export function RowChargeLine({
               allCharges={allCharges}
               rowId={rowId}
               sectionId={sectionId}
+              zoomLevel={zoomLevel}
             />
           ) : (
-            <span className="text-sm text-foreground/60 italic leading-snug">
+            <span className="text-foreground/60 italic leading-snug" style={{ fontSize: 14 + zoomLevel }}>
               {charge.label}
             </span>
           )}
@@ -636,6 +654,7 @@ function SingleRow({
   onDeleteCharge: (chargeId: string) => void;
   onEditCharge: (charge: any) => void;
   dragHandleProps?: any;
+  zoomLevel?: number;
 }) {
   const { selectedCell, setSelectedCell, mode } = useBuilderContext();
   const charges: any[] = row.charges ?? [];
@@ -670,6 +689,7 @@ function SingleRow({
     <>
       <TableRow
         token={row.rowToken}
+        zoomLevel={zoomLevel}
         sl={
           <div className="group/sl relative flex items-center justify-center w-full h-full min-h-[32px]">
             <span className="group-hover/sl:opacity-0 transition-opacity text-xs font-semibold text-muted-foreground select-none">
@@ -693,6 +713,7 @@ function SingleRow({
             templateId={templateId}
             sectionId={sectionId}
             value={row.parentLabel ?? ""}
+            zoomLevel={zoomLevel}
           />
         }
         // No charges → value in USD2 (clickable total)
@@ -721,6 +742,7 @@ function SingleRow({
             charge={charge}
             sectionColor={sectionColor}
             chargeValue={displayCharge}
+            zoomLevel={zoomLevel}
             rowTotal={isLastCharge ? displayTotal : undefined}
             onClickUsd1={() => {
               if (mode !== "fill") {
@@ -752,6 +774,7 @@ export function TemplateRowList({
   sectionColor,
   tokenMap,
   allSections,
+  zoomLevel = 0,
 }: {
   templateId: string;
   sectionId: string;
@@ -762,6 +785,7 @@ export function TemplateRowList({
   sectionColor: SectionColor;
   tokenMap: TokenMap;
   allSections: any[];
+  zoomLevel?: number;
 }) {
   const { apiBasePath, invalidateKey, mode } = useBuilderContext();
   const queryClient = useQueryClient();
@@ -965,6 +989,7 @@ export function TemplateRowList({
               onDeleteCharge={() => {}}
               onEditCharge={() => {}}
               dragHandleProps={{}}
+              zoomLevel={zoomLevel}
             />
           </div>
         ))}
@@ -1006,6 +1031,7 @@ export function TemplateRowList({
                       }
                       onEditCharge={(charge) => setEditingChargeForRow({ row, charge })}
                       dragHandleProps={provided.dragHandleProps}
+                      zoomLevel={zoomLevel}
                     />
                   </div>
                 )}

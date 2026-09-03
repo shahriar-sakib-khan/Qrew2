@@ -44,7 +44,6 @@ export const invoicePdfLayouts = pgTable(
     fdaPrefix: text("fda_prefix").default("FDA").notNull(),
     proformaPrefix: text("proforma_prefix").default("PRO").notNull(),
     generalPrefix: text("general_prefix").default("INV").notNull(),
-    currentDocSequence: integer("current_doc_sequence").default(0).notNull(),
     defaultPaymentTerms: text("default_payment_terms"),
     bankDetails: jsonb("bank_details").$type<any>(),
     extraSections: jsonb("extra_sections").$type<any>().default([]).notNull(),
@@ -109,29 +108,3 @@ export type NewInvoicePdfLayout = typeof invoicePdfLayouts.$inferInsert;
 
 export type InvoiceDocumentSequence = typeof invoiceDocumentSequences.$inferSelect;
 export type NewInvoiceDocumentSequence = typeof invoiceDocumentSequences.$inferInsert;
-import { invoiceTemplates } from './invoice-templates';
-
-export const templateConstants = pgTable('template_constants', {
-  id: text('id').primaryKey(),
-  templateId: text('template_id')
-    .notNull()
-    .references(() => invoiceTemplates.id, { onDelete: 'cascade' }),
-  name: text('name').notNull(),
-  token: text('token').notNull(),
-  valueType: configValueTypeEnum('value_type').notNull().default('number'),
-  defaultValue: text('default_value'),
-  createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
-  updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow().notNull().$onUpdate(() => new Date()),
-}, (t) => [
-  unique('template_constants_template_token_unique').on(t.templateId, t.token),
-]);
-
-export const templateConstantsRelations = relations(templateConstants, ({ one }) => ({
-  template: one(invoiceTemplates, {
-    fields: [templateConstants.templateId],
-    references: [invoiceTemplates.id],
-  }),
-}));
-
-export type TemplateConstant = typeof templateConstants.$inferSelect;
-export type NewTemplateConstant = typeof templateConstants.$inferInsert;
