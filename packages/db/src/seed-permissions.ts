@@ -71,7 +71,44 @@ const INITIAL_PERMISSIONS = [
   { key: 'workflow:manage', category: 'Workflows', description: 'Create/edit workflow status nodes, configure transitions, and assign fields per stage' },
   
   // Audit
-  { key: 'audit:view', category: 'Audit', description: 'View the activity logs / audit trails for accountability' }
+  { key: 'audit:view', category: 'Audit', description: 'View the activity logs / audit trails for accountability' },
+
+  // Inventory — Products & Categories
+  { key: 'inventory:view_products', category: 'Inventory', description: 'View the product catalog' },
+  { key: 'inventory:create_product', category: 'Inventory', description: 'Add new products' },
+  { key: 'inventory:edit_product', category: 'Inventory', description: 'Edit product details' },
+  { key: 'inventory:delete_product', category: 'Inventory', description: 'Delete products' },
+  { key: 'inventory:manage_categories', category: 'Inventory', description: 'Create, edit, and delete product categories' },
+
+  // Inventory — Customers
+  { key: 'inventory:view_customers', category: 'Inventory', description: 'View the customer list' },
+  { key: 'inventory:create_customer', category: 'Inventory', description: 'Add new customers' },
+  { key: 'inventory:edit_customer', category: 'Inventory', description: 'Edit customer details' },
+  { key: 'inventory:delete_customer', category: 'Inventory', description: 'Delete customers' },
+
+  // Inventory — Warehouses
+  { key: 'inventory:manage_warehouses', category: 'Inventory', description: 'Create, edit, and delete warehouses' },
+
+  // Inventory — Purchases
+  { key: 'inventory:view_purchases', category: 'Inventory', description: 'View purchase documents' },
+  { key: 'inventory:create_purchase', category: 'Inventory', description: 'Create draft purchases' },
+  { key: 'inventory:edit_purchase', category: 'Inventory', description: 'Edit draft purchases' },
+  { key: 'inventory:confirm_purchase', category: 'Inventory', description: 'Confirm a draft purchase (writes to ledger)' },
+  { key: 'inventory:cancel_purchase', category: 'Inventory', description: 'Cancel a confirmed purchase (writes reversal rows)' },
+  { key: 'inventory:delete_purchase', category: 'Inventory', description: 'Delete draft purchases' },
+
+  // Inventory — Sales
+  { key: 'inventory:view_sales', category: 'Inventory', description: 'View sale documents' },
+  { key: 'inventory:create_sale', category: 'Inventory', description: 'Create draft sales' },
+  { key: 'inventory:edit_sale', category: 'Inventory', description: 'Edit draft sales' },
+  { key: 'inventory:confirm_sale', category: 'Inventory', description: 'Confirm a draft sale (stock check + ledger write)' },
+  { key: 'inventory:cancel_sale', category: 'Inventory', description: 'Cancel a confirmed sale (writes reversal rows)' },
+  { key: 'inventory:delete_sale', category: 'Inventory', description: 'Delete draft sales' },
+
+  // Inventory — Ledger & Stock
+  { key: 'inventory:view_stock', category: 'Inventory', description: 'View current stock levels' },
+  { key: 'inventory:view_transactions', category: 'Inventory', description: 'View inventory transaction history' },
+
 ];
 
 export async function seedPermissionsDefaults(db: any) {

@@ -3,11 +3,11 @@ import { create } from 'zustand';
 interface PermissionState {
   permissions: string[];
   isLoaded: boolean;
-  
+
   // Actions
   loadPermissions: () => Promise<void>;
   clearPermissions: () => void;
-  
+
   // Evaluators
   can: (permission: string) => boolean;
   canAny: (permissions: string[]) => boolean;
@@ -23,9 +23,9 @@ export const usePermissionStore = create<PermissionState>((set, get) => ({
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
       const res = await fetch(`${apiUrl}/api/workspaces/permissions/me`, {
         // Essential: send the session cookie so Hono knows who is asking
-        credentials: 'include', 
+        credentials: 'include',
       });
-      
+
       if (res.ok) {
         const data = await res.json();
         set({ permissions: data.permissions || [], isLoaded: true });

@@ -23,6 +23,16 @@ import { invoiceTemplatesRouter } from './features/invoice-templates/invoice-tem
 import { adminRouter } from './features/admin/admin.route'
 import { superAdminRouter } from './features/super-admin/super-admin.route'
 
+// --- Inventory Module Routes ---
+import { brandsRouter } from './features/brands/brands.route'
+import { productCategoriesRouter } from './features/product-categories/product-categories.route'
+import { productsRouter } from './features/products/products.route'
+import { customersRouter } from './features/customers/customers.route'
+import { warehousesRouter } from './features/warehouses/warehouses.route'
+import { purchasesRouter } from './features/purchases/purchases.route'
+import { salesRouter } from './features/sales/sales.route'
+import { inventoryRouter } from './features/inventory/inventory.route'
+
 if (!process.env.NEXT_PUBLIC_APP_URL) {
   throw new Error('NEXT_PUBLIC_APP_URL is not set.')
 }
@@ -72,6 +82,16 @@ app.route('/api/invoices', invoicesRouter)
 app.route('/api/invoice-templates', invoiceTemplatesRouter)
 app.route('/api/admin', adminRouter)
 app.route('/api/super-admin', superAdminRouter)
+
+// Inventory Module — all routes require inventory:view_products as a base PBAC gate.
+app.route('/api/inventory/product-categories', productCategoriesRouter)
+app.route('/api/inventory/products', productsRouter)
+app.route('/api/inventory/customers', customersRouter)
+app.route('/api/inventory/brands', brandsRouter)
+app.route('/api/inventory/warehouses', warehousesRouter)
+app.route('/api/inventory/purchases', purchasesRouter)
+app.route('/api/inventory/sales', salesRouter)
+app.route('/api/inventory', inventoryRouter)
 
 // ---------------------------------------------------------------
 // Fallbacks & Error Handling

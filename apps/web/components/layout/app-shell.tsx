@@ -10,16 +10,19 @@ import { usePermissionStore } from "@/store/use-permission-store";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarNavLink } from "@/components/layout/sidebar-nav-link";
+import { SidebarNavGroup } from "@/components/layout/sidebar-nav-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SidebarProvider, useSidebar } from "@/components/layout/sidebar-context";
 import { UserAccountMenu } from "@/components/layout/user-account-menu";
 import { cn } from "@/lib/utils";
 import { QrewLogo } from "@/components/ui/logo";
+import type { AnyNavItem, NavGroup } from "@/lib/config/navigation";
 
 interface AppShellProps {
   children: React.ReactNode;
   session: any;
-  navItems: Array<{ name: string; href: string; icon: any }>;
+  // Accept both flat NavItem and collapsible NavGroup entries.
+  navItems: AnyNavItem[];
   settingsItem?: { name: string; href: string; icon: any };
   systemName?: string;
   theme?: "default" | "admin" | "destructive";
@@ -119,12 +122,30 @@ function AppShellInner({ children, session, navItems, settingsItem, systemName =
           <div className="flex-1 min-h-0 overflow-hidden">
             <ScrollArea className="h-full w-full">
               <nav className="flex flex-col gap-1 p-2">
-                {navItems.map((item) => (
-                  <SidebarNavLink
-                    key={item.name} href={item.href} name={item.name} icon={item.icon}
-                    isCollapsed={isCollapsed} activeVariant={theme === "destructive" ? "muted" : "primary"}
-                  />
-                ))}
+                {navItems.map((item) => {
+                  // Render collapsible group for NavGroup type items.
+                  if ((item as NavGroup).type === "group") {
+                    const group = item as NavGroup;
+                    return (
+                      <SidebarNavGroup
+                        key={group.name}
+                        name={group.name}
+                        icon={group.icon}
+                        baseHref={group.baseHref}
+                        children={group.children}
+                        isCollapsed={isCollapsed}
+                        activeVariant={theme === "destructive" ? "muted" : "primary"}
+                      />
+                    );
+                  }
+                  // Flat nav link for regular items.
+                  return (
+                    <SidebarNavLink
+                      key={item.name} href={(item as any).href} name={item.name} icon={item.icon}
+                      isCollapsed={isCollapsed} activeVariant={theme === "destructive" ? "muted" : "primary"}
+                    />
+                  );
+                })}
               </nav>
             </ScrollArea>
           </div>
@@ -168,13 +189,17 @@ function AppShellInner({ children, session, navItems, settingsItem, systemName =
             "md:hidden fixed bottom-0 left-0 right-0 border-t flex items-center justify-around px-2 py-2 pb-safe z-50 shadow-[0_-4px_10px_rgb(0,0,0,0.05)] dark:shadow-none bg-background/95 backdrop-blur-md supports-backdrop-filter:bg-background/80",
             styles.border
           )}>
-             {navItems.map((item) => (
+           {/* Mobile bottom nav: only render flat items, skip groups (no room for sub-menus) */}
+           {navItems.map((item) => {
+              if ((item as NavGroup).type === "group") return null;
+              return (
                 <SidebarNavLink
-                  key={item.name} href={item.href} name={item.name} icon={item.icon}
+                  key={item.name} href={(item as any).href} name={item.name} icon={item.icon}
                   isCollapsed={true} showTooltip={false}
                   activeVariant={theme === "destructive" ? "muted" : "primary"}
                 />
-             ))}
+              );
+           })}
              {settingsItem && (
                <SidebarNavLink
                   href={settingsItem.href} name={settingsItem.name} icon={settingsItem.icon}

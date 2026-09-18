@@ -1,9 +1,13 @@
-"use client";
-
 import React from "react";
 import { TableHead, TableCell } from "@/components/ui/table";
-import { X } from "lucide-react";
+import { X, ChevronDown, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface FilterableTableHeaderProps {
   columnKey: string;
@@ -11,6 +15,8 @@ interface FilterableTableHeaderProps {
   isFiltered: boolean;
   activeValue?: string;
   onClear: () => void;
+  options?: { label: string; value: string }[];
+  onSelectOption?: (columnKey: string, value: string) => void;
   width?: number;
   resizable?: boolean;
   onResizeStart?: (columnKey: string, e: React.MouseEvent) => void;
@@ -22,7 +28,10 @@ export function FilterableTableHeader({
   columnKey,
   title,
   isFiltered,
+  activeValue,
   onClear,
+  options,
+  onSelectOption,
   width,
   resizable = true,
   onResizeStart,
@@ -38,10 +47,43 @@ export function FilterableTableHeader({
       style={widthStyle}
       className={cn("relative select-none pr-8 group/head", className)}
     >
-      <div className="flex items-center gap-1.5 w-full overflow-hidden">
-        <span className={cn("truncate font-medium transition-colors", isFiltered && "text-primary font-bold")}>
-          {title}
-        </span>
+      <div className="flex items-center gap-1 w-full overflow-hidden">
+        {options && options.length > 0 ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className={cn(
+                  "flex items-center gap-1 py-1 px-1 -ml-1 rounded hover:bg-muted/80 transition-colors text-left focus:outline-none max-w-full overflow-hidden",
+                  isFiltered && "text-primary font-bold"
+                )}
+                title={`Filter by ${typeof title === "string" ? title : columnKey}`}
+              >
+                <span className="truncate font-medium">{title}</span>
+                <ChevronDown className="h-3.5 w-3.5 opacity-60 shrink-0" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="max-h-60 overflow-y-auto w-48">
+              {options.map((opt) => {
+                const isSelected = activeValue?.toLowerCase() === opt.value.toLowerCase();
+                return (
+                  <DropdownMenuItem
+                    key={opt.value}
+                    onClick={() => onSelectOption?.(columnKey, opt.value)}
+                    className="flex items-center justify-between text-xs cursor-pointer"
+                  >
+                    <span className="truncate">{opt.label}</span>
+                    {isSelected && <Check className="h-3.5 w-3.5 text-primary shrink-0 ml-1" />}
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <span className={cn("truncate font-medium transition-colors", isFiltered && "text-primary font-bold")}>
+            {title}
+          </span>
+        )}
       </div>
 
       {/* Absolutely positioned clear [X] button so it NEVER affects header column width */}
@@ -53,8 +95,8 @@ export function FilterableTableHeader({
             onClear();
           }}
           className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-primary/20 text-primary transition-colors focus:outline-none z-10"
-          title={`Clear filter for ${title}`}
-          aria-label={`Clear filter for ${title}`}
+          title={`Clear filter for ${typeof title === "string" ? title : columnKey}`}
+          aria-label={`Clear filter for ${typeof title === "string" ? title : columnKey}`}
         >
           <X className="h-3.5 w-3.5 stroke-[2.5]" />
         </button>

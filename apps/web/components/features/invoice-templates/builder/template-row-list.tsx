@@ -268,6 +268,7 @@ export function TableRow({
   isUsd1Selected,
   isUsd2Selected,
   notices,
+  zoomLevel = 0,
 }: {
   token?: string;
   sl?: React.ReactNode;
@@ -640,6 +641,7 @@ function SingleRow({
   onDeleteCharge,
   onEditCharge,
   dragHandleProps,
+  zoomLevel = 0,
 }: {
   row: any;
   globalSl: number;

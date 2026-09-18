@@ -35,3 +35,16 @@ export * from "./project-statuses";
 export * from "./project-status-transitions";
 export * from "./project-status-fields";
 
+// ─── Inventory Module ─────────────────────────────────────────────────────────
+export * from "./inventory-enums";
+export * from "./org-document-counters";
+export * from "./brands";
+export * from "./product-categories";
+export * from "./products";
+export * from "./customers";
+export * from "./warehouses";
+export * from "./purchases";
+export * from "./sales";
+export * from "./sale-returns";
+export * from "./purchase-returns";
+export * from "./inventory-transactions";
