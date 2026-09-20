@@ -1,0 +1,46 @@
+services:
+  # -----------------------------------------
+  # PostgreSQL Database
+  # -----------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: starter_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: starter_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - starter_pg_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  # -----------------------------------------
+  # Redis Cache / Session Store
+  # -----------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: starter_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - starter_redis_data:/data
+    # Use standard save rules to persist to the volume
+    command: redis-server --save 60 1 --loglevel warning
+    restart: unless-stopped
+
+  # -----------------------------------------
+  # Mailpit (Local Email Catcher)
+  # -----------------------------------------
+  mailpit:
+    image: axllent/mailpit
+    container_name: starter_mailpit
+    ports:
+      - "1025:1025" # SMTP Port (Backend sends emails here)
+      - "8025:8025" # Web UI Port (You view emails here)
+    restart: unless-stopped
+
+# Define the local hard drives (volumes) for Docker to use
+volumes:
+  starter_pg_data:
+  starter_redis_data:

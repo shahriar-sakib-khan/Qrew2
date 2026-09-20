@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "types": ["node"]
+  },
+  "include": ["drizzle.config.ts", "src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}
