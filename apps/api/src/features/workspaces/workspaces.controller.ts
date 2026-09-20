@@ -637,6 +637,7 @@ export class WorkspacesController {
       const activeOrgId = sessionData.session.activeOrganizationId;
       if (!activeOrgId) return c.json({ error: 'No active workspace selected' }, 400);
 
+      // 1. Total counts
       const [totalClientsRes] = await db.select({ count: sql<number>`count(*)` })
         .from(schema.clients)
         .where(eq(schema.clients.organizationId, activeOrgId));
@@ -651,27 +652,136 @@ export class WorkspacesController {
 
       const [pendingInvoicesRes] = await db.select({ count: sql<number>`count(*)` })
         .from(schema.invoices)
+        .where(and(
+          eq(schema.invoices.organizationId, activeOrgId),
+          sql`${schema.invoices.status} IN ('issued', 'frozen', 'disputed')`
+        ));
+
+      const [draftInvoicesRes] = await db.select({ count: sql<number>`count(*)` })
+        .from(schema.invoices)
         .where(and(eq(schema.invoices.organizationId, activeOrgId), eq(schema.invoices.status, 'draft')));
 
+      const [totalRevenueRes] = await db.select({ sum: sql<number>`sum(${schema.invoices.grandTotalAmount})` })
+        .from(schema.invoices)
+        .where(and(
+          eq(schema.invoices.organizationId, activeOrgId),
+          sql`${schema.invoices.status} IN ('paid', 'issued')`
+        ));
+
+      const [totalStaffRes] = await db.select({ count: sql<number>`count(*)` })
+        .from(schema.members)
+        .where(eq(schema.members.organizationId, activeOrgId));
+
+      // 2. Recent entities
       const recentFiles = await db.select()
         .from(schema.projects)
         .where(eq(schema.projects.organizationId, activeOrgId))
         .orderBy(desc(schema.projects.createdAt))
         .limit(5);
 
-      const recentInvoices = await db.select()
+      const recentInvoices = await db.select({
+        id: schema.invoices.id,
+        documentNumber: schema.invoices.documentNumber,
+        grandTotalAmount: schema.invoices.grandTotalAmount,
+        status: schema.invoices.status,
+        issuedToClientName: schema.invoices.issuedToClientName,
+        currency: schema.invoices.currency,
+        createdAt: schema.invoices.createdAt,
+      })
         .from(schema.invoices)
         .where(eq(schema.invoices.organizationId, activeOrgId))
         .orderBy(desc(schema.invoices.createdAt))
         .limit(5);
 
+      // 3. Dynamic 6-Month Time Series Aggregation
+      const monthsList: { monthKey: string; name: string; revenue: number; expenses: number }[] = [];
+      const now = new Date();
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        const name = d.toLocaleString('en-US', { month: 'short' });
+        monthsList.push({ monthKey, name, revenue: 0, expenses: 0 });
+      }
+
+      const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+
+      const dbInvoices = await db.select({
+        grandTotalAmount: schema.invoices.grandTotalAmount,
+        createdAt: schema.invoices.createdAt,
+        status: schema.invoices.status,
+      })
+        .from(schema.invoices)
+        .where(and(
+          eq(schema.invoices.organizationId, activeOrgId),
+          sql`${schema.invoices.status} != 'void'`,
+          sql`${schema.invoices.createdAt} >= ${sixMonthsAgo.toISOString()}`
+        ));
+
+      const dbExpenses = await db.select({
+        amount: schema.expenses.amount,
+        createdAt: schema.expenses.createdAt,
+      })
+        .from(schema.expenses)
+        .where(and(
+          eq(schema.expenses.organizationId, activeOrgId),
+          sql`${schema.expenses.createdAt} >= ${sixMonthsAgo.toISOString()}`
+        ));
+
+      const monthMap = new Map(monthsList.map(m => [m.monthKey, m]));
+
+      for (const inv of dbInvoices) {
+        if (inv.createdAt) {
+          const invDate = new Date(inv.createdAt);
+          const key = `${invDate.getFullYear()}-${String(invDate.getMonth() + 1).padStart(2, '0')}`;
+          const target = monthMap.get(key);
+          if (target) {
+            target.revenue += Number(inv.grandTotalAmount) || 0;
+          }
+        }
+      }
+
+      for (const exp of dbExpenses) {
+        if (exp.createdAt) {
+          const expDate = new Date(exp.createdAt);
+          const key = `${expDate.getFullYear()}-${String(expDate.getMonth() + 1).padStart(2, '0')}`;
+          const target = monthMap.get(key);
+          if (target) {
+            target.expenses += Number(exp.amount) || 0;
+          }
+        }
+      }
+
+      const monthlyData = monthsList.map(({ name, revenue, expenses }) => ({
+        name,
+        revenue: Math.round(revenue * 100) / 100,
+        expenses: Math.round(expenses * 100) / 100,
+      }));
+
+      // Calculate MoM growth for revenue and expenses
+      const currentMonthIndex = monthsList.length - 1;
+      const prevMonthIndex = monthsList.length - 2;
+
+      const currentRev = monthsList[currentMonthIndex]?.revenue || 0;
+      const prevRev = monthsList[prevMonthIndex]?.revenue || 0;
+      const revenueGrowth = prevRev > 0 ? Math.round(((currentRev - prevRev) / prevRev) * 100 * 10) / 10 : (currentRev > 0 ? 100 : 0);
+
+      const currentExp = monthsList[currentMonthIndex]?.expenses || 0;
+      const prevExp = monthsList[prevMonthIndex]?.expenses || 0;
+      const expenseGrowth = prevExp > 0 ? Math.round(((currentExp - prevExp) / prevExp) * 100 * 10) / 10 : (currentExp > 0 ? 100 : 0);
+
       return c.json({
         totalClients: Number(totalClientsRes?.count) || 0,
         activeFiles: Number(totalProjectsRes?.count) || 0,
         totalExpenses: Number(totalExpensesRes?.sum) || 0,
+        totalRevenue: Number(totalRevenueRes?.sum) || 0,
         pendingInvoices: Number(pendingInvoicesRes?.count) || 0,
+        draftInvoices: Number(draftInvoicesRes?.count) || 0,
+        totalStaff: Number(totalStaffRes?.count) || 0,
+        revenueGrowth,
+        expenseGrowth,
         recentFiles,
-        recentInvoices
+        recentInvoices,
+        monthlyData,
       }, 200);
 
     } catch (error) {

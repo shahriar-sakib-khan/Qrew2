@@ -61,8 +61,7 @@ export interface EvaluatorSectionCharge {
   subDescription?: string;
   qualifier?: string;
   tags?: string[];
-  formulaBase: "BASE" | "TOTAL" | "CHARGES";
-  formulaRest: string;           // e.g. " * 0.10"
+  formula: string;               // e.g. "SEC_A * 0.10"
   sortOrder: number;
 }
 
@@ -70,7 +69,7 @@ export interface EvaluatorSectionCharge {
 export interface EvaluatorRow {
   id: string;
   rowToken: string;              // e.g. PORT_DUES (= base sum token)
-  parentLabel: string;
+  label: string;
   sectionId: string;
   /** valueType = 'formula' → evaluate formula; 'normal' → use initialValue/manualValue */
   valueType: import("@starter/db").ComponentValueType;
@@ -91,7 +90,7 @@ export interface EvaluatorRow {
 export interface EvaluatorSection {
   id: string;
   sectionToken: string;          // e.g. A, B, PORT_COSTS
-  displayName?: string;
+  label?: string;
   sortOrder: number;
   rows: EvaluatorRow[];
   sectionCharges: EvaluatorSectionCharge[];
@@ -123,8 +122,6 @@ export interface EvaluatedSectionCharge {
   subDescription?: string;
   qualifier?: string;
   tags?: string[];
-  formulaBase: "BASE" | "TOTAL" | "CHARGES";
-  formulaRest: string;
   formulaSnapshot: string;
   /** BigNumber serialized as fixed(6) string */
   value: string;
@@ -135,7 +132,7 @@ export interface EvaluatedSectionCharge {
 export interface EvaluatedRow {
   id: string;
   rowToken: string;
-  parentLabel: string;
+  label: string;
   sectionToken: string;
   charges: EvaluatedRowCharge[];
   /** The row's own computed value. BigNumber fixed(6) string */
@@ -156,7 +153,7 @@ export interface EvaluatedRow {
 export interface EvaluatedSection {
   id: string;
   sectionToken: string;
-  displayName?: string;
+  label?: string;
   autoName: string;              // letter computed by sortOrder (A, B, C…)
   rows: EvaluatedRow[];
   sectionCharges: EvaluatedSectionCharge[];
@@ -175,8 +172,7 @@ export interface EvaluatedSection {
 export type EngineErrorCode =
   | "TOKEN_NOT_FOUND"
   | "CIRCULAR_DEPENDENCY"
-  | "FORWARD_REFERENCE"
-  | "UNRESOLVED_REFERENCE"         // token not in scope at eval time → zero-filled, soft warning
+  | "UNRESOLVED_REFERENCE"         // token not in scope at eval time -> zero-filled, soft warning
   | "CHARGE_SCOPE_VIOLATION"       // row/section charge refs a forbidden token
   | "DIVISION_BY_ZERO"
   | "EVALUATION_FAILED"
@@ -184,7 +180,7 @@ export type EngineErrorCode =
   | "INVALID_FORMULA_SYNTAX"
   | "SECTION_NOT_FOUND"
   | "DUPLICATE_TOKEN"
-  | "REORDER_VIOLATION";           // reorder would break a forward reference
+  | "REORDER_VIOLATION";           // reorder would break rules
 
 export interface EngineError {
   code: EngineErrorCode;

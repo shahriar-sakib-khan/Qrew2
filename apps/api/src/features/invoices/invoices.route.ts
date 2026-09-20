@@ -1,7 +1,7 @@
-import { DraftBuilderController } from "./draft-builder.controller";
 import { Hono } from "hono";
+import { DraftBuilderController } from "./drafts/draft-builder.controller";
 import { InvoicesController } from "./invoices.controller";
-import { DraftsController } from "./drafts.controller";
+import { DraftsController } from "./drafts/drafts.controller";
 import { EngineController } from "./engine/engine.controller";
 import { requireAuth } from "../../infra/middleware/auth";
 import { requireOrgPermission } from "../../infra/middleware/require-permission";
@@ -131,7 +131,63 @@ invoicesRouter.post(
   requireOrgPermission("finance:manage_invoices"),
   DraftBuilderController.reorderRows
 );
+invoicesRouter.put(
+  "/drafts/:id/sections/:sectionId/rows/reorder",
+  requireOrgPermission("finance:manage_invoices"),
+  DraftBuilderController.reorderRows
+);
 
+// --- DRAFT ROW CHARGES ---
+invoicesRouter.get(
+  "/drafts/:id/sections/:sectionId/rows/:rowId/charges",
+  requireOrgPermission("finance:view_invoices"),
+  DraftBuilderController.listRowCharges
+);
+invoicesRouter.post(
+  "/drafts/:id/sections/:sectionId/rows/:rowId/charges",
+  requireOrgPermission("finance:manage_invoices"),
+  DraftBuilderController.createRowCharge
+);
+invoicesRouter.patch(
+  "/drafts/:id/sections/:sectionId/rows/:rowId/charges/:chargeId",
+  requireOrgPermission("finance:manage_invoices"),
+  DraftBuilderController.updateRowCharge
+);
+invoicesRouter.delete(
+  "/drafts/:id/sections/:sectionId/rows/:rowId/charges/:chargeId",
+  requireOrgPermission("finance:manage_invoices"),
+  DraftBuilderController.deleteRowCharge
+);
+invoicesRouter.put(
+  "/drafts/:id/sections/:sectionId/rows/:rowId/charges/reorder",
+  requireOrgPermission("finance:manage_invoices"),
+  DraftBuilderController.reorderRowCharges
+);
+
+// --- DRAFT SECTION CHARGES ---
+// Canonical section-charges routes (matching web builder & template conventions)
+invoicesRouter.post(
+  "/drafts/:id/sections/:sectionId/section-charges",
+  requireOrgPermission("finance:manage_invoices"),
+  DraftBuilderController.createSectionCharge
+);
+invoicesRouter.patch(
+  "/drafts/:id/sections/:sectionId/section-charges/:chargeId",
+  requireOrgPermission("finance:manage_invoices"),
+  DraftBuilderController.updateSectionCharge
+);
+invoicesRouter.delete(
+  "/drafts/:id/sections/:sectionId/section-charges/:chargeId",
+  requireOrgPermission("finance:manage_invoices"),
+  DraftBuilderController.deleteSectionCharge
+);
+invoicesRouter.put(
+  "/drafts/:id/sections/:sectionId/section-charges/reorder",
+  requireOrgPermission("finance:manage_invoices"),
+  DraftBuilderController.reorderSectionCharges
+);
+
+// Fallback aliases without 'section-' prefix
 invoicesRouter.post(
   "/drafts/:id/sections/:sectionId/charges",
   requireOrgPermission("finance:manage_invoices"),
@@ -192,6 +248,3 @@ invoicesRouter.get(
   requireOrgPermission("finance:view_invoices"),
   InvoicesController.getInvoice
 );
-
-
-

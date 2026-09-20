@@ -82,10 +82,37 @@ export function WorkflowNodeModal({
       // 1. Create or Update the Status Node itself
       let statusId = node?.id;
       if (!statusId) {
+        let gridColumn = 0;
+        let gridRow = 0;
+
+        if (insertBetween) {
+          const fromStatus = allStatuses.find((s: any) => s.id === insertBetween.fromId);
+          gridColumn = (fromStatus?.gridColumn ?? 0) + 1;
+          gridRow = fromStatus?.gridRow ?? 0;
+        } else if (branchFrom) {
+          const fromStatus = allStatuses.find((s: any) => s.id === branchFrom);
+          gridColumn = (fromStatus?.gridColumn ?? 0) + 1;
+          
+          // Find first free row
+          let r = fromStatus?.gridRow ?? 0;
+          let offset = 1;
+          while (allStatuses.some((s: any) => s.gridColumn === gridColumn && s.gridRow === r)) {
+            const rank = Math.ceil(offset / 2);
+            r = (fromStatus?.gridRow ?? 0) + (offset % 2 !== 0 ? rank : -rank);
+            offset++;
+          }
+          gridRow = r;
+        } else {
+          // Default: append to the end
+          const maxCol = allStatuses.reduce((max: number, s: any) => Math.max(max, s.gridColumn ?? 0), -1);
+          gridColumn = maxCol + 1;
+          gridRow = 0;
+        }
+
         const res = await fetch(`${apiUrl}/api/workspaces/projects/statuses`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, color, isTerminal }),
+          body: JSON.stringify({ name, color, isTerminal, gridColumn, gridRow, insertBump: !!insertBetween }),
           credentials: "include",
         });
         if (!res.ok) throw new Error((await res.json()).error || "Failed to create node");
@@ -187,7 +214,7 @@ export function WorkflowNodeModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(val) => !val && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0">
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
         <DialogHeader className="px-6 py-4 border-b">
           <DialogTitle>
             {isEditing

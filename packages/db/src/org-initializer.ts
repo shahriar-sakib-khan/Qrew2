@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { expenseCategories, projectStatuses, projectStatusTransitions, orgRoles, orgRolePermissions, organizations, invoiceTypes } from './schema';
+import { expenseCategories, projectStatuses, projectStatusTransitions, orgRoles, orgRolePermissions, organizations } from './schema';
 import { eq, and } from 'drizzle-orm';
 
 export async function seedOrganizationDefaults(db: any, orgId: string, userId: string) {
@@ -13,19 +13,6 @@ export async function seedOrganizationDefaults(db: any, orgId: string, userId: s
       { id: uuidv4(), organizationId: orgId, name: 'Transportation', tokenKey: 'TRANSPORTATION' },
       { id: uuidv4(), organizationId: orgId, name: 'Office', tokenKey: 'OFFICE' },
       { id: uuidv4(), organizationId: orgId, name: 'Others', tokenKey: 'OTHERS' },
-    ]);
-  }
-
-  // 1.5 Seed Invoice Types
-  const existingInvoiceTypes = await db.select().from(invoiceTypes).where(
-    eq(invoiceTypes.organizationId, orgId)
-  );
-
-  if (existingInvoiceTypes.length === 0) {
-    await db.insert(invoiceTypes).values([
-      { id: uuidv4(), organizationId: orgId, name: 'Proforma', isDefault: true },
-      { id: uuidv4(), organizationId: orgId, name: 'Tax Invoice', isDefault: false },
-      { id: uuidv4(), organizationId: orgId, name: 'Receipt', isDefault: false },
     ]);
   }
 

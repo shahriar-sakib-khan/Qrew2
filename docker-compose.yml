@@ -10,7 +10,7 @@ services:
       POSTGRES_PASSWORD: password
       POSTGRES_DB: starter_db
     ports:
-      - "5432:5432"
+      - "5555:5432"
     volumes:
       - starter_pg_data:/var/lib/postgresql/data
     restart: unless-stopped
@@ -22,7 +22,7 @@ services:
     image: redis:7-alpine
     container_name: starter_redis
     ports:
-      - "6379:6379"
+      - "6302:6379"
     volumes:
       - starter_redis_data:/data
     # Use standard save rules to persist to the volume

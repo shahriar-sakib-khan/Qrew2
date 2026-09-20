@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect } from "react";
 import { Plus, Trash2, AlertTriangle, Loader2 } from "lucide-react";
@@ -206,7 +206,63 @@ export function WorkflowBuilder({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+
+  // ── Move and Swap ──────────────────────────────────────────────────────────
+
+  const moveNodeMutation = useMutation({
+    mutationFn: async ({ id, gridColumn, gridRow }: { id: string; gridColumn: number; gridRow: number }) => {
+      const res = await fetch(`${apiUrl}/api/workspaces/projects/statuses/${id}/position`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ gridColumn, gridRow }),
+      });
+      if (!res.ok) { const data = await res.json(); throw new Error(data.error || "Failed to move node"); }
+      return res.json();
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project-statuses"] }),
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  const handleMoveNode = (id: string, col: number, row: number) => {
+    moveNodeMutation.mutate({ id, gridColumn: col, gridRow: row });
+  };
+
+  const [swapRequest, setSwapRequest] = useState<{ sourceId: string; targetId: string; targetCol: number; targetRow: number; sourceCol: number; sourceRow: number } | null>(null);
+
+  const handleSwapNodes = (sourceId: string, targetId: string, targetCol: number, targetRow: number, sourceCol: number, sourceRow: number) => {
+    setSwapRequest({ sourceId, targetId, targetCol, targetRow, sourceCol, sourceRow });
+  };
+
+  const swapNodesMutation = useMutation({
+    mutationFn: async ({ sourceId, targetId }: { sourceId: string; targetId: string }) => {
+      const res = await fetch(`${apiUrl}/api/workspaces/projects/statuses/${sourceId}/swap`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ targetId }),
+      });
+      if (!res.ok) { const data = await res.json(); throw new Error(data.error || "Failed to swap nodes"); }
+      return res.json();
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project-statuses"] }),
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  const confirmSwap = async () => {
+    if (!swapRequest) return;
+    try {
+      await swapNodesMutation.mutateAsync({ sourceId: swapRequest.sourceId, targetId: swapRequest.targetId });
+      toast.success("Nodes swapped successfully");
+    } catch (e) {
+      // toast error is handled by onError in mutation
+    } finally {
+      setSwapRequest(null);
+    }
+  };
+
   // ── Delete node ─────────────────────────────────────────────────────────
+
 
   const deleteNodeMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -299,7 +355,6 @@ export function WorkflowBuilder({
     if (fromId === toId) { toast.error("A stage cannot connect to itself."); return; }
     const fromStatus = statuses.find((s) => s.id === fromId);
     const toStatus = statuses.find((s) => s.id === toId);
-    if (fromStatus?.isTerminal) { toast.error("The terminal stage cannot have outgoing connections."); return; }
     if (toStatus?.isInitial) { toast.error("Nothing can connect back to the starting stage."); return; }
     connectNodesMutation.mutate({ fromId, toId });
   };
@@ -378,7 +433,46 @@ export function WorkflowBuilder({
         onAddBranch={handleAddBranch}
         onConnectNodes={handleConnectNodes}
         onDeleteEdge={handleDeleteEdge}
+        onMoveNode={handleMoveNode}
+        onSwapNodes={handleSwapNodes}
       />
+
+
+      {/* Swap Node Modal */}
+      <Dialog open={!!swapRequest} onOpenChange={(v) => !v && setSwapRequest(null)}>
+        <DialogContent className="max-w-md p-0 overflow-hidden">
+          <div className="bg-amber-500/10 border-b border-amber-500/20 px-6 py-4 flex items-start gap-3">
+            <div className="shrink-0 w-10 h-10 rounded-full bg-amber-500/15 flex items-center justify-center">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+            </div>
+            <div>
+              <DialogTitle className="text-base font-semibold text-foreground">
+                Swap Nodes
+              </DialogTitle>
+              <p className="text-sm text-muted-foreground mt-0.5">Confirm node position swap</p>
+            </div>
+          </div>
+          <div className="px-6 py-5 space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to swap the positions of these two stages?
+            </p>
+          </div>
+          <DialogFooter className="px-6 py-4 border-t bg-muted/20 flex gap-2">
+            <Button variant="outline" onClick={() => setSwapRequest(null)} disabled={moveNodeMutation.isPending} className="flex-1">
+              Cancel
+            </Button>
+            <Button
+              variant="default"
+              onClick={confirmSwap}
+              disabled={moveNodeMutation.isPending}
+              className="flex-1 gap-2"
+            >
+              {moveNodeMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {moveNodeMutation.isPending ? "Swapping..." : "Confirm Swap"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Node Modal */}
       <DeleteNodeModal

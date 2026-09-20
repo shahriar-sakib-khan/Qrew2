@@ -1,18 +1,20 @@
 import { Context } from "hono";
-import { db, invoiceTemplates, templateHeaderFields, invoiceTypes, templateSections } from "@starter/db";
+import { db, invoiceTemplates, templateHeaderFields, templateSections, invoiceDocumentSequences } from "@starter/db";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 
 const createTemplateSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
-  documentType: z.string().optional(),
+  documentPrefix: z.string().optional().default("INV"),
+  numberingFormat: z.string().optional().default("{PREFIX}-{YYYY}-{SEQ:4}"),
 });
 
 const updateTemplateSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().optional(),
-  documentType: z.string().optional(),
+  documentPrefix: z.string().optional(),
+  numberingFormat: z.string().optional(),
 });
 
 export class InvoiceTemplatesController {
@@ -22,25 +24,19 @@ export class InvoiceTemplatesController {
     if (!organizationId) return c.json({ error: "Unauthorized" }, 401);
 
     const templates = await db
-      .select({
-        id: invoiceTemplates.id,
-        organizationId: invoiceTemplates.organizationId,
-        name: invoiceTemplates.name,
-        description: invoiceTemplates.description,
-        documentType: invoiceTemplates.documentType,
-        documentTypeName: invoiceTypes.name,
-        scope: invoiceTemplates.scope,
-        currency: invoiceTemplates.currency,
-        version: invoiceTemplates.version,
-        isArchived: invoiceTemplates.isArchived,
-        createdAt: invoiceTemplates.createdAt,
-        updatedAt: invoiceTemplates.updatedAt,
-      })
+      .select()
       .from(invoiceTemplates)
-      .leftJoin(invoiceTypes, eq(invoiceTemplates.documentType, invoiceTypes.id))
       .where(eq(invoiceTemplates.organizationId, organizationId));
 
-    return c.json(templates);
+    const [seqRow] = await db
+      .select({ currentValue: invoiceDocumentSequences.currentValue })
+      .from(invoiceDocumentSequences)
+      .where(eq(invoiceDocumentSequences.organizationId, organizationId))
+      .limit(1);
+
+    const nextSequence = (seqRow?.currentValue || 0) + 1;
+
+    return c.json(templates.map(t => ({ ...t, nextSequence })));
   }
 
   static async getTemplate(c: Context) {
@@ -50,22 +46,8 @@ export class InvoiceTemplatesController {
     if (!organizationId) return c.json({ error: "Unauthorized" }, 401);
 
     const template = await db
-      .select({
-        id: invoiceTemplates.id,
-        organizationId: invoiceTemplates.organizationId,
-        name: invoiceTemplates.name,
-        description: invoiceTemplates.description,
-        documentType: invoiceTemplates.documentType,
-        documentTypeName: invoiceTypes.name,
-        scope: invoiceTemplates.scope,
-        currency: invoiceTemplates.currency,
-        version: invoiceTemplates.version,
-        isArchived: invoiceTemplates.isArchived,
-        createdAt: invoiceTemplates.createdAt,
-        updatedAt: invoiceTemplates.updatedAt,
-      })
+      .select()
       .from(invoiceTemplates)
-      .leftJoin(invoiceTypes, eq(invoiceTemplates.documentType, invoiceTypes.id))
       .where(
         and(
           eq(invoiceTemplates.id, id),
@@ -97,7 +79,8 @@ export class InvoiceTemplatesController {
         organizationId,
         name: parsed.data.name,
         description: parsed.data.description,
-        documentType: parsed.data.documentType,
+        documentPrefix: parsed.data.documentPrefix,
+        numberingFormat: parsed.data.numberingFormat,
         createdByUserId: user.id,
       })
       .returning();
@@ -144,7 +127,7 @@ export class InvoiceTemplatesController {
       id: crypto.randomUUID(),
       templateId,
       sectionToken: "SECTION_1",
-      displayName: "1",
+      label: "1",
       sortOrder: 0,
     });
 

@@ -1,0 +1,66 @@
+import { Context } from "hono";
+import { db, templateRows, templateRowCharges, invoiceTemplates } from "@starter/db";
+import { eq, and } from "drizzle-orm";
+import { z } from "zod";
+
+export async function deleteCharge(c: Context) {
+  const chargeId = c.req.param("chargeId") as string;
+  const organizationId = c.get("organizationId");
+  if (!organizationId) return c.json({ error: "Unauthorized" }, 401);
+
+  const chargeCheck = await db
+    .select({ id: templateRowCharges.id })
+    .from(templateRowCharges)
+    .innerJoin(templateRows, eq(templateRowCharges.rowId, templateRows.id))
+    .innerJoin(invoiceTemplates, eq(templateRows.templateId, invoiceTemplates.id))
+    .where(
+      and(
+        eq(templateRowCharges.id, chargeId),
+        eq(invoiceTemplates.organizationId, organizationId)
+      )
+    )
+    .limit(1);
+  if (chargeCheck.length === 0) return c.json({ error: "Row charge not found" }, 404);
+
+  await db.delete(templateRowCharges).where(eq(templateRowCharges.id, chargeId));
+
+  return c.json({ success: true });
+}
+
+export async function reorderCharges(c: Context) {
+  const rowId = c.req.param("rowId") as string;
+  const organizationId = c.get("organizationId");
+  if (!organizationId) return c.json({ error: "Unauthorized" }, 401);
+
+  const rowCheck = await db
+    .select({ id: templateRows.id })
+    .from(templateRows)
+    .innerJoin(invoiceTemplates, eq(templateRows.templateId, invoiceTemplates.id))
+    .where(and(eq(templateRows.id, rowId), eq(invoiceTemplates.organizationId, organizationId)))
+    .limit(1);
+  if (rowCheck.length === 0) return c.json({ error: "Row not found" }, 404);
+
+  const body = await c.req.json();
+  const parsed = z.object({ orderedIds: z.array(z.string().uuid()) }).safeParse(body);
+  if (!parsed.success) return c.json({ error: parsed.error }, 400);
+
+  const { orderedIds } = parsed.data;
+
+  await db.transaction(async (tx) => {
+    await Promise.all(
+      orderedIds.map((id, index) =>
+        tx
+          .update(templateRowCharges)
+          .set({ sortOrder: index })
+          .where(
+            and(
+              eq(templateRowCharges.id, id),
+              eq(templateRowCharges.rowId, rowId)
+            )
+          )
+      )
+    );
+  });
+
+  return c.json({ success: true });
+}

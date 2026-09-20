@@ -83,7 +83,7 @@ export function TemplateLivePreview({ templateId }: { templateId: string }) {
   let slCounter = 0;
 
   const inputTokens = [
-    ...(tokens?.categories || []).map((c: any) => ({ key: `CAT_${c.tokenKey}`, label: c.displayName })),
+    ...(tokens?.categories || []).map((c: any) => ({ key: `CAT_${c.tokenKey}`, label: c.label })),
     ...(tokens?.orgConfigs || []).map((o: any) => ({ key: `ORG_${o.configKey}`, label: o.displayLabel })),
   ];
 

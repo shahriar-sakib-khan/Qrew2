@@ -7,7 +7,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiUrl } from "@/lib/constants";
 import { toast } from "sonner";
 import { AddSectionModal } from "./add-section-modal";
-import { TableRow, TemplateRowList, SectionColor } from "./template-row-list";
+import { ConfirmDeleteModal } from "@/components/shared/confirm-delete-modal";
+import { TableRow, TemplateRowList, SectionColor, MobileRowActions } from "./row-list";
 import { AddEditRowModal } from "./add-edit-row-modal";
 import { AddEditSectionChargeModal } from "./add-edit-section-charge-modal";
 import { TokenMap, fmt, evaluateFormula } from "@/lib/formula-evaluator";
@@ -19,9 +20,11 @@ import { cn } from "@/lib/utils";
 function SectionChargeLabelCell({
   charge,
   sectionId,
+  zoomLevel = 0,
 }: {
   charge: any;
   sectionId: string;
+  zoomLevel?: number;
 }) {
   const { apiBasePath, invalidateKey } = useBuilderContext();
   const queryClient = useQueryClient();
@@ -77,8 +80,9 @@ function SectionChargeLabelCell({
         }}
         className={cn(
           "w-full bg-transparent border-none outline-none focus:outline-none text-right",
-          "text-sm font-medium text-foreground/80 leading-snug caret-primary",
+          "font-medium text-foreground/80 leading-snug caret-primary",
         )}
+        style={{ fontSize: 14 + zoomLevel }}
         placeholder="Enter label…"
       />
     );
@@ -89,7 +93,8 @@ function SectionChargeLabelCell({
       tabIndex={0}
       onClick={() => setEditing(true)}
       onKeyDown={(e) => e.key === "Enter" && setEditing(true)}
-      className="text-sm font-medium text-foreground/80 leading-snug hover:text-foreground cursor-text"
+      className="font-medium text-foreground/80 leading-snug hover:text-foreground cursor-text"
+      style={{ fontSize: 14 + zoomLevel }}
     >
       {draft || "Click to label…"}
     </span>
@@ -111,6 +116,7 @@ function SectionChargeLine({
   mode,
   templateId,
   sectionId,
+  zoomLevel = 0,
 }: {
   charge: any;
   sectionToken: string;
@@ -121,18 +127,20 @@ function SectionChargeLine({
   mode: string;
   templateId: string;
   sectionId: string;
+  zoomLevel?: number;
 }) {
   const { selectedCell, setSelectedCell } = useBuilderContext();
 
-  // Reconstruct full formula from formulaBase + formulaRest
-  const fullFormula = `SEC_${sectionToken}_${charge.formulaBase ?? ""} ${charge.formulaRest ?? ""}`.trim();
+  const fullFormula = (charge.formula ?? "").trim();
   const computedVal = evaluateFormula(fullFormula, tokenMap);
   const isSelected = selectedCell?.chargeId === charge.id;
 
   return (
     <TableRow
       token={charge.chargeToken}
+      onEditToken={mode !== "fill" ? onEdit : undefined}
       formula={fullFormula}
+      zoomLevel={zoomLevel}
       onClickUsd1={() => {
         if (mode !== "fill") {
           setSelectedCell(cellFromSectionCharge({ templateId, sectionId, charge, sectionToken }));
@@ -154,14 +162,19 @@ function SectionChargeLine({
               <Trash2 className="h-3 w-3" />
             </Button>
           </>
-        ) : null
+        ) : undefined
+      }
+      mobileActions={
+        mode !== "fill" ? (
+          <MobileRowActions onEdit={onEdit} onDelete={onDelete} isCharge />
+        ) : undefined
       }
       labelContent={
         <div className="flex items-center justify-end gap-2 w-full pr-1">
-          <SectionChargeLabelCell charge={charge} sectionId={sectionId} />
+          <SectionChargeLabelCell charge={charge} sectionId={sectionId} zoomLevel={zoomLevel} />
         </div>
       }
-      usd1={computedVal != null ? <span>{fmt(computedVal)}</span> : undefined}
+      usd1={computedVal != null ? <span style={{ fontSize: 16 + zoomLevel }}>{fmt(computedVal)}</span> : undefined}
     />
   );
 }
@@ -177,6 +190,7 @@ export function TemplateSectionCard({
   slOffset = 0,
   sectionColor,
   tokenMap,
+  zoomLevel = 0,
 }: {
   templateId: string;
   draftId?: string;
@@ -187,6 +201,7 @@ export function TemplateSectionCard({
   slOffset?: number;
   sectionColor: SectionColor;
   tokenMap: TokenMap;
+  zoomLevel?: number;
 }) {
   const queryClient = useQueryClient();
   const { apiBasePath, invalidateKey, mode } = useBuilderContext();
@@ -195,10 +210,12 @@ export function TemplateSectionCard({
   const [isAddRowModalOpen, setIsAddRowModalOpen] = useState(false);
   const [isAddSectionChargeModalOpen, setIsAddSectionChargeModalOpen] = useState(false);
   const [editingSectionCharge, setEditingSectionCharge] = useState<any>(null);
+  const [isSectionDeleteModalOpen, setIsSectionDeleteModalOpen] = useState(false);
+  const [chargeToDelete, setChargeToDelete] = useState<string | null>(null);
 
-  const displayName = section.displayName ?? null;
+  const label = section.label ?? null;
   const sectionToken = section.sectionToken;
-  const headerName = displayName || sectionToken;
+  const headerName = label || sectionToken;
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: invalidateKey });
@@ -228,7 +245,6 @@ export function TemplateSectionCard({
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
-      if (!confirm(`Delete section "${headerName}" and all its rows and charges?`)) return;
       const res = await fetch(
         `${apiBasePath}/sections/${section.id}`,
         { method: "DELETE", credentials: "include" }
@@ -236,13 +252,12 @@ export function TemplateSectionCard({
       if (!res.ok) throw new Error("Failed to delete section");
       return res.json();
     },
-    onSuccess: () => { toast.success("Section deleted"); invalidate(); },
+    onSuccess: () => { toast.success("Section deleted"); invalidate(); setIsSectionDeleteModalOpen(false); },
     onError: (err: any) => toast.error(err.message),
   });
 
   const deleteSectionChargeMutation = useMutation({
     mutationFn: async (chargeId: string) => {
-      if (!confirm("Delete this section charge?")) return;
       const res = await fetch(
         `${apiBasePath}/sections/${section.id}/section-charges/${chargeId}`,
         { method: "DELETE", credentials: "include" }
@@ -250,7 +265,7 @@ export function TemplateSectionCard({
       if (!res.ok) throw new Error("Failed to delete section charge");
       return res.json();
     },
-    onSuccess: () => { toast.success("Section charge deleted"); invalidate(); },
+    onSuccess: () => { toast.success("Section charge deleted"); invalidate(); setChargeToDelete(null); },
     onError: (err: any) => toast.error(err.message),
   });
 
@@ -287,13 +302,13 @@ export function TemplateSectionCard({
               </div>
             )}
             <h3
-              className="font-semibold text-sm uppercase tracking-wider truncate"
-              style={{ color: sectionColor.border }}
+              className="font-semibold uppercase tracking-wider truncate"
+              style={{ color: sectionColor.border, fontSize: 14 + zoomLevel }}
             >
-              {displayName || `Section ${sectionToken.split("_").pop()}`}
+              {label || `Section ${sectionToken.split("_").pop()}`}
             </h3>
             {/* Token badge — hover only */}
-            <span className="font-mono text-[10px] text-muted-foreground/40 bg-muted/50 px-1.5 rounded opacity-0 group-hover/sec:opacity-100 transition-opacity select-all">
+            <span className="font-mono text-muted-foreground/40 bg-muted/50 px-1.5 rounded opacity-0 group-hover/sec:opacity-100 transition-opacity select-all" style={{ fontSize: 10 + zoomLevel }}>
               {sectionToken}
             </span>
           </div>
@@ -304,7 +319,7 @@ export function TemplateSectionCard({
               <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" onClick={() => setIsEditModalOpen(true)} title="Edit section">
                 <Edit2 className="h-3 w-3" />
               </Button>
-              <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive" onClick={() => deleteMutation.mutate()} title="Delete section">
+              <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive" onClick={() => setIsSectionDeleteModalOpen(true)} title="Delete section">
                 <Trash2 className="h-3 w-3" />
               </Button>
             </div>
@@ -323,6 +338,7 @@ export function TemplateSectionCard({
         sectionColor={sectionColor}
         tokenMap={tokenMap}
         allSections={allSections}
+        zoomLevel={zoomLevel}
       />
 
       {/* ── Section charges — visually distinct (section color, bolder) ── */}
@@ -339,9 +355,10 @@ export function TemplateSectionCard({
                 tokenMap={tokenMap}
                 mode={mode}
                 onEdit={() => setEditingSectionCharge(charge)}
-                onDelete={() => deleteSectionChargeMutation.mutate(charge.id)}
+                onDelete={() => setChargeToDelete(charge.id)}
                 templateId={templateId}
                 sectionId={section.id}
+                zoomLevel={zoomLevel}
               />
             ))}
         </div>
@@ -405,6 +422,22 @@ export function TemplateSectionCard({
           onSuccess={invalidate}
         />
       )}
+
+      {/* ── Confirm Delete Modals ── */}
+      <ConfirmDeleteModal
+        isOpen={isSectionDeleteModalOpen}
+        onClose={() => setIsSectionDeleteModalOpen(false)}
+        onConfirm={() => deleteMutation.mutate()}
+        entityName={`Section: ${headerName}`}
+        isDeleting={deleteMutation.isPending}
+      />
+      <ConfirmDeleteModal
+        isOpen={!!chargeToDelete}
+        onClose={() => setChargeToDelete(null)}
+        onConfirm={() => chargeToDelete && deleteSectionChargeMutation.mutate(chargeToDelete)}
+        entityName={`Section Charge`}
+        isDeleting={deleteSectionChargeMutation.isPending}
+      />
     </div>
   );
 }

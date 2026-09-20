@@ -35,6 +35,8 @@ export type SelectedCell = {
    *  - formula type: "= PORT_DUES * 0.1"  (leading = is cosmetic)
    */
   currentInput: string;
+  /** The token of the specific cell being edited (used to prevent self-referencing) */
+  token?: string;
 };
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -45,6 +47,8 @@ type BuilderContextValue = {
   /** Live token map — updated by the workspace whenever sections data changes. */
   tokenMap: TokenMap;
   setTokenMap: (map: TokenMap) => void;
+  sections: any[];
+  setSections?: (sections: any[]) => void;
   tokenPoolOpen: boolean;
   apiBasePath: string;
   mode: "template" | "draft" | "preview" | "fill";
@@ -57,6 +61,7 @@ const BuilderContext = createContext<BuilderContextValue>({
   setSelectedCell: () => {},
   tokenMap: {},
   setTokenMap: () => {},
+  sections: [],
   tokenPoolOpen: false,
   apiBasePath: "",
   mode: "template",
@@ -84,6 +89,7 @@ export function BuilderProvider({
 }) {
   const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
   const [tokenMap, setTokenMap] = useState<TokenMap>({});
+  const [sections, setSections] = useState<any[]>([]);
 
   return (
     <BuilderContext.Provider
@@ -92,6 +98,8 @@ export function BuilderProvider({
         setSelectedCell,
         tokenMap,
         setTokenMap,
+        sections,
+        setSections,
         tokenPoolOpen,
         apiBasePath,
         mode,
@@ -130,10 +138,11 @@ export function cellFromRow({
     sectionId,
     rowId: row.id,
     row,
-    breadcrumb: row.parentLabel || "Untitled Row",
+    token: row.rowToken,
+    breadcrumb: row.label || "Untitled Row",
     valueType: isFormula ? "formula" : "normal",
     currentInput: isFormula
-      ? `= ${decodedFormula ?? row.formula ?? ""}`
+      ? `${decodedFormula ?? row.formula ?? ""}`
       : String(row.initialValue ?? ""),
   };
 }
@@ -157,9 +166,10 @@ export function cellFromRowCharge({
     rowId: row.id,
     row,
     chargeId: charge.id,
+    token: charge.chargeToken,
     breadcrumb: charge.label || "Untitled Charge",
     valueType: "formula",
-    currentInput: `= ${decodedFormula ?? charge.formula ?? ""}`,
+    currentInput: `${decodedFormula ?? charge.formula ?? ""}`,
   };
 }
 
@@ -174,8 +184,6 @@ export function cellFromSectionCharge({
   charge: any;
   sectionToken: string;
 }): SelectedCell {
-  // Section charges store formula as base + rest
-  const formulaStr = `${charge.formulaBase === "BASE" ? `SEC_${sectionToken}_BASE` : charge.formulaBase === "TOTAL" ? `SEC_${sectionToken}_TOTAL` : `SEC_${sectionToken}_CHARGES`} ${charge.formulaRest || ""}`;
   return {
     templateId,
     sectionId,
@@ -183,8 +191,9 @@ export function cellFromSectionCharge({
     row: null,
     chargeId: charge.id,
     isSectionCharge: true,
+    token: charge.chargeToken,
     breadcrumb: charge.label || "Untitled Section Charge",
     valueType: "formula",
-    currentInput: `= ${formulaStr.trim()}`,
+    currentInput: `${charge.formula ?? ""}`,
   };
 }

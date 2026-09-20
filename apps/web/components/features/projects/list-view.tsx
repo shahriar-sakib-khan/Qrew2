@@ -272,7 +272,7 @@ export function ListView({
                   >
                     {(() => {
                       const statusNode = allStatuses.find((s: any) => s.id === project.status);
-                      const isTerminal = statusNode?.isTerminal;
+                      const isTerminal = !statusNode?.isInitial && (statusNode?.transitions?.length === 0);
                       const isNegative = isTerminal && statusNode?.name?.toLowerCase().match(
                         /reject|cancel|fail|lost|declin|abort|close/
                       );

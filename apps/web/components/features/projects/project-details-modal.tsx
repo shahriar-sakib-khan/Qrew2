@@ -102,7 +102,7 @@ function ProjectInvoicesSection({ projectId, router }: { projectId: string; rout
             const route = isDraft 
               ? `/dashboard/invoices/drafts/${inv.id}` 
               : `/dashboard/invoices/${inv.id}`;
-            const displayName = inv.documentNumber && inv.documentNumber !== "PENDING" 
+            const label = inv.documentNumber && inv.documentNumber !== "PENDING" 
               ? inv.documentNumber 
               : (inv.sourceTemplateName || "Invoice Draft");
 
@@ -114,7 +114,7 @@ function ProjectInvoicesSection({ projectId, router }: { projectId: string; rout
               >
                 <div className="flex flex-col min-w-0">
                   <span className="text-xs font-medium text-foreground truncate group-hover:text-primary transition-colors">
-                    {displayName}
+                    {label}
                   </span>
                   <span className="text-[11px] text-muted-foreground mt-0.5">
                     {new Date(inv.createdAt).toLocaleDateString(undefined, { 
@@ -505,7 +505,9 @@ export function ProjectDetailsModal({ project, onClose }: ProjectDetailsModalPro
     const color = status.color || "#94a3b8";
 
     // Terminal nodes get a distinct visual treatment
-    const isTerminal = status.isTerminal;
+    const fullStatus = sortedStatuses.find((s: any) => s.id === status.id) || status;
+    const isDynamicTerminal = !fullStatus.isInitial && (fullStatus.transitions?.length === 0);
+    const isTerminal = isDynamicTerminal;
     const isNegativeTerminal = isTerminal &&
       status.name.toLowerCase().match(/reject|cancel|fail|lost|declin|abort|close/);
     const terminalRingColor = isNegativeTerminal ? "#f43f5e" : (isTerminal ? "#10b981" : null);
@@ -659,17 +661,23 @@ export function ProjectDetailsModal({ project, onClose }: ProjectDetailsModalPro
                           {allowedNextStatuses.length === 0 ? (
                             <div className="px-2 py-2 text-sm text-muted-foreground italic">No next stages configured.</div>
                           ) : (
-                            allowedNextStatuses.map((ns: any) => (
-                              <Button
-                                key={ns.id}
-                                variant="ghost"
-                                className="w-full justify-start gap-2 h-9 text-sm"
-                                onClick={() => handleAdvance(ns.id)}
-                              >
-                                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: ns.color || '#94a3b8' }} />
-                                {ns.name}
-                              </Button>
-                            ))
+                            allowedNextStatuses.map((ns: any) => {
+                              const isDynamicTerminal = !ns.isInitial && (ns.transitions?.length === 0);
+                              return (
+                                <Button
+                                  key={ns.id}
+                                  variant="ghost"
+                                  className="w-full justify-start gap-2 h-9 text-sm"
+                                  onClick={() => handleAdvance(ns.id)}
+                                >
+                                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: ns.color || '#94a3b8' }} />
+                                  <span className="flex-1 text-left">{ns.name}</span>
+                                  {isDynamicTerminal && (
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500/70" />
+                                  )}
+                                </Button>
+                              );
+                            })
                           )}
                         </div>
                       </PopoverContent>

@@ -25,3 +25,7 @@ This is an Enterprise B2B SaaS serving as a central operating system for organiz
 4. **No Dummy Code:** Provide 100% production-ready code. Do not omit error handling or logging layers for brevity.
 5. **Structured Logging (Pino):** Never use `console.*` anywhere in the API. Always import `logger` from `@/infra/lib/logger` (or relative path) and use a child logger (e.g. `const log = logger.child({ module: 'feature-name' })`) to trace errors, warnings, and operations with structured metadata context (like `userId`, `orgId`, `err`).
 6. **Explain the WHY:** When writing complex business logic (like PBAC resolution algorithms or maker/checker workflows), comment the code to explain the architectural reasoning, not just the mechanical steps.
+7. **Feature Constitutions:** When modifying specific domain features, always consult the feature's localized `agent.md` file:
+   - Invoice Templates API: `apps/api/src/features/invoice-templates/agent.md`
+   - Invoices & Calculation Engine: `apps/api/src/features/invoices/engine/agent.md`
+

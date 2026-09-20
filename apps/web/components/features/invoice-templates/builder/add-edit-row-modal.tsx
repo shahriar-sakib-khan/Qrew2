@@ -134,7 +134,7 @@ export function AddEditRowModal({
 
     const payload: any = {
       rowToken,
-      parentLabel: isEdit ? (editRow.parentLabel ?? "") : formatTokenToLabel(rowToken),
+      label: isEdit ? (editRow.label ?? "") : formatTokenToLabel(rowToken),
     };
 
     mutation.mutate(payload);

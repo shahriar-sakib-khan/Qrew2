@@ -6,8 +6,9 @@ import {
   templateHeaderFields,
   templateRowCharges,
   templateSectionCharges,
+  templateConstants,
 } from "@starter/db";
-import type { RowIdToTokenMap } from "@starter/db";
+import type { RowIdToTokenMap, SecIdToTokenMap, TplIdToTokenMap } from "@starter/db";
 import { eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { resolveScope } from "./token-resolver.service";
@@ -72,26 +73,67 @@ export class EngineController {
       //    Phase 2 will add: draft-based path (draftRows with overrides)
       // ─────────────────────────────────────────────────────────────────────
       let evaluatorSections: EvaluatorSection[] = [];
+      let secIdToToken: SecIdToTokenMap = {};
+      let tplIdToToken: TplIdToTokenMap = {};
+      let idToToken: RowIdToTokenMap = {};
       const { draftSections, overrides, draftConstants } = parsed.data;
 
       if (draftSections && draftSections.length > 0) {
         // Use provided draft sections directly
         evaluatorSections = draftSections;
+
+        // Build lookup maps from draftSections
+        for (const sec of draftSections) {
+          if (sec.id && sec.sectionToken) {
+            secIdToToken[sec.id] = `SEC_${sec.sectionToken}`;
+          }
+          for (const row of sec.rows ?? []) {
+            if (row.id && row.rowToken) {
+              idToToken[row.id] = row.rowToken;
+            }
+          }
+        }
         
-        // Inject draft constants into scope as BigNumber-style strings so mathjs
-        // arithmetic works correctly (scope values must all be numeric strings
-        // like "111.000000", not raw JS numbers like 111).
+        // Inject draft constants into scope as BigNumber-style strings and build tplIdToToken
         if (draftConstants) {
           for (const [key, val] of Object.entries(draftConstants)) {
-            // val is { id, key, value: string|number, ... }
+            if (val?.id) {
+              tplIdToToken[val.id] = key;
+            }
             const raw = val?.value ?? val;  // handle both object and primitive
             const numVal = parseFloat(String(raw));
             if (!isNaN(numVal)) {
-              // Format as 6-decimal fixed string to match EngineContext convention
               const fixed = numVal.toFixed(6);
               scope[key] = fixed;
               scope[`TPL_${key}`] = fixed;
             }
+          }
+        }
+
+        // If templateId is also provided, load template constants / sections / rows as fallback maps
+        if (templateId) {
+          const [dbSections, dbRows, dbConstants] = await Promise.all([
+            db
+              .select({ id: templateSections.id, sectionToken: templateSections.sectionToken })
+              .from(templateSections)
+              .where(eq(templateSections.templateId, templateId)),
+            db
+              .select({ id: templateRows.id, rowToken: templateRows.rowToken })
+              .from(templateRows)
+              .where(eq(templateRows.templateId, templateId)),
+            db
+              .select({ id: templateConstants.id, token: templateConstants.token })
+              .from(templateConstants)
+              .where(eq(templateConstants.templateId, templateId)),
+          ]);
+          for (const r of dbRows) {
+            if (!idToToken[r.id]) idToToken[r.id] = r.rowToken;
+          }
+          for (const s of dbSections) {
+            if (!secIdToToken[s.id]) secIdToToken[s.id] = `SEC_${s.sectionToken}`;
+          }
+          for (const c of dbConstants) {
+            if (!tplIdToToken[c.id]) tplIdToToken[c.id] = c.token;
           }
         }
 
@@ -107,7 +149,7 @@ export class EngineController {
         }
       } else if (templateId) {
         // Fetch sections, rows, and section charges in parallel
-        const [dbSections, dbRows, dbSectionCharges] = await Promise.all([
+        const [dbSections, dbRows, dbSectionCharges, dbConstants] = await Promise.all([
           db
             .select()
             .from(templateSections)
@@ -123,6 +165,10 @@ export class EngineController {
             .from(templateSectionCharges)
             .where(eq(templateSectionCharges.templateId, templateId))
             .orderBy(templateSectionCharges.sortOrder),
+          db
+            .select()
+            .from(templateConstants)
+            .where(eq(templateConstants.templateId, templateId)),
         ]);
 
         // templateRowCharges has no templateId column — fetch by rowId list
@@ -135,10 +181,27 @@ export class EngineController {
               .orderBy(templateRowCharges.sortOrder)
           : [];
 
-        // Build idToToken map: rowId → rowToken (for decoding {{$row:uuid}} refs)
-        const idToToken: RowIdToTokenMap = {};
+        // Build idToToken map: rowId -> rowToken (for decoding {{$row:uuid}} refs)
         for (const row of dbRows) {
           idToToken[row.id] = row.rowToken;
+        }
+
+        for (const sec of dbSections) {
+          if (sec.sectionToken) secIdToToken[sec.id] = `SEC_${sec.sectionToken}`;
+        }
+
+        for (const c of dbConstants) {
+          if (c.token) tplIdToToken[c.id] = c.token;
+          
+          // Publish to scope just like we do for draftConstants
+          if (c.defaultValue && c.token) {
+            const numVal = parseFloat(c.defaultValue);
+            if (!isNaN(numVal)) {
+              const fixed = numVal.toFixed(6);
+              scope[c.token] = fixed;
+              scope[`TPL_${c.token}`] = fixed;
+            }
+          }
         }
 
         // Assemble the nested V2 EvaluatorSection[] structure
@@ -163,7 +226,7 @@ export class EngineController {
             return {
               id: r.id,
               rowToken: r.rowToken,
-              parentLabel: r.parentLabel,
+              label: r.label,
               sectionId: r.sectionId,
               valueType: r.valueType,       // 'normal' | 'formula'
               formula: r.formula ?? null,   // stored as {{$row:uuid}}, decoded in evaluator
@@ -182,8 +245,7 @@ export class EngineController {
               subDescription: sc.subDescription ?? undefined,
               qualifier: sc.qualifier ?? undefined,
               tags: sc.tags ?? undefined,
-              formulaBase: sc.formulaBase as "BASE" | "TOTAL" | "CHARGES",
-              formulaRest: sc.formulaRest,
+              formula: sc.formula,
               sortOrder: sc.sortOrder,
             })
           );
@@ -191,7 +253,7 @@ export class EngineController {
           return {
             id: sec.id,
             sectionToken: sec.sectionToken,
-            displayName: sec.displayName ?? undefined,
+            label: sec.label ?? undefined,
             sortOrder: sec.sortOrder,
             rows,
             sectionCharges,
@@ -203,7 +265,18 @@ export class EngineController {
       // 3. DAG validation (runs on V2 EvaluatorSection[])
       // ─────────────────────────────────────────────────────────────────────
       const externalTokens = new Set(Object.keys(scope));
-      const dagResult = DagValidatorService.validate(evaluatorSections, externalTokens);
+      // We skip rebuilding idToToken if it was already built in the DB path. 
+      // But for draft path, we don't have secIdToToken or tplIdToToken because formulas are plaintext!
+      const idToTokenForDag: RowIdToTokenMap = Object.keys(idToToken).length > 0 ? idToToken : {};
+      if (Object.keys(idToTokenForDag).length === 0) {
+        for (const sec of evaluatorSections) {
+          for (const row of sec.rows) {
+            idToTokenForDag[row.id] = row.rowToken;
+          }
+        }
+      }
+
+      const dagResult = DagValidatorService.validate(evaluatorSections, externalTokens, idToTokenForDag, secIdToToken, tplIdToToken);
 
       // ─────────────────────────────────────────────────────────────────────
       // 4. AST evaluation (V2 signature)
@@ -216,18 +289,13 @@ export class EngineController {
       let grandTotal = "0.000000";
 
       if (evaluatorSections.length > 0) {
-        // Build idToToken from the sections we already assembled
-        const idToToken: RowIdToTokenMap = {};
-        for (const sec of evaluatorSections) {
-          for (const row of sec.rows) {
-            idToToken[row.id] = row.rowToken;
-          }
-        }
-
         const result = AstEvaluatorService.evaluate(
           evaluatorSections,
           scope,
-          idToToken
+          idToTokenForDag,
+          secIdToToken,
+          tplIdToToken,
+          dagResult.topologicalOrder
         );
         evaluatedSections = result.evaluatedSections;
         grandTotal = result.grandTotal;

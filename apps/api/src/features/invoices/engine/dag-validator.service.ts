@@ -27,6 +27,7 @@ import {
   type DagValidationResult,
   type EngineError,
 } from "./types";
+import { decodeFormulaForEval, type RowIdToTokenMap, type SecIdToTokenMap, type TplIdToTokenMap } from "@starter/db";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TOKEN EXTRACTION
@@ -63,40 +64,41 @@ export function sectionIndexToLetter(index: number): string {
 
 export class DagValidatorService {
   /**
-   * Validates the full template structure.
-   *
-   * @param sections - All sections in template sortOrder (ascending)
-   * @param externalTokens - Tokens from FILE_*, ORG_*, CAT_* scopes (always valid)
-   * @returns DagValidationResult with errors and safe evaluation order
+   * Validates a set of sections, checks for duplicate tokens, detects cycles,
+   * verifies scope constraints, and returns a valid topological evaluation order.
    */
   static validate(
     sections: EvaluatorSection[],
-    externalTokens: Set<string> = new Set()
+    externalTokens: Set<string> = new Set(),
+    idToToken: RowIdToTokenMap = {},
+    secIdToToken: SecIdToTokenMap = {},
+    tplIdToToken: TplIdToTokenMap = {}
   ): DagValidationResult {
     const errors: EngineError[] = [];
-    const allKnownTokens = new Set<string>(externalTokens);
-    /** Ordered list of tokens in safe evaluation order (output). */
     const topologicalOrder: string[] = [];
 
-    // ── Duplicate token detection ──────────────────────────────────────────
-    const tokenSeen = new Map<string, string>(); // token → first location label
+    // Pass 1: Gather ALL defined tokens & detect duplicates, build nodeTokens
     const seenTokens = new Set<string>();
+    const tokenSeen = new Map<string, string>(); // token -> description of where it was defined
+    const nodeTokens = new Set<string>();
 
     for (const section of sections) {
+      const sectionToken = section.sectionToken;
       const sectionLetter = sectionIndexToLetter(section.sortOrder);
 
       for (const row of section.rows) {
-        // Check duplicate rowToken
-        const rowLoc = `Row "${row.parentLabel}"`;
         if (seenTokens.has(row.rowToken)) {
           errors.push({
             code: "DUPLICATE_TOKEN",
-            message: `Token "${row.rowToken}" is already used by ${tokenSeen.get(row.rowToken)}. Row tokens must be unique per template.`,
+            message: `Row token "${row.rowToken}" is already used by ${tokenSeen.get(row.rowToken)}.`,
             rowToken: row.rowToken,
+            token: row.rowToken,
           });
         } else {
           seenTokens.add(row.rowToken);
-          tokenSeen.set(row.rowToken, rowLoc);
+          tokenSeen.set(row.rowToken, `row "${row.label}"`);
+          nodeTokens.add(row.rowToken);
+          nodeTokens.add(`${row.rowToken}_TOTAL`);
         }
 
         for (const charge of row.charges) {
@@ -109,7 +111,8 @@ export class DagValidatorService {
             });
           } else {
             seenTokens.add(charge.chargeToken);
-            tokenSeen.set(charge.chargeToken, `row charge "${charge.label}" in row "${row.parentLabel}"`);
+            tokenSeen.set(charge.chargeToken, `row charge "${charge.label}" in row "${row.label}"`);
+            nodeTokens.add(charge.chargeToken);
           }
         }
       }
@@ -124,8 +127,14 @@ export class DagValidatorService {
         } else {
           seenTokens.add(sc.chargeToken);
           tokenSeen.set(sc.chargeToken, `section charge "${sc.label}" in section "${sectionLetter}"`);
+          nodeTokens.add(sc.chargeToken);
         }
       }
+
+      const secBase = `SEC_${sectionToken}`;
+      nodeTokens.add(secBase);
+      nodeTokens.add(`${secBase}_TOTAL`);
+      nodeTokens.add(`${secBase}_CHARGES`);
     }
 
     // If duplicate tokens found, abort further validation (results would be unreliable)
@@ -133,95 +142,120 @@ export class DagValidatorService {
       return { valid: false, topologicalOrder: [], errors };
     }
 
-    // ── Forward-reference + charge scope validation ────────────────────────
-    // Walk top-to-bottom. After processing each entity, add its token to
-    // allKnownTokens so only previously-seen tokens can be referenced.
+    // Pass 2: Build Adjacency List + Check Scope Constraints
+    const inDegree = new Map<string, number>();
+    const graph = new Map<string, string[]>(); // dependency -> dependents
+
+    for (const node of nodeTokens) {
+      inDegree.set(node, 0);
+      graph.set(node, []);
+    }
+
+    const addEdge = (dependency: string, dependent: string) => {
+      if (nodeTokens.has(dependency)) {
+        graph.get(dependency)!.push(dependent);
+        inDegree.set(dependent, inDegree.get(dependent)! + 1);
+      }
+    };
 
     for (const section of sections) {
       const sectionToken = section.sectionToken;
       const sectionLetter = sectionIndexToLetter(section.sortOrder);
-      const sectionLabel = section.displayName ?? `Section ${sectionLetter}`;
-
-      for (const row of section.rows) {
-        // The set of tokens that this row's charges are ALLOWED to reference
-        const rowChargeAllowedTokens = new Set<string>([
-          row.rowToken,
-          `${row.rowToken}_TOTAL`,
-        ]);
-
-        // ── Row base value formula (if formula type) ──
-        // Forward references are allowed (evaluator will zero-fill unknown
-        // tokens at eval time and produce UNRESOLVED_REFERENCE notices).
-        // We still record them here as informational notices, not errors.
-        if (row.formula) {
-          const refs = extractTokens(row.formula);
-          for (const ref of refs) {
-            if (!allKnownTokens.has(ref)) {
-              // Non-blocking: the evaluator handles this gracefully via zero-fill.
-              // Do NOT push to errors — push as a FORWARD_REFERENCE notice only.
-              // (Downstream the evaluator will emit UNRESOLVED_REFERENCE notices.)
-            }
-          }
-        }
-
-        // Parent row base token — available after row evaluation
-        allKnownTokens.add(row.rowToken);
-        topologicalOrder.push(row.rowToken);
-
-        // ── Row charges ──
-        for (const charge of row.charges) {
-          const refs = extractTokens(charge.formula);
-          for (const ref of refs) {
-            if (!rowChargeAllowedTokens.has(ref) && !externalTokens.has(ref)) {
-              // Determine if it's a scope violation or forward reference
-              const code = allKnownTokens.has(ref)
-                ? "CHARGE_SCOPE_VIOLATION"
-                : "FORWARD_REFERENCE";
-              const message =
-                code === "CHARGE_SCOPE_VIOLATION"
-                  ? `Row charge "${charge.label}" in row "${row.parentLabel}" references "${ref}" which is outside this row's scope. Row charges may only reference their parent row's tokens.`
-                  : `Row charge "${charge.label}" in row "${row.parentLabel}" references "${ref}" which has not been defined yet.`;
-              errors.push({ code, message, rowToken: row.rowToken, token: ref, formula: charge.formula });
-            }
-          }
-          allKnownTokens.add(charge.chargeToken);
-          topologicalOrder.push(charge.chargeToken);
-        }
-
-        // Row TOTAL token (base + charges) — available after charges
-        allKnownTokens.add(`${row.rowToken}_TOTAL`);
-        topologicalOrder.push(`${row.rowToken}_TOTAL`);
-      }
-
-      // ── Section aggregate tokens — added after all rows in section ────────
-      const secBase = `SEC_${sectionToken}_BASE`;
+      const sectionLabel = section.label ?? `Section ${sectionLetter}`;
+      const secBase = `SEC_${sectionToken}`;
       const secTotal = `SEC_${sectionToken}_TOTAL`;
       const secCharges = `SEC_${sectionToken}_CHARGES`;
-      allKnownTokens.add(secBase);
-      allKnownTokens.add(secTotal);
-      allKnownTokens.add(secCharges);
-      topologicalOrder.push(secBase, secTotal, secCharges);
 
-      const sectionChargeAllowedTokens = new Set<string>([secBase, secTotal, secCharges]);
+      addEdge(secBase, secTotal);
+      addEdge(secCharges, secTotal);
 
-      // ── Section charges ──
-      for (const sc of section.sectionCharges) {
-        const baseToken = `SEC_${sectionToken}_${sc.formulaBase}`;
-        const fullFormula = `${baseToken}${sc.formulaRest}`;
-        const refs = extractTokens(fullFormula);
-        for (const ref of refs) {
-          if (!sectionChargeAllowedTokens.has(ref) && !externalTokens.has(ref)) {
-            const code = allKnownTokens.has(ref) ? "CHARGE_SCOPE_VIOLATION" : "FORWARD_REFERENCE";
-            const message =
-              code === "CHARGE_SCOPE_VIOLATION"
-                ? `Section charge "${sc.label}" in section "${sectionLabel}" references "${ref}" which is outside this section's scope. Section charges may only reference SEC_${sectionToken}_BASE/TOTAL/CHARGES.`
-                : `Section charge "${sc.label}" in section "${sectionLabel}" references "${ref}" which has not been defined.`;
-            errors.push({ code, message, token: ref, formula: fullFormula });
+      for (const row of section.rows) {
+        const rowChargeAllowedTokens = new Set<string>([row.rowToken]);
+
+        addEdge(row.rowToken, `${row.rowToken}_TOTAL`);
+        addEdge(row.rowToken, secBase);
+
+        if (row.formula) {
+          const decodedFormula = decodeFormulaForEval(row.formula, idToToken, secIdToToken, tplIdToToken);
+          const refs = extractTokens(decodedFormula);
+          for (const ref of refs) {
+            addEdge(ref, row.rowToken);
           }
         }
-        allKnownTokens.add(sc.chargeToken);
-        topologicalOrder.push(sc.chargeToken);
+
+        for (const charge of row.charges) {
+          addEdge(charge.chargeToken, `${row.rowToken}_TOTAL`);
+          addEdge(charge.chargeToken, secCharges);
+
+          if (charge.formula) {
+            const decodedFormula = decodeFormulaForEval(charge.formula, idToToken, secIdToToken, tplIdToToken);
+            const refs = extractTokens(decodedFormula);
+            for (const ref of refs) {
+              addEdge(ref, charge.chargeToken);
+              
+              if (!rowChargeAllowedTokens.has(ref) && !externalTokens.has(ref)) {
+                errors.push({
+                  code: "CHARGE_SCOPE_VIOLATION",
+                  message: `Row charge "${charge.label}" in row "${row.label}" references "${ref}". Row charges may only reference their parent row's base value (${row.rowToken}) or external constants.`,
+                  rowToken: row.rowToken,
+                  token: ref,
+                  formula: decodedFormula
+                });
+              }
+            }
+          }
+        }
       }
+
+      const sectionChargeAllowedTokens = new Set<string>([secBase]);
+
+      for (const sc of section.sectionCharges) {
+        addEdge(sc.chargeToken, secTotal);
+
+        const decodedFormula = decodeFormulaForEval(sc.formula, idToToken, secIdToToken, tplIdToToken);
+        const refs = extractTokens(decodedFormula);
+        for (const ref of refs) {
+          addEdge(ref, sc.chargeToken);
+          
+          if (!sectionChargeAllowedTokens.has(ref) && !externalTokens.has(ref)) {
+            errors.push({
+              code: "CHARGE_SCOPE_VIOLATION",
+              message: `Section charge "${sc.label}" in section "${sectionLabel}" references "${ref}". Section charges may only reference ${secBase} or external constants.`,
+              token: ref,
+              formula: decodedFormula
+            });
+          }
+        }
+      }
+    }
+
+    // Pass 3: Kahn's Algorithm
+    const queue: string[] = [];
+    // Enqueue nodes with in-degree 0 in the order they were defined (stable sort fallback)
+    for (const node of nodeTokens) {
+      if (inDegree.get(node) === 0) queue.push(node);
+    }
+
+    while (queue.length > 0) {
+      const node = queue.shift()!;
+      topologicalOrder.push(node);
+
+      for (const dependent of graph.get(node) || []) {
+        const degree = inDegree.get(dependent)! - 1;
+        inDegree.set(dependent, degree);
+        if (degree === 0) queue.push(dependent);
+      }
+    }
+
+    if (topologicalOrder.length < nodeTokens.size) {
+      const cycleNodes = [];
+      for (const [node, degree] of inDegree.entries()) {
+        if (degree > 0) cycleNodes.push(node);
+      }
+      errors.push({
+        code: "CIRCULAR_DEPENDENCY",
+        message: `A circular dependency was detected involving these tokens: ${cycleNodes.join(", ")}`,
+      });
     }
 
     return {
@@ -233,23 +267,16 @@ export class DagValidatorService {
 
   /**
    * Validates whether re-ordering a row to a new position would violate
-   * any forward-reference rules.
-   *
-   * @param sections - Current sections array (before reorder)
-   * @param movedRowToken - rowToken of the row being moved
-   * @param newSortOrder - Proposed new sortOrder for the row
-   * @param newSectionId - Proposed new sectionId (for cross-section moves)
-   * @param externalTokens - Tokens always in scope (FILE_*, ORG_*, CAT_*)
-   * @returns null if valid, EngineError if the reorder is forbidden
+   * any rules (e.g. creating a circular dependency).
    */
   static validateReorder(
     sections: EvaluatorSection[],
     movedRowToken: string,
     newSortOrder: number,
     newSectionId: string,
-    externalTokens: Set<string> = new Set()
+    externalTokens: Set<string> = new Set(),
+    idToToken: RowIdToTokenMap = {}
   ): EngineError | null {
-    // Simulate the reorder: update the moved row's sortOrder + sectionId
     const simulatedSections = sections.map((sec) => ({
       ...sec,
       rows: sec.rows.map((row) =>
@@ -259,12 +286,11 @@ export class DagValidatorService {
       ),
     }));
 
-    // Re-sort rows within each section
     simulatedSections.forEach((sec) => {
       sec.rows.sort((a, b) => a.sortOrder - b.sortOrder);
     });
 
-    const result = DagValidatorService.validate(simulatedSections, externalTokens);
+    const result = DagValidatorService.validate(simulatedSections, externalTokens, idToToken);
     if (!result.valid) {
       const firstError = result.errors[0];
       return {

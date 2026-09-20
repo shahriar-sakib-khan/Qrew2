@@ -99,7 +99,7 @@ USER nodejs
 
 # Tell Docker which port your Hono server listens on.
 # This is metadata only — the actual port binding happens in your app code.
-EXPOSE 3001
+EXPOSE 3000
 
 # Set the working directory to the specific app we want to run
 WORKDIR /app/apps/api

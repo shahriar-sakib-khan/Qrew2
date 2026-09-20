@@ -5,6 +5,7 @@ import {
   expenses,
   expenseCategories,
   templateHeaderFields,
+  templateConstants,
   projects,
   projectStatuses,
 } from "@starter/db";
@@ -27,10 +28,10 @@ export interface ResolveScopeInput {
  *
  * Returns Record<tokenKey, BigNumber-as-string> — never undefined for known tokens.
  *
- * Per BACKEND_AGENT.md §8.1:
- * 1. CAT_* — SUM of expenses per category, 0 for categories with no expenses
- * 2. ORG_* — organization_configs WHERE isFormulaInjectable = true
- * 3. FILE_* — from projects.customFields + direct columns per template_header_fields config
+ * 1. EXP_* / CAT_* — SUM of expenses per category
+ * 2. GBL_* / ORG_* — organization_configs WHERE isFormulaInjectable = true
+ * 3. TPL_* — template_constants for the given template
+ * 4. FILE_* — from projects.customFields + direct columns per template_header_fields config
  *
  * All values stored as serialized BigNumber strings (e.g. "4200.000000")
  */
@@ -39,7 +40,7 @@ export async function resolveScope(input: ResolveScopeInput): Promise<Record<str
   const scope: Record<string, string> = {};
 
   // -----------------------------------------------------------------------
-  // 1. CAT_* — expense category sums for this project
+  // 1. EXP_* / CAT_* — expense category sums for this project
   // -----------------------------------------------------------------------
 
   // First, get ALL categories for the org (so we can zero-initialize them)
@@ -52,6 +53,7 @@ export async function resolveScope(input: ResolveScopeInput): Promise<Record<str
 
   for (const cat of allCategories) {
     if (cat.tokenKey) {
+      scope[`EXP_${cat.tokenKey}`] = "0.000000";
       scope[`CAT_${cat.tokenKey}`] = "0.000000";
     }
   }
@@ -77,12 +79,14 @@ export async function resolveScope(input: ResolveScopeInput): Promise<Record<str
   for (const row of categorySums) {
     if (row.tokenKey) {
       const bn = bigMath.bignumber(row.total ?? "0");
-      scope[`CAT_${row.tokenKey}`] = (bn as math.BigNumber).toFixed(6);
+      const formatted = (bn as math.BigNumber).toFixed(6);
+      scope[`EXP_${row.tokenKey}`] = formatted;
+      scope[`CAT_${row.tokenKey}`] = formatted;
     }
   }
 
   // -----------------------------------------------------------------------
-  // 2. ORG_* — injectable organization constants
+  // 2. GBL_* / ORG_* — injectable organization constants
   // -----------------------------------------------------------------------
   const orgConfigs = await db
     .select()
@@ -95,14 +99,30 @@ export async function resolveScope(input: ResolveScopeInput): Promise<Record<str
     );
 
   for (const conf of orgConfigs) {
-    // percentage type: stored as decimal already (0.15 means 15%)
-    // We store exactly as-is in the scope — the template formulas use the raw decimal
     const bn = bigMath.bignumber(conf.configValue ?? "0");
-    scope[`ORG_${conf.configKey}`] = (bn as math.BigNumber).toFixed(6);
+    const formatted = (bn as math.BigNumber).toFixed(6);
+    scope[`GBL_${conf.configKey}`] = formatted;
+    scope[`ORG_${conf.configKey}`] = formatted;
   }
 
   // -----------------------------------------------------------------------
-  // 3. FILE_* — project fields per template header field configuration
+  // 3. TPL_* — template constants
+  // -----------------------------------------------------------------------
+  const tplConsts = await db
+    .select()
+    .from(templateConstants)
+    .where(eq(templateConstants.templateId, templateId));
+
+  for (const c of tplConsts) {
+    const val = parseFloat(c.defaultValue ?? "0");
+    const bn = bigMath.bignumber(isNaN(val) ? 0 : val);
+    const formatted = (bn as math.BigNumber).toFixed(6);
+    scope[c.token] = formatted;
+    scope[`TPL_${c.token}`] = formatted;
+  }
+
+  // -----------------------------------------------------------------------
+  // 4. FILE_* — project fields per template header field configuration
   // -----------------------------------------------------------------------
 
   // Fetch the project row (for customFields + direct columns)
@@ -146,15 +166,11 @@ export async function resolveScope(input: ResolveScopeInput): Promise<Record<str
     if (project) {
       let rawValue: string | number | null = null;
 
-      // Special case: status column stores UUID, but we want the name
       if (field.fileFieldKey === "status") {
         rawValue = statusName ?? project.status;
-      }
-      // Check direct columns next (e.g. field.fileFieldKey === 'name')
-      else if (field.fileFieldKey in (project as any)) {
+      } else if (field.fileFieldKey in (project as any)) {
         rawValue = (project as any)[field.fileFieldKey];
       } else if (project.customFields && field.fileFieldKey in project.customFields) {
-        // Fall through to customFields JSONB
         rawValue = project.customFields[field.fileFieldKey];
       }
 
@@ -173,23 +189,15 @@ export async function resolveScope(input: ResolveScopeInput): Promise<Record<str
     const parsed = parseFloat(defaultVal);
     const bn = bigMath.bignumber(isNaN(parsed) ? 0 : parsed);
     scope[tokenKey] = (bn as math.BigNumber).toFixed(6);
-
-    // Log tokens that resolve to 0 for debugging
-    if ((bn as math.BigNumber).equals(0)) {
-      console.debug(`[TokenResolver] ${tokenKey} resolved to 0 for project ${projectId}`);
-    }
   }
 
-  // NEW: Add all project custom fields directly to the scope so they can be referenced by their exact fieldKey
+  // Inject all project custom fields under FILE_<KEY> prefix (no phantom bare aliases)
   if (project && project.customFields) {
     for (const [key, value] of Object.entries(project.customFields)) {
       if (value !== null && value !== undefined) {
         const parsed = parseFloat(String(value));
         if (!isNaN(parsed)) {
           const bn = bigMath.bignumber(parsed);
-          scope[key] = (bn as math.BigNumber).toFixed(6);
-          scope[key.toUpperCase()] = (bn as math.BigNumber).toFixed(6);
-          // Also support FILE_ prefix for completeness
           scope[`FILE_${key.toUpperCase()}`] = (bn as math.BigNumber).toFixed(6);
         }
       }
@@ -215,4 +223,5 @@ export async function resolveScopeWithMeta(
   };
   return { scope, meta };
 }
+
 

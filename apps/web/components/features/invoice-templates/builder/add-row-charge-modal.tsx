@@ -13,9 +13,21 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Loader2, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle, Calculator, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useBuilderContext } from "./builder-context";
+import {
+  parseChargeFormula,
+  buildChargeFormula,
+  SimpleChargeFormula,
+} from "@/lib/charge-formula-parser";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 // ─── Token helpers (same rules as add-edit-row-modal) ────────────────────────
 function processTokenSuffix(raw: string): string {
@@ -43,14 +55,6 @@ function formatTokenToLabel(token: string): string {
     .join(" ");
 }
 
-/**
- * Modal for adding a row-level charge.
- *
- * The charge token is constructed as: {rowToken}_{suffix}
- * The prefix ({rowToken}_) is shown as a fixed read-only prefix in the input.
- * The label is auto-generated from the full charge token after creation
- * (identical pattern to AddEditRowModal).
- */
 export function AddRowChargeModal({
   isOpen,
   onClose,
@@ -78,80 +82,112 @@ export function AddRowChargeModal({
   const [tokenError, setTokenError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Formula State
+  const [isAdvanced, setIsAdvanced] = useState(false);
+  const [formulaRaw, setFormulaRaw] = useState(`${rowToken} * 0.15`);
+  const [simpleFormula, setSimpleFormula] = useState<SimpleChargeFormula>({
+    operator: "*",
+    value: 15,
+    unit: "percent",
+  });
+
   // Full charge token = PREFIX + suffix
   const prefix = `${rowToken}_`;
   const fullToken = suffix ? `${prefix}${suffix}` : "";
 
   useEffect(() => {
     if (!isOpen) return;
+    
+    // Reset tokens
     if (isEdit && editCharge.chargeToken) {
-      setSuffix(editCharge.chargeToken.startsWith(prefix) ? editCharge.chargeToken.replace(prefix, "") : editCharge.chargeToken);
+      setSuffix(
+        editCharge.chargeToken.startsWith(prefix)
+          ? editCharge.chargeToken.replace(prefix, "")
+          : editCharge.chargeToken
+      );
       setTokenError("");
     } else {
       setSuffix("");
       setTokenError("");
     }
+    
+    // Init formula
+    if (isEdit && editCharge.formula) {
+      const parsed = parseChargeFormula(editCharge.formula, rowToken);
+      if (parsed) {
+        setSimpleFormula(parsed);
+        setIsAdvanced(false);
+        setFormulaRaw(editCharge.formula);
+      } else {
+        setFormulaRaw(editCharge.formula);
+        setIsAdvanced(true);
+      }
+    } else {
+      setSimpleFormula({ operator: "*", value: 15, unit: "percent" });
+      setFormulaRaw(`${rowToken} * 0.15`);
+      setIsAdvanced(false);
+    }
+
     setTimeout(() => inputRef.current?.focus(), 50);
-  }, [isOpen, isEdit, editCharge, prefix]);
+  }, [isOpen, isEdit, editCharge, prefix, rowToken]);
 
   const mutation = useMutation({
     mutationFn: async () => {
-      let allCharges;
+      const finalFormula = isAdvanced
+        ? formulaRaw.trim()
+        : buildChargeFormula(simpleFormula, rowToken);
+
       if (isEdit) {
-        allCharges = existingCharges.map((c: any) => {
-          if (c.id === editCharge.id) {
-            return {
-              ...c,
-              chargeToken: fullToken,
-              label: c.label, // Preserve existing label on edit
-            };
+        // PATCH /rows/:rowId/charges/:chargeId
+        // Token and label are INDEPENDENT: do NOT touch label here
+        const res = await fetch(
+          `${apiBasePath}/sections/${sectionId}/rows/${rowId}/charges/${editCharge.id}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ chargeToken: fullToken, formula: finalFormula }),
           }
-          return c;
-        });
+        );
+        const data = await res.json();
+        if (!res.ok) {
+          if (res.status === 409) setTokenError(data.error ?? "Token already in use");
+          throw new Error(data.error ?? "Failed to update charge token");
+        }
+        return data;
       } else {
+        // POST /rows/:rowId/charges
         const newCharge = {
           chargeToken: fullToken,
           label: formatTokenToLabel(suffix),
-          subDescription: null,
-          qualifier: null,
-          tags: [],
-          formula: `${rowToken} * 1`,
-          sortOrder: existingCharges.length,
+          formula: finalFormula,
+          orderIndex: existingCharges.length,
         };
-        allCharges = [
-          ...existingCharges.map((c: any, i: number) => ({
-            ...c,
-            sortOrder: c.sortOrder ?? i,
-          })),
-          newCharge,
-        ];
-      }
-
-      const res = await fetch(
-        `${apiBasePath}/sections/${sectionId}/rows/${rowId}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ charges: allCharges }),
+        const res = await fetch(
+          `${apiBasePath}/sections/${sectionId}/rows/${rowId}/charges`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify(newCharge),
+          }
+        );
+        const data = await res.json();
+        if (!res.ok) {
+          if (res.status === 409) setTokenError(data.error ?? "Token already in use");
+          throw new Error(data.error ?? "Failed to add charge");
         }
-      );
-
-      const data = await res.json();
-      if (!res.ok) {
-        if (res.status === 409) setTokenError(data.error ?? "Token already in use");
-        throw new Error(data.error ?? "Failed to add charge");
+        return data;
       }
-      return data;
     },
     onSuccess: () => {
-      toast.success("Charge added");
+      toast.success(isEdit ? "Charge updated" : "Charge added");
       onSuccess?.();
       onClose();
     },
     onError: (err: any) => {
       if (!err.message?.includes("Token") && !err.message?.includes("token")) {
-        toast.error(err.message ?? "Failed to add charge");
+        toast.error(err.message ?? "Failed to save charge");
       }
     },
   });
@@ -160,7 +196,10 @@ export function AddRowChargeModal({
     e.preventDefault();
     setTokenError("");
     const err = validateSuffix(suffix);
-    if (err) { setTokenError(err); return; }
+    if (err) {
+      setTokenError(err);
+      return;
+    }
     mutation.mutate();
   };
 
@@ -195,15 +234,17 @@ export function AddRowChargeModal({
           <DialogTitle>{isEdit ? "Edit Row Charge" : "Add Row Charge"}</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-1.5">
             <Label htmlFor="chargeTokenSuffix">Charge Token *</Label>
 
-            <div className={cn(
-              "flex items-center rounded-md border bg-background overflow-hidden",
-              "focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-0",
-              tokenError && "border-destructive focus-within:ring-destructive"
-            )}>
+            <div
+              className={cn(
+                "flex items-center rounded-md border bg-background overflow-hidden",
+                "focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-0",
+                tokenError && "border-destructive focus-within:ring-destructive"
+              )}
+            >
               <span className="pl-3 pr-1 text-sm font-mono text-muted-foreground select-none shrink-0 bg-muted/40 h-9 flex items-center border-r">
                 {prefix}
               </span>
@@ -218,7 +259,7 @@ export function AddRowChargeModal({
                 spellCheck={false}
                 className={cn(
                   "flex-1 h-9 px-3 text-sm font-mono tracking-wide bg-transparent",
-                  "border-none outline-none focus:outline-none",
+                  "border-none outline-none focus:outline-none"
                 )}
               />
             </div>
@@ -229,14 +270,102 @@ export function AddRowChargeModal({
               </p>
             ) : fullToken ? (
               <p className="text-[11px] text-muted-foreground/50">
-                Token:{" "}
-                <code className="font-mono bg-muted/50 px-1 rounded">{fullToken}</code>
+                Token: <code className="font-mono bg-muted/50 px-1 rounded">{fullToken}</code>
               </p>
             ) : (
               <p className="text-[11px] text-muted-foreground/40">
                 Letters A–Z, digits 0–9, underscore. Space auto-converts to _.
               </p>
             )}
+          </div>
+
+          <div className="space-y-2">
+            <Label>Charge Formula</Label>
+            
+            {!isAdvanced ? (
+              <div className="flex items-center gap-2">
+                <div className="bg-muted text-muted-foreground text-sm font-mono px-3 h-9 flex items-center rounded-md border">
+                  {rowToken}
+                </div>
+                
+                <Select
+                  value={simpleFormula.operator}
+                  onValueChange={(val: any) =>
+                    setSimpleFormula({ ...simpleFormula, operator: val })
+                  }
+                >
+                  <SelectTrigger className="w-[60px] h-9 px-2 font-mono">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="*">×</SelectItem>
+                    <SelectItem value="/">÷</SelectItem>
+                    <SelectItem value="+">+</SelectItem>
+                    <SelectItem value="-">-</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <div className="relative flex-1">
+                  <Input
+                    type="number"
+                    step="any"
+                    className="h-9 pr-8 text-right font-mono"
+                    value={simpleFormula.value}
+                    onChange={(e) =>
+                      setSimpleFormula({
+                        ...simpleFormula,
+                        value: parseFloat(e.target.value) || 0,
+                      })
+                    }
+                  />
+                  <div className="absolute right-0 top-0 h-full flex items-center">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="h-full px-2 text-muted-foreground hover:text-foreground font-mono font-bold"
+                      onClick={() =>
+                        setSimpleFormula({
+                          ...simpleFormula,
+                          unit: simpleFormula.unit === "percent" ? "fixed" : "percent",
+                        })
+                      }
+                      title="Toggle %"
+                    >
+                      {simpleFormula.unit === "percent" ? "%" : "$"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Input
+                  className="font-mono text-sm"
+                  value={formulaRaw}
+                  onChange={(e) => setFormulaRaw(e.target.value)}
+                  placeholder={`${rowToken} * 0.15`}
+                />
+              </div>
+            )}
+
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                className="h-auto p-0 text-xs text-muted-foreground hover:text-primary"
+                onClick={() => {
+                  if (!isAdvanced) {
+                    setFormulaRaw(buildChargeFormula(simpleFormula, rowToken));
+                  } else {
+                    const parsed = parseChargeFormula(formulaRaw, rowToken);
+                    if (parsed) setSimpleFormula(parsed);
+                  }
+                  setIsAdvanced(!isAdvanced);
+                }}
+              >
+                {isAdvanced ? "← Simple formula" : "Advanced formula →"}
+              </Button>
+            </div>
           </div>
 
           <DialogFooter>

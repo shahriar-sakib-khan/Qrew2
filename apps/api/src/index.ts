@@ -22,7 +22,6 @@ import { invoicesRouter } from './features/invoices/invoices.route'
 import { invoiceTemplatesRouter } from './features/invoice-templates/invoice-templates.route'
 import { adminRouter } from './features/admin/admin.route'
 import { superAdminRouter } from './features/super-admin/super-admin.route'
-import { invoiceTypesRouter } from './features/invoice-types/invoice-types.route'
 
 if (!process.env.NEXT_PUBLIC_APP_URL) {
   throw new Error('NEXT_PUBLIC_APP_URL is not set.')
@@ -71,7 +70,6 @@ app.route('/api/expenses', expensesRouter)
 app.route('/api/wallet', walletRouter)
 app.route('/api/invoices', invoicesRouter)
 app.route('/api/invoice-templates', invoiceTemplatesRouter)
-app.route('/api/invoice-types', invoiceTypesRouter)
 app.route('/api/admin', adminRouter)
 app.route('/api/super-admin', superAdminRouter)
 
@@ -101,7 +99,7 @@ app.onError((err, c) => {
 // ---------------------------------------------------------------
 // Server Initialization
 // ---------------------------------------------------------------
-const PORT = Number(process.env.PORT ?? 3001)
+const PORT = Number(process.env.PORT ?? 3002)
 
 serve(
   {

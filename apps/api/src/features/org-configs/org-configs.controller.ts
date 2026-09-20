@@ -1,6 +1,6 @@
 import { type Context } from "hono";
 import { z } from "zod";
-import { db, organizationConfigs, templateRows, templateRowComponents, invoiceTemplates } from "@starter/db";
+import { db, organizationConfigs, templateRows, templateRowCharges, invoiceTemplates } from "@starter/db";
 import { eq, and, like } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 import { auth } from "../../infra/lib/auth";
@@ -148,14 +148,13 @@ export async function deleteConfig(c: Context) {
 
   // 2. Block if used in any template formula
   const rowsUsingConfig = await db
-    .select({ id: templateRowComponents.id })
-    .from(templateRowComponents)
-    .innerJoin(templateRows, eq(templateRowComponents.rowId, templateRows.id))
+    .select({ id: templateRows.id })
+    .from(templateRows)
     .innerJoin(invoiceTemplates, eq(invoiceTemplates.id, templateRows.templateId))
     .where(
       and(
         eq(invoiceTemplates.organizationId, organizationId),
-        like(templateRowComponents.formula, tokenToFind)
+        like(templateRows.formula, tokenToFind)
       )
     )
     .limit(1);

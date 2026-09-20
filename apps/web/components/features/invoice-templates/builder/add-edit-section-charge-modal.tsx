@@ -16,6 +16,18 @@ import { Button } from "@/components/ui/button";
 import { Loader2, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useBuilderContext } from "./builder-context";
+import {
+  parseChargeFormula,
+  buildChargeFormula,
+  SimpleChargeFormula,
+} from "@/lib/charge-formula-parser";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 // ─── Token helpers ────────────────────────────────────────────────────────────
 function processTokenSuffix(raw: string): string {
@@ -43,18 +55,6 @@ function formatTokenToLabel(token: string): string {
     .join(" ");
 }
 
-/**
- * Modal for adding a section-level charge.
- *
- * ADD flow (token-first, identical to AddEditRowModal / AddRowChargeModal):
- *   1. User enters the charge token suffix.
- *   2. The full charge token is constructed as: SEC_{sectionToken}_{suffix}
- *   3. Label is auto-generated from the suffix.
- *   4. Formula is configured inline after creation (via the formula bar / label click).
- *
- * EDIT flow (full form, same as before — label + formula base/rest):
- *   All fields are available for editing the existing charge.
- */
 export function AddEditSectionChargeModal({
   isOpen,
   onClose,
@@ -78,25 +78,61 @@ export function AddEditSectionChargeModal({
   const [tokenError, setTokenError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Prefix for section charge tokens
-  const prefix = `SEC_${sectionToken}_`;
+  const baseToken = `SEC_${sectionToken}`;
+  const prefix = `${baseToken}_`;
   const fullToken = suffix ? `${prefix}${suffix}` : "";
+
+  // Formula State
+  const [isAdvanced, setIsAdvanced] = useState(false);
+  const [formulaRaw, setFormulaRaw] = useState(`${baseToken} * 0.15`);
+  const [simpleFormula, setSimpleFormula] = useState<SimpleChargeFormula>({
+    operator: "*",
+    value: 15,
+    unit: "percent",
+  });
 
   useEffect(() => {
     if (!isOpen) return;
+
     if (isEdit && editCharge.chargeToken) {
-      setSuffix(editCharge.chargeToken.startsWith(prefix) ? editCharge.chargeToken.replace(prefix, "") : editCharge.chargeToken);
+      setSuffix(
+        editCharge.chargeToken.startsWith(prefix)
+          ? editCharge.chargeToken.replace(prefix, "")
+          : editCharge.chargeToken
+      );
       setTokenError("");
     } else {
       setSuffix("");
       setTokenError("");
     }
+
+    // Init formula
+    if (isEdit && editCharge.formula) {
+      const parsed = parseChargeFormula(editCharge.formula, baseToken);
+      if (parsed) {
+        setSimpleFormula(parsed);
+        setIsAdvanced(false);
+        setFormulaRaw(editCharge.formula);
+      } else {
+        setFormulaRaw(editCharge.formula);
+        setIsAdvanced(true);
+      }
+    } else {
+      setSimpleFormula({ operator: "*", value: 15, unit: "percent" });
+      setFormulaRaw(`${baseToken} * 0.15`);
+      setIsAdvanced(false);
+    }
+
     setTimeout(() => inputRef.current?.focus(), 50);
-  }, [isOpen, isEdit, editCharge, prefix]);
+  }, [isOpen, isEdit, editCharge, prefix, baseToken]);
 
   // ── Mutations ───────────────────────────────────────────────────────────────
   const addMutation = useMutation({
     mutationFn: async () => {
+      const finalFormula = isAdvanced
+        ? formulaRaw.trim()
+        : buildChargeFormula(simpleFormula, baseToken);
+
       const res = await fetch(
         `${apiBasePath}/sections/${sectionId}/section-charges`,
         {
@@ -109,8 +145,7 @@ export function AddEditSectionChargeModal({
             subDescription: null,
             tags: [],
             qualifier: null,
-            formulaBase: "BASE",
-            formulaRest: "* 1",
+            formula: finalFormula,
           }),
         }
       );
@@ -135,6 +170,10 @@ export function AddEditSectionChargeModal({
 
   const editMutation = useMutation({
     mutationFn: async () => {
+      const finalFormula = isAdvanced
+        ? formulaRaw.trim()
+        : buildChargeFormula(simpleFormula, baseToken);
+
       const res = await fetch(
         `${apiBasePath}/sections/${sectionId}/section-charges/${editCharge.id}`,
         {
@@ -143,6 +182,7 @@ export function AddEditSectionChargeModal({
           credentials: "include",
           body: JSON.stringify({
             chargeToken: fullToken,
+            formula: finalFormula,
           }),
         }
       );
@@ -207,7 +247,7 @@ export function AddEditSectionChargeModal({
           <DialogTitle>{isEdit ? "Edit Section Charge" : "Add Section Charge"}</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-6">
 
           {/* ── Token suffix input ── */}
           <div className="space-y-1.5">
@@ -250,6 +290,96 @@ export function AddEditSectionChargeModal({
               </p>
             )}
           </div>
+
+          <div className="space-y-2">
+            <Label>Charge Formula</Label>
+            
+            {!isAdvanced ? (
+              <div className="flex items-center gap-2">
+                <div className="bg-muted text-muted-foreground text-sm font-mono px-3 h-9 flex items-center rounded-md border">
+                  {baseToken}
+                </div>
+                
+                <Select
+                  value={simpleFormula.operator}
+                  onValueChange={(val: any) =>
+                    setSimpleFormula({ ...simpleFormula, operator: val })
+                  }
+                >
+                  <SelectTrigger className="w-[60px] h-9 px-2 font-mono">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="*">×</SelectItem>
+                    <SelectItem value="/">÷</SelectItem>
+                    <SelectItem value="+">+</SelectItem>
+                    <SelectItem value="-">-</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <div className="relative flex-1">
+                  <Input
+                    type="number"
+                    step="any"
+                    className="h-9 pr-8 text-right font-mono"
+                    value={simpleFormula.value}
+                    onChange={(e) =>
+                      setSimpleFormula({
+                        ...simpleFormula,
+                        value: parseFloat(e.target.value) || 0,
+                      })
+                    }
+                  />
+                  <div className="absolute right-0 top-0 h-full flex items-center">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="h-full px-2 text-muted-foreground hover:text-foreground font-mono font-bold"
+                      onClick={() =>
+                        setSimpleFormula({
+                          ...simpleFormula,
+                          unit: simpleFormula.unit === "percent" ? "fixed" : "percent",
+                        })
+                      }
+                      title="Toggle %"
+                    >
+                      {simpleFormula.unit === "percent" ? "%" : "$"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Input
+                  className="font-mono text-sm"
+                  value={formulaRaw}
+                  onChange={(e) => setFormulaRaw(e.target.value)}
+                  placeholder={`${baseToken} * 0.15`}
+                />
+              </div>
+            )}
+
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                className="h-auto p-0 text-xs text-muted-foreground hover:text-primary"
+                onClick={() => {
+                  if (!isAdvanced) {
+                    setFormulaRaw(buildChargeFormula(simpleFormula, baseToken));
+                  } else {
+                    const parsed = parseChargeFormula(formulaRaw, baseToken);
+                    if (parsed) setSimpleFormula(parsed);
+                  }
+                  setIsAdvanced(!isAdvanced);
+                }}
+              >
+                {isAdvanced ? "← Simple formula" : "Advanced formula →"}
+              </Button>
+            </div>
+          </div>
+
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>

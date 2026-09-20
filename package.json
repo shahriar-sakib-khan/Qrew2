@@ -10,10 +10,10 @@
     "typecheck": "turbo run typecheck",
     "lint": "turbo run lint",
     "test": "turbo run test",
-    "db:push": "pnpm --filter @starter/db push",
+    "db:push": "pnpm --filter @starter/db push --force",
     "db:studio": "pnpm --filter @starter/db studio",
     "db:generate": "pnpm --filter @starter/db generate",
-    "db:reset": "docker compose down -v --remove-orphans && docker compose up -d && sleep 3 && pnpm db:push && pnpm db:seed",
+    "db:reset": "docker compose down -v --remove-orphans && docker compose up -d && node -e \"setTimeout(()=>{},3000)\" && pnpm db:push && pnpm db:seed",
     "db:seed": "pnpm --filter @starter/db seed",
     "db:seed:sst": "pnpm --filter @starter/db seed:sst"
   },

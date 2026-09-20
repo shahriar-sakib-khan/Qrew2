@@ -7,10 +7,8 @@ import { freezeInvoice } from "./engine/invoice-freeze";
 const generateSchema = z.object({
   projectId: z.string(),
   clientId: z.string(),
-  documentType: z.enum(["pda", "fda", "proforma", "general"]),
   sourceTemplateId: z.string().optional(),
   sourceTemplateVersion: z.number().optional(),
-  draftRows: z.array(z.any()).default([]),
   headerFieldValues: z.record(z.string(), z.string()).default({}),
   issuedToClientName: z.string(),
   currency: z.string().default("USD"),
@@ -37,7 +35,7 @@ export class InvoicesController {
 
       const categories = categoriesData.map(cat => ({
         tokenKey: cat.tokenKey,
-        displayName: cat.name,
+        label: cat.name,
         token: `CAT_${cat.tokenKey}`
       }));
 
@@ -72,13 +70,13 @@ export class InvoicesController {
 
         sections = sectionsData.map(s => ({
           sectionToken: s.sectionToken,
-          name: s.displayName ?? s.sectionToken,
+          name: s.label ?? s.sectionToken,
           token: `SECTION_${s.sectionToken}`
         }));
 
         rows = rowsData.map(r => ({
           rowToken: r.rowToken,
-          label: r.parentLabel,
+          label: r.label,
           token: `ROW_${r.rowToken}`
         }));
       }

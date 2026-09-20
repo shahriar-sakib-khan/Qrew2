@@ -25,6 +25,7 @@ function toTokenSuffix(name: string): string {
   return name
     .trim()
     .toUpperCase()
+    .replace(/^SECTION_?/i, "")
     .replace(/\s+/g, "_")
     .replace(/[^A-Z0-9_]/g, "")
     .replace(/_+/g, "_")
@@ -32,32 +33,30 @@ function toTokenSuffix(name: string): string {
 }
 
 /**
- * Derive the next default name (A, B, C … Z, AA, AB … AZ, BA …) from
- * the existing sections.
+ * Derive the next default name (1, 2, 3...) from the existing sections.
  */
 function nextDefaultName(existingSections: any[]): string {
-  const usedNames = new Set(
-    (existingSections || [])
-      .map((s: any) => (s.displayName ?? "").trim().toUpperCase())
-      .filter(Boolean)
-  );
+  const usedNumbers = new Set<number>();
 
-  // Try single letters first
-  for (let i = 0; i < 26; i++) {
-    const letter = String.fromCharCode(65 + i); // A–Z
-    if (!usedNames.has(letter)) return letter;
+  for (const s of existingSections || []) {
+    const label = (s.label ?? "").trim();
+    const token = (s.sectionToken ?? "").trim();
+
+    // Check if label is a number or contains a number, e.g. "1" or "Section 1"
+    const labelMatch = label.match(/(?:^|\b)(\d+)(?:\b|$)/);
+    if (labelMatch) usedNumbers.add(parseInt(labelMatch[1], 10));
+
+    // Check if sectionToken has a number, e.g. "SECTION_1" or "1"
+    const tokenMatch = token.match(/(\d+)/);
+    if (tokenMatch) usedNumbers.add(parseInt(tokenMatch[1], 10));
   }
 
-  // Then two-letter combos AA, AB, …
-  for (let i = 0; i < 26; i++) {
-    for (let j = 0; j < 26; j++) {
-      const combo =
-        String.fromCharCode(65 + i) + String.fromCharCode(65 + j);
-      if (!usedNames.has(combo)) return combo;
-    }
+  let nextNum = 1;
+  while (usedNumbers.has(nextNum)) {
+    nextNum++;
   }
 
-  return "SECTION";
+  return `${nextNum}`;
 }
 
 // ─── component ───────────────────────────────────────────────────────────────
@@ -93,7 +92,7 @@ export function AddSectionModal({
     if (!isOpen) return;
 
     if (editSection) {
-      setName(editSection.displayName ?? "");
+      setName(editSection.label ?? "");
       setDescription(editSection.description ?? "");
       setTokenSuffix(
         // strip the SECTION_ prefix to display just the suffix
@@ -126,7 +125,7 @@ export function AddSectionModal({
             headers: { "Content-Type": "application/json" },
             credentials: "include",
             body: JSON.stringify({
-              displayName: name || null,
+              label: name || null,
               description: description || null,
             }),
           }
@@ -166,7 +165,7 @@ export function AddSectionModal({
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({
-            displayName: name || null,
+            label: name || null,
             description: description || null,
             // Send the full SECTION_X token so the server stores it as-is
             sectionToken: fullToken || null,

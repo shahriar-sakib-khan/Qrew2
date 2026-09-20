@@ -1,20 +1,21 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { apiUrl } from "@/lib/constants";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, X } from "lucide-react";
+import { Plus, X, Pencil } from "lucide-react";
 import { TemplateSectionCard } from "./template-section-card";
-import { SectionColor } from "./template-row-list";
+import { SectionColor } from "./row-list";
 import { useState } from "react";
 import { AddSectionModal } from "./add-section-modal";
 import { buildTokenMap, fmt } from "@/lib/formula-evaluator";
 import { BuilderProvider, useBuilderContext } from "./builder-context";
-import { TemplateFormulaBar } from "./template-formula-bar";
+import { TemplateFormulaBar } from "./formula-bar";
 import { toast } from "sonner";
 import { AddHeaderFieldModal } from "./add-header-field-modal";
 import { cn } from "@/lib/utils";
+import { TemplateTokenPool } from "./token-pool";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -126,11 +127,14 @@ export interface FileDetailsHeaderBoxProps {
     label: string;
     fileFieldKey: string;
     fieldType: string;
+    columnPosition: "left" | "right";
+    sortOrder: number;
   }>;
   project?: any; // The actual project data to populate values
   onDelete?: (id: string) => void;
+  onEdit?: (field: any) => void;
   onAdd?: () => void;
-  onReorder?: (newOrder: any[]) => void;
+  onReorder?: (updates: any[], optimisticState: any[]) => void;
   isTemplateMode?: boolean;
 }
 
@@ -138,6 +142,7 @@ export function FileDetailsHeaderBox({
   templateHeaderFields = [], 
   project, 
   onDelete, 
+  onEdit,
   onAdd, 
   onReorder,
   isTemplateMode = false, 
@@ -165,7 +170,6 @@ export function FileDetailsHeaderBox({
     } else if (field.fileFieldKey === "name") {
        val = project.name || "—";
     } else if (field.fileFieldKey === "status") {
-       // project.status is a FK to projectStatuses.id (UUID) — resolve the name
        val = project.statusRelation?.name || project.status || "—";
     } else if (project.customFields) {
        val = project.customFields[field.fileFieldKey] ?? "—";
@@ -179,6 +183,7 @@ export function FileDetailsHeaderBox({
 
   const renderFieldRow = (field: any) => {
     const isSelectable = field.isFormulaInjectable;
+    const fullToken = `FILE_${(field.fileFieldKey || "").toUpperCase()}`;
     
     return (
       <div className="flex justify-between items-center group relative h-6 w-full">
@@ -189,8 +194,8 @@ export function FileDetailsHeaderBox({
             isSelectable && isFormulaMode && "cursor-pointer text-primary hover:bg-primary/5 rounded-md -ml-1 pl-1",
             isSelectable && !isFormulaMode && "cursor-pointer hover:text-foreground hover:bg-muted/10 rounded-md -ml-1 pl-1"
           )}
-          onClick={(e) => isSelectable && field.fileFieldKey && handleTokenClick(e, field.fileFieldKey)}
-          title={isSelectable ? (isFormulaMode ? "Insert into formula" : "Copy token") : undefined}
+          onClick={(e) => isSelectable && field.fileFieldKey && handleTokenClick(e, fullToken)}
+          title={isSelectable ? (isFormulaMode ? `Insert ${fullToken} into formula` : `Copy token ${fullToken}`) : undefined}
         >
           <span 
             className={cn(
@@ -209,14 +214,27 @@ export function FileDetailsHeaderBox({
             {renderVal(field)}
           </span>
         </div>
-      {isTemplateMode && onDelete && (
-        <button
-          onClick={() => onDelete(field.id)}
-          className="opacity-0 group-hover:opacity-100 absolute -right-4 p-1 text-muted-foreground hover:text-destructive transition-all"
-          title="Remove field from template"
-        >
-          <X className="w-3 h-3" />
-        </button>
+      {isTemplateMode && (
+        <div className="opacity-0 group-hover:opacity-100 absolute -right-9 flex items-center gap-0.5 transition-all">
+          {onEdit && (
+            <button
+              onClick={() => onEdit(field)}
+              className="p-1 text-muted-foreground hover:text-foreground transition-all"
+              title="Edit field"
+            >
+              <Pencil className="w-3 h-3" />
+            </button>
+          )}
+          {onDelete && (
+            <button
+              onClick={() => onDelete(field.id)}
+              className="p-1 text-muted-foreground hover:text-destructive transition-all"
+              title="Remove field from template"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
@@ -224,51 +242,89 @@ export function FileDetailsHeaderBox({
 
   const handleDragEnd = (result: DropResult) => {
     if (!result.destination || !onReorder) return;
-    const items = Array.from(templateHeaderFields);
-    const [reorderedItem] = items.splice(result.source.index, 1);
-    items.splice(result.destination.index, 0, reorderedItem);
-    onReorder(items);
+    
+    const sourceCol = result.source.droppableId;
+    const destCol = result.destination.droppableId;
+    
+    const leftFields = Array.from(templateHeaderFields.filter(f => f.columnPosition === "left")).sort((a, b) => a.sortOrder - b.sortOrder);
+    const rightFields = Array.from(templateHeaderFields.filter(f => f.columnPosition === "right")).sort((a, b) => a.sortOrder - b.sortOrder);
+
+    const sourceList = sourceCol === "left" ? leftFields : rightFields;
+    const destList = destCol === "left" ? leftFields : rightFields;
+
+    const [moved] = sourceList.splice(result.source.index, 1);
+    
+    if (sourceCol !== destCol) {
+      moved.columnPosition = destCol as "left" | "right";
+    }
+    
+    destList.splice(result.destination.index, 0, moved);
+
+    leftFields.forEach((f, i) => { f.sortOrder = i; f.columnPosition = "left"; });
+    rightFields.forEach((f, i) => { f.sortOrder = i; f.columnPosition = "right"; });
+
+    const newState = [...leftFields, ...rightFields];
+    const updates = newState.map(f => ({
+      fieldId: f.id,
+      columnPosition: f.columnPosition,
+      sortOrder: f.sortOrder,
+    }));
+
+    onReorder(updates, newState);
   };
+
+  const leftFields = templateHeaderFields.filter(f => f.columnPosition === "left").sort((a, b) => a.sortOrder - b.sortOrder);
+  const rightFields = templateHeaderFields.filter(f => f.columnPosition === "right").sort((a, b) => a.sortOrder - b.sortOrder);
+
+  const renderDroppable = (id: string, fields: any[]) => (
+    <Droppable droppableId={id} direction="vertical">
+      {(provided, snapshot) => (
+        <div 
+          className={cn(
+            "flex flex-col gap-y-4 rounded-lg",
+            snapshot.isDraggingOver && "bg-muted/30 -mx-2 px-2 py-1"
+          )}
+          ref={provided.innerRef}
+          {...provided.droppableProps}
+        >
+          {fields.map((field, index) => (
+            <Draggable key={field.id} draggableId={field.id} index={index} isDragDisabled={!isTemplateMode || !onReorder}>
+              {(provided, snapshot) => (
+                <div
+                  ref={provided.innerRef}
+                  {...provided.draggableProps}
+                  style={{
+                    ...provided.draggableProps.style,
+                  }}
+                  className={cn(
+                    "flex items-center gap-2",
+                    snapshot.isDragging && "bg-card shadow-md z-10 p-1 -m-1 rounded-md border border-primary/20"
+                  )}
+                >
+                  {isTemplateMode && onReorder && (
+                    <div {...provided.dragHandleProps} className="text-muted-foreground/30 hover:text-foreground cursor-grab opacity-0 group-hover:opacity-100 transition-opacity">
+                      <GripVertical className="h-4 w-4" />
+                    </div>
+                  )}
+                  {renderFieldRow(field)}
+                </div>
+              )}
+            </Draggable>
+          ))}
+          {provided.placeholder}
+        </div>
+      )}
+    </Droppable>
+  );
 
   return (
     <div className="relative group mt-3">
       <div className="border border-border rounded-lg bg-card shadow-sm px-6 py-5">
         <DragDropContext onDragEnd={handleDragEnd}>
-          <Droppable droppableId="header-fields" direction="horizontal">
-            {(provided) => (
-              <div 
-                className="grid grid-cols-2 gap-x-12 gap-y-4"
-                ref={provided.innerRef}
-                {...provided.droppableProps}
-              >
-                {templateHeaderFields.map((field, index) => (
-                  <Draggable key={field.id} draggableId={field.id} index={index} isDragDisabled={!isTemplateMode || !onReorder}>
-                    {(provided, snapshot) => (
-                      <div
-                        ref={provided.innerRef}
-                        {...provided.draggableProps}
-                        style={{
-                          ...provided.draggableProps.style,
-                        }}
-                        className={cn(
-                          "flex items-center gap-2",
-                          snapshot.isDragging && "bg-card shadow-md z-10 p-1 -m-1 rounded-md border border-primary/20"
-                        )}
-                      >
-                        {isTemplateMode && onReorder && (
-                          <div {...provided.dragHandleProps} className="text-muted-foreground/30 hover:text-foreground cursor-grab opacity-0 group-hover:opacity-100 transition-opacity">
-                            <GripVertical className="h-4 w-4" />
-                          </div>
-                        )}
-                        {renderFieldRow(field)}
-                      </div>
-                    )}
-                  </Draggable>
-                ))}
-                {provided.placeholder}
-              </div>
-            )}
-          </Droppable>
+          <div className="grid grid-cols-2 gap-x-12">
+            {renderDroppable("left", leftFields)}
+            {renderDroppable("right", rightFields)}
+          </div>
         </DragDropContext>
       </div>
       
@@ -287,18 +343,59 @@ export function FileDetailsHeaderBox({
 
 // ─── Inner workspace (inside BuilderProvider) ─────────────────────────────────
 
-function WorkspaceInner({ templateId, draftId, zoomLevel = 0, project }: { templateId?: string, draftId?: string, zoomLevel?: number, project?: any }) {
+function WorkspaceInner({ templateId, draftId, zoomLevel = 0, onZoomChange, project }: { templateId?: string, draftId?: string, zoomLevel?: number, onZoomChange?: React.Dispatch<React.SetStateAction<number>>, project?: any }) {
   const { setTokenMap, tokenPoolOpen, apiBasePath, invalidateKey, mode } = useBuilderContext();
   const queryClient = useQueryClient();
   const [insertAtIndex, setInsertAtIndex] = useState<number | null>(null);
   const [isAddHeaderModalOpen, setIsAddHeaderModalOpen] = useState(false);
+  const [editingHeaderField, setEditingHeaderField] = useState<any>(null);
   const [fieldToDelete, setFieldToDelete] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const handleOpenModal = () => setIsAddHeaderModalOpen(true);
+    const handleOpenModal = () => {
+      setEditingHeaderField(null);
+      setIsAddHeaderModalOpen(true);
+    };
     window.addEventListener("open-add-header-field-modal", handleOpenModal);
     return () => window.removeEventListener("open-add-header-field-modal", handleOpenModal);
   }, []);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || !onZoomChange) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      if (e.ctrlKey) {
+        e.preventDefault();
+        if (e.deltaY < 0) onZoomChange(z => Math.min(z + 1, 8));
+        else if (e.deltaY > 0) onZoomChange(z => Math.max(z - 1, -4));
+      }
+    };
+
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    return () => el.removeEventListener("wheel", handleWheel);
+  }, [onZoomChange]);
+
+  useEffect(() => {
+    if (!onZoomChange) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey) {
+        if (e.key === "=" || e.key === "+") {
+          e.preventDefault();
+          onZoomChange(z => Math.min(z + 1, 8));
+        } else if (e.key === "-") {
+          e.preventDefault();
+          onZoomChange(z => Math.max(z - 1, -4));
+        } else if (e.key === "0") {
+          e.preventDefault();
+          onZoomChange(0);
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onZoomChange]);
 
   const { data: sections, isLoading } = useQuery({
     queryKey: invalidateKey,
@@ -353,16 +450,32 @@ function WorkspaceInner({ templateId, draftId, zoomLevel = 0, project }: { templ
     enabled: !!(draftId || templateId),
   });
 
+  // ── Fetch org configs for global constants ──
+  const { data: orgConfigs } = useQuery({
+    queryKey: ["org-configs"],
+    queryFn: async () => {
+      const res = await fetch(`${apiUrl}/api/workspaces/configs`, {
+        credentials: "include",
+      });
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
   const sortedSections = [...(sections || [])].sort(
     (a: any, b: any) => a.sortOrder - b.sortOrder
   );
 
   // ── Compute token map and push it to context ──────────────────────────────
-  // Pass constants so formula rows that reference L11, etc. resolve correctly
-  const tokenMap = buildTokenMap(sortedSections, undefined, constantsData ?? []);
+  // Pass constants and file fields so formula rows that reference them resolve correctly
+  const tokenMap = buildTokenMap(sortedSections, orgConfigs ?? [], constantsData ?? [], templateHeaderFields ?? []);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { setTokenMap(tokenMap); }, [JSON.stringify(tokenMap)]);
+
+  const { setSections } = useBuilderContext();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (setSections) setSections(sortedSections); }, [JSON.stringify(sortedSections)]);
 
   // ── Global SL offsets ─────────────────────────────────────────────────────
   const sectionSlOffsets: number[] = [];
@@ -409,12 +522,14 @@ function WorkspaceInner({ templateId, draftId, zoomLevel = 0, project }: { templ
     // Extra left padding to give the outside-border token (w-28 = 112px) space to render.
     // overflow-visible is required so absolute-positioned tokens escape the container border.
     <div
+      ref={containerRef}
       className={cn(
-        "px-2 sm:px-4 max-w-5xl mx-auto w-full pb-6 overflow-visible transition-all duration-200",
+        "px-2 sm:px-4 max-w-5xl mx-auto w-full pb-6 overflow-visible transition-all duration-200 outline-none",
         tokenPoolOpen
           ? "xl:pl-36 xl:pr-32 2xl:pl-40 2xl:pr-52"
           : "md:pl-36 md:pr-32 lg:pl-40 lg:pr-52"
       )}
+      tabIndex={0}
     >
       {/* ── File Details Header Box ── */}
       <FileDetailsHeaderBox 
@@ -423,15 +538,15 @@ function WorkspaceInner({ templateId, draftId, zoomLevel = 0, project }: { templ
         zoomLevel={zoomLevel} 
         isTemplateMode={!draftId}
         onDelete={(fieldId) => setFieldToDelete(fieldId)}
-        onReorder={async (newOrder) => {
+        onReorder={async (updates, optimisticState) => {
           if (draftId) return;
-          queryClient.setQueryData(["template-header-fields", templateId], newOrder);
+          queryClient.setQueryData(["template-header-fields", templateId], optimisticState);
           try {
             await fetch(`${apiUrl}/api/invoice-templates/${templateId}/header-fields/reorder`, {
               method: "PUT",
               headers: { "Content-Type": "application/json" },
               credentials: "include",
-              body: JSON.stringify({ fieldIds: newOrder.map((f: any) => f.id) })
+              body: JSON.stringify({ updates })
             });
             refetchHeaderFields();
           } catch (e) {
@@ -439,13 +554,18 @@ function WorkspaceInner({ templateId, draftId, zoomLevel = 0, project }: { templ
             refetchHeaderFields();
           }
         }}
+        onEdit={(field) => {
+          setEditingHeaderField(field);
+          setIsAddHeaderModalOpen(true);
+        }}
         onAdd={() => {
-          window.dispatchEvent(new CustomEvent("open-add-header-field-modal"));
+          setEditingHeaderField(null);
+          setIsAddHeaderModalOpen(true);
         }}
       />
 
       {/* ── Sticky formula bar ── */}
-      <div className="sticky top-0 z-30 pt-6">
+      <div className="sticky top-0 z-30 pt-6 pb-4">
         <TemplateFormulaBar />
       </div>
 
@@ -505,8 +625,12 @@ function WorkspaceInner({ templateId, draftId, zoomLevel = 0, project }: { templ
       {templateId && (
         <AddHeaderFieldModal
           isOpen={isAddHeaderModalOpen}
-          onClose={() => setIsAddHeaderModalOpen(false)}
+          onClose={() => {
+            setIsAddHeaderModalOpen(false);
+            setEditingHeaderField(null);
+          }}
           templateId={templateId}
+          editField={editingHeaderField}
           onSuccess={() => refetchHeaderFields()}
         />
       )}
@@ -537,12 +661,14 @@ export function TemplateBuilderWorkspace({
   templateId,
   draftId,
   zoomLevel = 0,
+  onZoomChange,
   project,
 }: {
   templateId?: string;
   draftId?: string;
   zoomLevel?: number;
+  onZoomChange?: React.Dispatch<React.SetStateAction<number>>;
   project?: any;
 }) {
-  return <WorkspaceInner templateId={templateId} draftId={draftId} zoomLevel={zoomLevel} project={project} />;
+  return <WorkspaceInner templateId={templateId} draftId={draftId} zoomLevel={zoomLevel} onZoomChange={onZoomChange} project={project} />;
 }

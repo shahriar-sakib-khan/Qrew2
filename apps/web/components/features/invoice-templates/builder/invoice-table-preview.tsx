@@ -125,7 +125,7 @@ export function InvoiceTablePreview({
                     {section.autoName || String.fromCharCode(65 + sIdx)}
                   </span>
                   <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                    {section.displayName || ""}
+                    {section.label || ""}
                   </span>
                 </div>
                 <span className="text-xs text-muted-foreground tabular-nums">
@@ -159,7 +159,7 @@ export function InvoiceTablePreview({
 
                       <div className="flex flex-col gap-0.5 self-center">
                         <div className="flex items-center gap-0">
-                          <span className="text-sm font-medium">{row.parentLabel}</span>
+                          <span className="text-sm font-medium">{row.label}</span>
                           {rowNotices.length > 0 && (
                             <UnresolvedNoticeButton notices={rowNotices} />
                           )}

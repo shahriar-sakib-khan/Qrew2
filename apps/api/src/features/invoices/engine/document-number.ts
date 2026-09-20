@@ -1,107 +1,85 @@
-import { sql, eq, and, like } from "drizzle-orm";
-import { invoicePdfLayouts, organizations, projects, invoiceTemplates, invoices } from "@starter/db";
+import { sql, eq } from "drizzle-orm";
+import { invoiceTemplates, invoiceDocumentSequences } from "@starter/db";
+
+const MONTH_NAMES = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 
 export async function generateDocumentNumber(input: {
   organizationId: string;
   projectId: string;
-  documentType: "pda" | "fda" | "proforma" | "general";
   sourceTemplateId?: string;
-  tx: any; // Drizzle transaction object
+  tx: any;
 }): Promise<string> {
-  const { organizationId, projectId, documentType, sourceTemplateId, tx } = input;
+  const { organizationId, sourceTemplateId, tx } = input;
 
-  // ── 1. Lock the PDF layout row (FOR UPDATE NOWAIT) ──────────────────────
-  // drizzle-orm/postgres-js: execute() returns the rows array directly (not {rows:[...]})
-  const layoutRows = await tx.execute(
-    sql`SELECT * FROM invoice_pdf_layouts WHERE organization_id = ${organizationId} FOR UPDATE NOWAIT`
-  );
+  // 1. Fetch template formatting options
+  let prefix = "INV";
+  let format = "{PREFIX}-{YYYY}-{SEQ:4}";
 
-  // postgres-js driver returns an array directly; neon driver returns {rows:[...]}
-  const rawLayoutRow = Array.isArray(layoutRows) ? layoutRows[0] : layoutRows?.rows?.[0];
-
-  let layoutRow: any = rawLayoutRow;
-
-  if (!layoutRow) {
-    // No layout configured — use sensible defaults
-    layoutRow = {
-      pda_prefix: "PDA",
-      fda_prefix: "FDA",
-      proforma_prefix: "PRO",
-      general_prefix: "INV",
-      invoice_number_format: "{DOC_TYPE}-{FILE_SEQ}-{DOC_SEQ}",
-      current_doc_sequence: 0,
-    };
-  }
-
-  // ── 3. Resolve pattern variables using Drizzle typed queries ────────────
-  const [orgRow] = await tx
-    .select({ slug: organizations.slug })
-    .from(organizations)
-    .where(eq(organizations.id, organizationId))
-    .limit(1);
-  const orgSlug: string = orgRow?.slug || "ORG";
-
-  const [projectRow] = await tx
-    .select({ name: projects.name })
-    .from(projects)
-    .where(eq(projects.id, projectId))
-    .limit(1);
-  const projectName: string = projectRow?.name || "UnknownFile";
-
-  let templateName = "Invoice";
   if (sourceTemplateId) {
-    const [templateRow] = await tx
-      .select({ name: invoiceTemplates.name })
+    const [tpl] = await tx
+      .select({
+        documentPrefix: invoiceTemplates.documentPrefix,
+        numberingFormat: invoiceTemplates.numberingFormat,
+      })
       .from(invoiceTemplates)
       .where(eq(invoiceTemplates.id, sourceTemplateId))
       .limit(1);
-    if (templateRow) templateName = templateRow.name;
+
+    if (tpl) {
+      prefix = tpl.documentPrefix || "INV";
+      format = tpl.numberingFormat || "{PREFIX}-{YYYY}-{SEQ:4}";
+    }
   }
 
-  // ── 4. Build the document number ─────────────────────────────────────────
+  // 2. Lock & update sequence atomically for the org
+  let [seqRow] = await tx
+    .select()
+    .from(invoiceDocumentSequences)
+    .where(eq(invoiceDocumentSequences.organizationId, organizationId))
+    .limit(1);
+
+  if (!seqRow) {
+    const [newSeq] = await tx
+      .insert(invoiceDocumentSequences)
+      .values({
+        id: crypto.randomUUID(),
+        organizationId,
+        currentValue: 1,
+      })
+      .returning();
+    seqRow = newSeq;
+  } else {
+    const [updated] = await tx
+      .update(invoiceDocumentSequences)
+      .set({ currentValue: sql`${invoiceDocumentSequences.currentValue} + 1` })
+      .where(eq(invoiceDocumentSequences.id, seqRow.id))
+      .returning();
+    seqRow = updated;
+  }
+
+  const seqNum = seqRow ? seqRow.currentValue : 1;
+
+  // 3. Evaluate format tokens
   const now = new Date();
-  const month = (now.getMonth() + 1).toString().padStart(2, "0");
-  const year = now.getFullYear().toString().slice(-2);
+  const YYYY = now.getFullYear().toString();
+  const YY = YYYY.slice(-2);
+  const MM = (now.getMonth() + 1).toString().padStart(2, "0");
+  const MMM = MONTH_NAMES[now.getMonth()];
+  const DD = now.getDate().toString().padStart(2, "0");
 
-  // Format: <filename> - <template_name> - <month>/<last_two_digits_of_year>
-  const baseDocumentNumber = `${projectName} - ${templateName} - ${month}/${year}`;
+  let docNumber = format
+    .replace(/\{PREFIX\}/g, prefix)
+    .replace(/\{YYYY\}/g, YYYY)
+    .replace(/\{YY\}/g, YY)
+    .replace(/\{MM\}/g, MM)
+    .replace(/\{MMM\}/g, MMM)
+    .replace(/\{DD\}/g, DD);
 
-  const existingInvoices = await tx
-    .select({ documentNumber: invoices.documentNumber })
-    .from(invoices)
-    .where(
-      and(
-        eq(invoices.organizationId, organizationId),
-        like(invoices.documentNumber, `${baseDocumentNumber}%`)
-      )
-    );
+  docNumber = docNumber.replace(/\{SEQ(?::(\d+))?\}/g, (_: string, pad?: string) => {
+    const width = pad ? parseInt(pad, 10) : 4;
+    return seqNum.toString().padStart(width, "0");
+  });
 
-  let finalDocumentNumber = baseDocumentNumber;
-  if (existingInvoices.length > 0) {
-    let maxSuffix = 0;
-    for (const inv of existingInvoices) {
-      if (inv.documentNumber === baseDocumentNumber) {
-        maxSuffix = Math.max(maxSuffix, 1);
-      } else {
-        const match = inv.documentNumber.match(/\((\d+)\)$/);
-        if (match) {
-          maxSuffix = Math.max(maxSuffix, parseInt(match[1], 10));
-        }
-      }
-    }
-    if (maxSuffix > 0) {
-      finalDocumentNumber = `${baseDocumentNumber} (${maxSuffix + 1})`;
-    }
-  }
-
-  const documentNumber = finalDocumentNumber;
-
-  // ── 5. Increment the sequence counter if a real layout row exists ────────
-  if (layoutRow.id) {
-    await tx.execute(
-      sql`UPDATE invoice_pdf_layouts SET current_doc_sequence = current_doc_sequence + 1 WHERE id = ${layoutRow.id}`
-    );
-  }
-
-  return documentNumber;
+  return docNumber;
 }
+

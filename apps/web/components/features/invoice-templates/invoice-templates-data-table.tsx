@@ -45,11 +45,35 @@ export function InvoiceTemplatesDataTable({
     isColumnFiltered,
   } = useTableCellFilter();
 
+  const getIndexPreview = (template: any) => {
+    const now = new Date();
+    const YYYY = now.getFullYear().toString();
+    const YY = YYYY.slice(-2);
+    const MM = (now.getMonth() + 1).toString().padStart(2, "0");
+    const MMM = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"][now.getMonth()];
+    const DD = now.getDate().toString().padStart(2, "0");
+
+    let docNumber = (template.numberingFormat || "{PREFIX}-{YYYY}-{SEQ:4}")
+      .replace(/\{PREFIX\}/g, template.documentPrefix || "INV")
+      .replace(/\{YYYY\}/g, YYYY)
+      .replace(/\{YY\}/g, YY)
+      .replace(/\{MM\}/g, MM)
+      .replace(/\{MMM\}/g, MMM)
+      .replace(/\{DD\}/g, DD);
+
+    docNumber = docNumber.replace(/\{SEQ(?::(\d+))?\}/g, (_: string, pad?: string) => {
+      const width = pad ? parseInt(pad, 10) : 4;
+      return (template.nextSequence || 1).toString().padStart(width, "0");
+    });
+
+    return docNumber;
+  };
+
   const extractors = useMemo(() => {
     return {
       'name': (t: any) => t.name,
       'description': (t: any) => t.description || "-",
-      'type': (t: any) => t.documentTypeName || "-",
+      'documentIndexing': (t: any) => getIndexPreview(t),
       'updatedAt': (t: any) => format(new Date(t.updatedAt), "MMM d, yyyy"),
     };
   }, []);
@@ -131,7 +155,7 @@ export function InvoiceTemplatesDataTable({
             </div>
             
             <div className="flex items-center justify-between bg-muted/30 border border-muted p-2 rounded-md mt-2">
-              <Badge variant="outline" className="text-xs">{template.documentTypeName || "-"}</Badge>
+              <Badge variant="outline" className="text-xs font-mono">{getIndexPreview(template)}</Badge>
               <span className="text-xs text-muted-foreground">
                 Updated {format(new Date(template.updatedAt), "MMM d, yyyy")}
               </span>
@@ -159,11 +183,11 @@ export function InvoiceTemplatesDataTable({
                 onClear={() => clearColumnFilter("description")}
               />
               <FilterableTableHeader
-                columnKey="type"
-                title="Type"
-                isFiltered={isColumnFiltered("type")}
-                activeValue={filters["type"]}
-                onClear={() => clearColumnFilter("type")}
+                columnKey="documentIndexing"
+                title="Document Indexing"
+                isFiltered={isColumnFiltered("documentIndexing")}
+                activeValue={filters["documentIndexing"]}
+                onClear={() => clearColumnFilter("documentIndexing")}
               />
               <FilterableTableHeader
                 columnKey="updatedAt"
@@ -206,12 +230,12 @@ export function InvoiceTemplatesDataTable({
                     <span className="max-w-xs truncate block">{template.description || "-"}</span>
                   </FilterableTableCell>
                   <FilterableTableCell
-                    columnKey="type"
-                    value={template.documentTypeName || "-"}
-                    isFiltered={isColumnFiltered("type")}
+                    columnKey="documentIndexing"
+                    value={getIndexPreview(template)}
+                    isFiltered={isColumnFiltered("documentIndexing")}
                     onToggleFilter={toggleFilter}
                   >
-                    <Badge variant="outline" className="capitalize">{template.documentTypeName || "-"}</Badge>
+                    <Badge variant="outline" className="font-mono bg-muted/50 text-xs text-muted-foreground">{getIndexPreview(template)}</Badge>
                   </FilterableTableCell>
                   <FilterableTableCell
                     columnKey="updatedAt"

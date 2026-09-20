@@ -35,3 +35,38 @@ When implementing new features, tables, or data fields across this platform, you
 - **USD2 (Right Column)**: Displays total values (`rowBase + rowChargesSum`). Rendered only on rows without charges or on the final charge row of a group. Read-only.
 - **Uneditable Cell Guidance**: Uneditable cells must explicitly render a `"NOT EDITABLE"` placeholder if empty, and carry a `title="Not editable"` HTML tooltip if populated.
 
+## 4. Single-Value Row Architecture & Formula Codec (`formula-codec.ts`)
+- **Row Architecture**: Parent rows (`template_rows`) directly hold `valueType` (`normal` | `formula`), `formula`, and `initialValue`. Sub-components are obsolete and bypassed.
+- **UUID Formula Encoding**: Formulas are stored in the database using immutable row UUID tags: `{{$row:UUID}}` and `{{$row:UUID}}_TOTAL`.
+- **Display vs Storage**: All API endpoints MUST call `decodeFormula` before serving formulas to the client (converting UUID tags to current token names) and call `encodeFormula` before writing to the database. Renaming a row token never breaks existing stored formulas because references are bound by UUID.
+
+## 5. Formula Operator Syntax & Sugar
+- **Percentage Syntax**: In user inputs, `50%` or `.5%` is syntactic sugar for `(50/100)` or `(0.5/100)`. It must be converted before evaluating or persisting.
+- **Modulo Operator**: In user inputs, integer remainder / modulo is represented as `//`. In backend math engines and database formulas, it is mapped to `%`.
+- **No Prefix Equals Sign**: The formula bar does NOT use an `=` prefix. Formulas start directly with numbers, tokens, or parentheses.
+
+## 6. Formula Bar Input & Keystroke Constraints (`template-formula-bar.tsx`)
+- **Keystroke Gating**: Only valid operators (`+`, `-`, `*`, `/`, `//`, `%`, `(`, `)`), numbers `0-9`, decimal point `.`, and characters matching active token prefixes are accepted.
+- **Auto-Capitalization**: All alphabetic characters are automatically transformed to uppercase (`UPPER_SNAKE_CASE`).
+- **Strict Spacing Rules**:
+  - Literal spaces CANNOT be manually typed or deleted by the user.
+  - Pressing `<Space>` converts to an underscore (`_`) if it matches a valid token path; otherwise, the keystroke is rejected.
+  - Spaces exist strictly on both sides of operators (e.g. ` + `, ` - `, ` * `, ` / `, ` // `) and nowhere else.
+  - Smart Backspace deletes an entire operator block (e.g., ` + `) atomically.
+- **Closing Parenthesis Guard**: Typing `)` is rejected if closing count would exceed the currently opened `(` count.
+- **Parentheses Syntax Coloring**: Matched parentheses pairs must be visually distinguished by depth using the `SyntaxOverlay` layer with distinct color tiers (`pink-500`, `blue-500`, `emerald-500`, `amber-500`, `cyan-500`).
+
+## 7. Autocomplete & Token Fuzzy Matching
+- **Fuzzy Token Matching**: Autocomplete filtering ignores underscores (e.g., typing `lightcharges` or `lightc` matches `LIGHT_CHARGES`).
+- **Targeted Character Highlighting**: Suggestion dropdowns highlight matched characters while leaving structural underscores unhighlighted (`renderHighlightedToken`).
+- **Self-Reference Exclusion**: The active cell's own token and its `_TOTAL` variant must be filtered out of the autocomplete list to prevent circular loops.
+
+## 8. Save-Time Formula Validation (Frontend & Backend)
+- **Frontend Interceptor (`handleSave`)**: Must block saving, display a toast error, and refocus the input if:
+  1. The formula ends with an operator.
+  2. Parentheses are unbalanced or unclosed.
+  3. Any word token does not exist in the active template token list (blocks incomplete tokens like `LIGHT`).
+  4. Two tokens or numbers are placed adjacent without an operator between them.
+- **Backend Rejection (`validateFormulaChars`)**: Returns `422 Unprocessable Entity` if formula syntax is invalid, references undefined tokens, or references the cell's own token (circular reference).
+
+

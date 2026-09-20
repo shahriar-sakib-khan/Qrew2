@@ -30,3 +30,7 @@ This is an Enterprise B2B SaaS application serving as a central operating system
 1. **Reuse Existing Components — Never Drift:** If a UI pattern (button, nav link, tab, card, input) already has a dedicated component in `components/ui/`, you MUST use it. Never create ad-hoc styled `<Link>`, `<button>`, or `<div>` elements that duplicate the visual behavior of an existing component. Example: All navigational links — whether in the sidebar, horizontal tabs, or sub-navigation — MUST use `<SidebarNavLink>` to guarantee identical hover states, active indicators, font sizes, and spacing.
 2. **Layout Patterns Must Match Siblings:** When creating a new layout file (`layout.tsx`), always inspect how the sibling layouts in the same route group are structured. Copy the exact same pattern (e.g., `"use client"` + `useSession()` hook, not `async` + `authClient.getSession()`). Never invent a new pattern when an established one exists.
 3. **No Phantom Width Constraints:** Never add `max-w-*` or `mx-auto` constraints to layout wrappers unless the design explicitly calls for a narrow content column. Settings and admin pages should fill the available content area defined by the parent `AppShell`.
+4. **Feature Constitutions:** When building or refactoring UI for specific domains, always consult the feature's localized `agent.md` file:
+   - Invoice Templates Builder: `apps/web/components/features/invoice-templates/agent.md`
+   - Invoice Generator & Viewer: `apps/web/components/features/invoices/agent.md`
+
