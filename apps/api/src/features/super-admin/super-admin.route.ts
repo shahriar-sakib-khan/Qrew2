@@ -11,6 +11,7 @@ const superAdminRouter = new Hono();
 superAdminRouter.use('/*', requireAuth, requireRole('super_admin'));
 
 superAdminRouter.get('/audit-logs', SuperAdminController.listAuditLogs);
+superAdminRouter.get('/permissions', SuperAdminController.listPermissions);
 
 superAdminRouter.post('/elevate-role',
   zValidator('json', z.object({
@@ -22,5 +23,11 @@ superAdminRouter.post('/elevate-role',
 );
 
 superAdminRouter.post('/nuke-sessions', SuperAdminController.nukeSessions);
+
+// Priority 3: Cross-Tenant Organization Management
+superAdminRouter.get('/workspaces', SuperAdminController.listWorkspaces);
+superAdminRouter.get('/workspaces/:workspaceId/members', SuperAdminController.listWorkspaceMembers);
+superAdminRouter.post('/workspaces/:workspaceId/members', SuperAdminController.addWorkspaceMember);
+superAdminRouter.delete('/workspaces/:workspaceId/members/:memberId', SuperAdminController.removeWorkspaceMember);
 
 export { superAdminRouter };

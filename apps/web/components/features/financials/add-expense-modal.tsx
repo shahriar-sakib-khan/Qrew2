@@ -106,7 +106,7 @@ export function AddExpenseModal({ isOpen, onClose, defaultProjectId }: { isOpen:
               control={control}
               name="amount"
               render={({ field }) => (
-                <Input type="number" step="0.01" placeholder="0.00" {...field} />
+                <Input type="number" step="0.01" placeholder="0.00" {...field} value={field.value ?? ""} />
               )}
             />
             {errors.amount && <p className="text-[0.8rem] font-medium text-destructive">{errors.amount.message}</p>}

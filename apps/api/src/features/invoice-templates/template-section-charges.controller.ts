@@ -29,6 +29,8 @@ function toSnakeCase(label: string): string {
 }
 
 const createSectionChargeSchema = z.object({
+  /** Explicit chargeToken from the token-first modal. If omitted, derived from label. */
+  chargeToken: z.string().optional(),
   label: z.string().min(1),
   subDescription: z.string().optional().nullable(),
   qualifier: z.string().optional().nullable(),
@@ -96,8 +98,11 @@ export class TemplateSectionChargesController {
     const parsed = createSectionChargeSchema.safeParse(body);
     if (!parsed.success) return c.json({ error: parsed.error }, 400);
 
-    // Derive chargeToken
-    const chargeToken = `SEC_${sectionToken}_${toSnakeCase(parsed.data.label)}`;
+    // Derive chargeToken — prefer the explicit token sent by the modal,
+    // fall back to the legacy label-derived token for API backward compat.
+    const chargeToken =
+      parsed.data.chargeToken ??
+      `SEC_${sectionToken}_${toSnakeCase(parsed.data.label)}`;
 
     // Check collision
     const dup = await db.query.templateSectionCharges.findFirst({
@@ -158,6 +163,7 @@ export class TemplateSectionChargesController {
     const [updated] = await db
       .update(templateSectionCharges)
       .set({
+        ...(parsed.data.chargeToken !== undefined && { chargeToken: parsed.data.chargeToken }),
         ...(parsed.data.label !== undefined && { label: parsed.data.label }),
         ...(parsed.data.subDescription !== undefined && { subDescription: parsed.data.subDescription }),
         ...(parsed.data.qualifier !== undefined && { qualifier: parsed.data.qualifier }),

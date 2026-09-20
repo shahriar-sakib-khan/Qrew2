@@ -26,18 +26,12 @@ import { z } from "zod";
 // HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Convert zero-based index to letter sequence: 0→A, 1→B, 25→Z, 26→AA, 27→AB */
-function indexToLetter(index: number): string {
-  let result = "";
-  let n = index;
-  do {
-    result = String.fromCharCode(65 + (n % 26)) + result;
-    n = Math.floor(n / 26) - 1;
-  } while (n >= 0);
-  return result;
+/** Convert zero-based index to number string: 0→1, 1→2 */
+function indexToNumberStr(index: number): string {
+  return (index + 1).toString();
 }
 
-/** Derive the next available section token for a template (returns SECTION_A, SECTION_B…). */
+/** Derive the next available section token for a template (returns SECTION_1, SECTION_2…). */
 async function nextSectionToken(templateId: string): Promise<string> {
   const existing = await db
     .select({ sectionToken: templateSections.sectionToken })
@@ -48,7 +42,7 @@ async function nextSectionToken(templateId: string): Promise<string> {
   const usedTokens = new Set(existing.map((s) => s.sectionToken));
   let idx = 0;
   while (true) {
-    const candidate = `SECTION_${indexToLetter(idx)}`;
+    const candidate = `SECTION_${indexToNumberStr(idx)}`;
     if (!usedTokens.has(candidate)) return candidate;
     idx++;
   }

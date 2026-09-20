@@ -12,6 +12,7 @@
     "declarationMap": true,
     "sourceMap": true,
     "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "allowImportingTsExtensions": false,
     "resolveJsonModule": true,
     "isolatedModules": true,

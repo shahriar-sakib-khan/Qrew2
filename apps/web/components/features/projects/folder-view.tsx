@@ -196,7 +196,7 @@ export function FolderView({
                                 </TableCell>
                                 <TableCell>
                                   <Badge variant="secondary" className="capitalize">
-                                    {project.status}
+                                    {project.statusRelation?.name || "Pending"}
                                   </Badge>
                                 </TableCell>
                                 <TableCell className="font-medium">

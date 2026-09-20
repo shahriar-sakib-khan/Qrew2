@@ -7,8 +7,8 @@ import { auth } from "../../infra/lib/auth";
 
 const createConfigSchema = z.object({
   configKey: z.string().min(1).regex(/^[A-Z0-9_]+$/, "Must be UPPER_SNAKE_CASE"),
-  configValue: z.string(),
-  displayLabel: z.string().min(1),
+  configValue: z.string().optional().default(""),
+  displayLabel: z.string().optional(),
   valueType: z.enum(["number", "percentage", "currency_rate", "text"]),
   isFormulaInjectable: z.boolean().default(false),
 });
@@ -43,7 +43,7 @@ export async function createConfig(c: Context) {
         organizationId,
         configKey: parsed.data.configKey,
         configValue: parsed.data.configValue,
-        displayLabel: parsed.data.displayLabel,
+        displayLabel: parsed.data.displayLabel || parsed.data.configKey,
         valueType: parsed.data.valueType,
         isFormulaInjectable: parsed.data.isFormulaInjectable,
         updatedByUserId: userId,

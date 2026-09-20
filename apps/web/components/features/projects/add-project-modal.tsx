@@ -18,7 +18,6 @@ import { DynamicCustomFieldsRenderer } from "@/components/features/custom-fields
 const baseSchema = z.object({
   name: z.string().min(1, "Project name is required"),
   clientId: z.string().min(1, "Client is required"),
-  status: z.enum(["pending", "active", "completed", "canceled", "archived"]).default("pending"),
   customFields: z.record(z.string(), z.any()).default({}),
 });
 
@@ -54,7 +53,6 @@ export function AddProjectModal({ isOpen, onClose, editProject }: { isOpen: bool
     defaultValues: {
       name: "",
       clientId: "",
-      status: "pending",
       customFields: {},
     },
   });
@@ -65,14 +63,12 @@ export function AddProjectModal({ isOpen, onClose, editProject }: { isOpen: bool
         reset({
           name: editProject.name,
           clientId: editProject.clientId,
-          status: editProject.status,
           customFields: editProject.customFields || {},
         });
       } else {
         reset({
           name: "",
           clientId: "",
-          status: "pending",
           customFields: {},
         });
       }
@@ -158,28 +154,7 @@ export function AddProjectModal({ isOpen, onClose, editProject }: { isOpen: bool
             {errors.clientId && <p className="text-[0.8rem] font-medium text-destructive">{errors.clientId.message}</p>}
           </div>
 
-          <div className="space-y-2">
-            <Label>Status</Label>
-            <Controller
-              control={control}
-              name="status"
-              render={({ field }) => (
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                    <SelectItem value="canceled">Canceled</SelectItem>
-                    <SelectItem value="archived">Archived</SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
-            />
-            {errors.status && <p className="text-[0.8rem] font-medium text-destructive">{errors.status.message}</p>}
-          </div>
+
 
           <div className="mt-4">
             <DynamicCustomFieldsRenderer 

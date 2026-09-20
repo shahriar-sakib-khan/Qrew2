@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Loader2, Plus, Trash2, Zap, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useBuilderContext } from "./builder-context";
 
 // ─── Token input rules ────────────────────────────────────────────────────────
 /**
@@ -64,6 +65,7 @@ export function AddEditRowModal({
   editRow?: any;
   onSuccess?: () => void;
 }) {
+  const { apiBasePath, mode } = useBuilderContext();
   const isEdit = !!editRow;
 
   const [rowToken, setRowToken] = useState("");
@@ -87,8 +89,8 @@ export function AddEditRowModal({
   const mutation = useMutation({
     mutationFn: async (payload: any) => {
       const url = isEdit
-        ? `${apiUrl}/api/invoice-templates/${templateId}/sections/${sectionId}/rows/${editRow.id}`
-        : `${apiUrl}/api/invoice-templates/${templateId}/sections/${sectionId}/rows`;
+        ? `${apiBasePath}/sections/${sectionId}/rows/${editRow.id}`
+        : `${apiBasePath}/sections/${sectionId}/rows`;
 
       const res = await fetch(url, {
         method: isEdit ? "PATCH" : "POST",
@@ -124,9 +126,15 @@ export function AddEditRowModal({
     const err = validateToken(rowToken);
     if (err) { setTokenError(err); return; }
 
+    const formatTokenToLabel = (token: string) => {
+      return token.split("_")
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(" ");
+    };
+
     const payload: any = {
       rowToken,
-      parentLabel: isEdit ? (editRow.parentLabel ?? "") : "",
+      parentLabel: isEdit ? (editRow.parentLabel ?? "") : formatTokenToLabel(rowToken),
     };
 
     mutation.mutate(payload);
@@ -200,6 +208,8 @@ export function AddEditRowModal({
                 "font-mono tracking-wide",
                 tokenError && "border-destructive focus-visible:ring-destructive"
               )}
+              readOnly={mode === "draft"}
+              disabled={mode === "draft"}
               required
               autoFocus
             />

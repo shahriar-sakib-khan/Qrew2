@@ -6,10 +6,11 @@ import { Button } from "@/components/ui/button";
 import { apiUrl } from "@/lib/constants";
 import { useState } from "react";
 import { InvoiceTemplatesDataTable } from "@/components/features/invoice-templates/invoice-templates-data-table";
-import { AddInvoiceTemplateModal } from "@/components/features/invoice-templates/add-invoice-template-modal";
+import { AddEditInvoiceTemplateModal } from "@/components/features/invoice-templates/add-invoice-template-modal";
 
 export default function InvoiceTemplatesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editTemplate, setEditTemplate] = useState<any>(null);
 
   const { data: templates, isLoading } = useQuery({
     queryKey: ["invoice-templates"],
@@ -33,17 +34,28 @@ export default function InvoiceTemplatesPage() {
             Build and manage reusable invoice structures and formulas.
           </p>
         </div>
-        <Button onClick={() => setIsModalOpen(true)}>
+        <Button onClick={() => {
+          setEditTemplate(null);
+          setIsModalOpen(true);
+        }}>
           <Plus className="mr-2 h-4 w-4" />
           Create Template
         </Button>
       </div>
 
-      <InvoiceTemplatesDataTable templates={templates || []} isLoading={isLoading} />
+      <InvoiceTemplatesDataTable 
+        templates={templates || []} 
+        isLoading={isLoading} 
+        onEdit={(template) => {
+          setEditTemplate(template);
+          setIsModalOpen(true);
+        }}
+      />
 
-      <AddInvoiceTemplateModal 
+      <AddEditInvoiceTemplateModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
+        editTemplate={editTemplate}
       />
     </div>
   );

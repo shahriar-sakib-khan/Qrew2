@@ -145,6 +145,11 @@ export interface EvaluatedRow {
   /** baseValue + chargesValue. BigNumber fixed(6) string */
   totalValue: string;
   sortOrder: number;
+  /**
+   * Soft informational notices (non-blocking). Currently used for
+   * UNRESOLVED_REFERENCE when a forward-referenced token was zero-filled.
+   */
+  notices?: EngineError[];
 }
 
 /** Evaluated result for one section. */
@@ -171,6 +176,7 @@ export type EngineErrorCode =
   | "TOKEN_NOT_FOUND"
   | "CIRCULAR_DEPENDENCY"
   | "FORWARD_REFERENCE"
+  | "UNRESOLVED_REFERENCE"         // token not in scope at eval time → zero-filled, soft warning
   | "CHARGE_SCOPE_VIOLATION"       // row/section charge refs a forbidden token
   | "DIVISION_BY_ZERO"
   | "EVALUATION_FAILED"

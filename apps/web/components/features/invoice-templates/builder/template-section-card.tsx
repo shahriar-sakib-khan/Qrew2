@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Edit2, Trash2, ChevronDown, ChevronUp, Plus } from "lucide-react";
+import { Edit2, Trash2, ChevronDown, ChevronUp, Plus, GripVertical } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiUrl } from "@/lib/constants";
 import { toast } from "sonner";
@@ -11,6 +11,90 @@ import { TableRow, TemplateRowList, SectionColor } from "./template-row-list";
 import { AddEditRowModal } from "./add-edit-row-modal";
 import { AddEditSectionChargeModal } from "./add-edit-section-charge-modal";
 import { TokenMap, fmt, evaluateFormula } from "@/lib/formula-evaluator";
+import { Badge } from "@/components/ui/badge";
+import { useBuilderContext, cellFromSectionCharge } from "./builder-context";
+import { cn } from "@/lib/utils";
+
+// ─── Inline section charge label cell ──────────────────────────────────────────
+function SectionChargeLabelCell({
+  charge,
+  sectionId,
+}: {
+  charge: any;
+  sectionId: string;
+}) {
+  const { apiBasePath, invalidateKey } = useBuilderContext();
+  const queryClient = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(charge.label || "");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    } else {
+      setDraft(charge.label || "");
+    }
+  }, [editing, charge.label]);
+
+  const save = useCallback(async () => {
+    setEditing(false);
+    const value = draft.trim();
+    if (!value || value === charge.label) {
+      setDraft(charge.label || "");
+      return;
+    }
+
+    const payload = { label: value };
+
+    try {
+      const res = await fetch(`${apiBasePath}/sections/${sectionId}/section-charges/${charge.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) throw new Error();
+      await queryClient.invalidateQueries({ queryKey: invalidateKey });
+      toast.success("Section charge label updated");
+    } catch {
+      toast.error("Failed to save section charge label");
+    }
+  }, [draft, charge.label, charge.id, sectionId, apiBasePath, queryClient, invalidateKey]);
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={save}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") { e.preventDefault(); save(); }
+          if (e.key === "Escape") { setDraft(charge.label); setEditing(false); }
+        }}
+        className={cn(
+          "w-full bg-transparent border-none outline-none focus:outline-none text-right",
+          "text-sm font-medium text-foreground/80 leading-snug caret-primary",
+        )}
+        placeholder="Enter label…"
+      />
+    );
+  }
+  return (
+    <span
+      role="button"
+      tabIndex={0}
+      onClick={() => setEditing(true)}
+      onKeyDown={(e) => e.key === "Enter" && setEditing(true)}
+      className="text-sm font-medium text-foreground/80 leading-snug hover:text-foreground cursor-text"
+    >
+      {draft || "Click to label…"}
+    </span>
+  );
+}
 
 // ─── Section charge line ──────────────────────────────────────────────────────
 // Visually distinct from RowChargeLine:
@@ -24,6 +108,9 @@ function SectionChargeLine({
   tokenMap,
   onEdit,
   onDelete,
+  mode,
+  templateId,
+  sectionId,
 }: {
   charge: any;
   sectionToken: string;
@@ -31,35 +118,50 @@ function SectionChargeLine({
   tokenMap: TokenMap;
   onEdit: () => void;
   onDelete: () => void;
+  mode: string;
+  templateId: string;
+  sectionId: string;
 }) {
+  const { selectedCell, setSelectedCell } = useBuilderContext();
+
   // Reconstruct full formula from formulaBase + formulaRest
   const fullFormula = `SEC_${sectionToken}_${charge.formulaBase ?? ""} ${charge.formulaRest ?? ""}`.trim();
   const computedVal = evaluateFormula(fullFormula, tokenMap);
+  const isSelected = selectedCell?.chargeId === charge.id;
 
   return (
     <TableRow
+      token={charge.chargeToken}
       formula={fullFormula}
+      onClickUsd1={() => {
+        if (mode !== "fill") {
+          setSelectedCell(cellFromSectionCharge({ templateId, sectionId, charge, sectionToken }));
+        }
+      }}
+      isUsd1Selected={isSelected}
       style={{
         backgroundColor: sectionColor.bg,
         borderLeftColor: sectionColor.border,
         borderLeftWidth: 3,
       }}
       actions={
-        <>
-          <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" onClick={onEdit} title="Edit section charge">
-            <Edit2 className="h-3 w-3" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive" onClick={onDelete} title="Delete section charge">
-            <Trash2 className="h-3 w-3" />
-          </Button>
-        </>
+        mode !== "fill" ? (
+          <>
+            <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" onClick={onEdit} title="Edit section charge">
+              <Edit2 className="h-3 w-3" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive" onClick={onDelete} title="Delete section charge">
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          </>
+        ) : null
       }
       labelContent={
-        <span className="text-sm font-medium text-foreground/80 leading-snug w-full text-right pr-1">
-          {charge.label}
-        </span>
+        <div className="flex items-center justify-end gap-2 w-full pr-1">
+          <SectionChargeLabelCell charge={charge} sectionId={sectionId} />
+        </div>
       }
-      usd2={computedVal != null ? <span>{fmt(computedVal)}</span> : undefined}
+      usd1={computedVal != null ? <span>{fmt(computedVal)}</span> : undefined}
     />
   );
 }
@@ -67,6 +169,7 @@ function SectionChargeLine({
 // ─── Main section card ────────────────────────────────────────────────────────
 export function TemplateSectionCard({
   templateId,
+  draftId,
   section,
   allSections,
   isFirst,
@@ -76,6 +179,7 @@ export function TemplateSectionCard({
   tokenMap,
 }: {
   templateId: string;
+  draftId?: string;
   section: any;
   allSections: any[];
   isFirst: boolean;
@@ -85,6 +189,8 @@ export function TemplateSectionCard({
   tokenMap: TokenMap;
 }) {
   const queryClient = useQueryClient();
+  const { apiBasePath, invalidateKey, mode } = useBuilderContext();
+  const isDraftMode = mode === "draft";
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isAddRowModalOpen, setIsAddRowModalOpen] = useState(false);
   const [isAddSectionChargeModalOpen, setIsAddSectionChargeModalOpen] = useState(false);
@@ -95,7 +201,7 @@ export function TemplateSectionCard({
   const headerName = displayName || sectionToken;
 
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["template-sections", templateId] });
+    queryClient.invalidateQueries({ queryKey: invalidateKey });
   };
 
   const reorderMutation = useMutation({
@@ -106,11 +212,11 @@ export function TemplateSectionCard({
       if (neighborIdx < 0 || neighborIdx >= sorted.length) return;
       const neighbor = sorted[neighborIdx];
       await Promise.all([
-        fetch(`${apiUrl}/api/invoice-templates/${templateId}/sections/${section.id}`, {
+        fetch(`${apiBasePath}/sections/${section.id}`, {
           method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include",
           body: JSON.stringify({ orderIndex: neighbor.sortOrder }),
         }),
-        fetch(`${apiUrl}/api/invoice-templates/${templateId}/sections/${neighbor.id}`, {
+        fetch(`${apiBasePath}/sections/${neighbor.id}`, {
           method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include",
           body: JSON.stringify({ orderIndex: section.sortOrder }),
         }),
@@ -124,7 +230,7 @@ export function TemplateSectionCard({
     mutationFn: async () => {
       if (!confirm(`Delete section "${headerName}" and all its rows and charges?`)) return;
       const res = await fetch(
-        `${apiUrl}/api/invoice-templates/${templateId}/sections/${section.id}`,
+        `${apiBasePath}/sections/${section.id}`,
         { method: "DELETE", credentials: "include" }
       );
       if (!res.ok) throw new Error("Failed to delete section");
@@ -138,7 +244,7 @@ export function TemplateSectionCard({
     mutationFn: async (chargeId: string) => {
       if (!confirm("Delete this section charge?")) return;
       const res = await fetch(
-        `${apiUrl}/api/invoice-templates/${templateId}/sections/${section.id}/section-charges/${chargeId}`,
+        `${apiBasePath}/sections/${section.id}/section-charges/${chargeId}`,
         { method: "DELETE", credentials: "include" }
       );
       if (!res.ok) throw new Error("Failed to delete section charge");
@@ -157,29 +263,31 @@ export function TemplateSectionCard({
       {/* ── Section header — thin, muted, full-width, with section color left border */}
       <div className="flex items-stretch border-b border-border bg-muted/20 group/sec">
         <div
-          className="flex-1 px-3 py-1.5 flex items-center justify-between min-w-0"
+          className="flex-1 px-3 py-0.5 flex items-center justify-between min-w-0"
           style={{ borderLeft: `4px solid ${sectionColor.border}` }}
         >
           <div className="flex items-center gap-2">
             {/* Section reorder arrows */}
-            <div className="flex flex-col shrink-0 opacity-0 group-hover/sec:opacity-100 transition-opacity">
-              <button
-                disabled={isFirst || reorderMutation.isPending}
-                onClick={() => reorderMutation.mutate("up")}
-                className="hover:text-primary disabled:opacity-30 disabled:cursor-default leading-none"
-              >
-                <ChevronUp className="h-3 w-3" />
-              </button>
-              <button
-                disabled={isLast || reorderMutation.isPending}
-                onClick={() => reorderMutation.mutate("down")}
-                className="hover:text-primary disabled:opacity-30 disabled:cursor-default leading-none"
-              >
-                <ChevronDown className="h-3 w-3" />
-              </button>
-            </div>
+            {mode !== "fill" && (
+              <div className="flex flex-col shrink-0 opacity-0 group-hover/sec:opacity-100 transition-opacity">
+                <button
+                  disabled={isFirst || reorderMutation.isPending}
+                  onClick={() => reorderMutation.mutate("up")}
+                  className="hover:text-primary disabled:opacity-30 disabled:cursor-default leading-none"
+                >
+                  <ChevronUp className="h-3 w-3" />
+                </button>
+                <button
+                  disabled={isLast || reorderMutation.isPending}
+                  onClick={() => reorderMutation.mutate("down")}
+                  className="hover:text-primary disabled:opacity-30 disabled:cursor-default leading-none"
+                >
+                  <ChevronDown className="h-3 w-3" />
+                </button>
+              </div>
+            )}
             <h3
-              className="font-bold text-sm leading-tight truncate"
+              className="font-semibold text-sm uppercase tracking-wider truncate"
               style={{ color: sectionColor.border }}
             >
               {displayName || `Section ${sectionToken.split("_").pop()}`}
@@ -191,14 +299,16 @@ export function TemplateSectionCard({
           </div>
 
           {/* Edit / Delete — hover only */}
-          <div className="flex items-center gap-1 opacity-0 group-hover/sec:opacity-100 transition-opacity">
-            <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" onClick={() => setIsEditModalOpen(true)} title="Edit section">
-              <Edit2 className="h-3 w-3" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive" onClick={() => deleteMutation.mutate()} title="Delete section">
-              <Trash2 className="h-3 w-3" />
-            </Button>
-          </div>
+          {mode !== "fill" && (
+            <div className="flex items-center gap-1 opacity-0 group-hover/sec:opacity-100 transition-opacity">
+              <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" onClick={() => setIsEditModalOpen(true)} title="Edit section">
+                <Edit2 className="h-3 w-3" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive" onClick={() => deleteMutation.mutate()} title="Delete section">
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -227,36 +337,41 @@ export function TemplateSectionCard({
                 sectionToken={sectionToken}
                 sectionColor={sectionColor}
                 tokenMap={tokenMap}
+                mode={mode}
                 onEdit={() => setEditingSectionCharge(charge)}
                 onDelete={() => deleteSectionChargeMutation.mutate(charge.id)}
+                templateId={templateId}
+                sectionId={section.id}
               />
             ))}
         </div>
       )}
 
       {/* ── Footer — Add row / Add section charge ── */}
-      <div className="flex items-stretch border-b border-border bg-muted/5 hover:bg-muted/10 transition-colors">
-        {/* Add row button */}
-        <div className="flex-1 border-r border-border p-0.5">
-          <Button
-            variant="ghost" size="sm"
-            className="w-full h-7 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/20"
-            onClick={() => setIsAddRowModalOpen(true)}
-          >
-            <Plus className="h-3 w-3 mr-1" /> Add row
-          </Button>
+      {mode !== "fill" && (
+        <div className="flex items-stretch border-b border-border bg-muted/5 hover:bg-muted/10 transition-colors">
+          {/* Add row button */}
+          <div className="flex-1 border-r border-border p-0.5">
+            <Button
+              variant="ghost" size="sm"
+              className="w-full h-7 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/20"
+              onClick={() => setIsAddRowModalOpen(true)}
+            >
+              <Plus className="h-3 w-3 mr-1" /> Add row
+            </Button>
+          </div>
+          {/* Add section charge button — spans both USD columns */}
+          <div className="w-40 shrink-0 p-0.5">
+            <Button
+              variant="ghost" size="sm"
+              className="w-full h-7 text-xs text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/20"
+              onClick={() => setIsAddSectionChargeModalOpen(true)}
+            >
+              <Plus className="h-3 w-3 mr-1" /> Add section charge
+            </Button>
+          </div>
         </div>
-        {/* Add section charge button — spans both USD columns */}
-        <div className="w-40 shrink-0 p-0.5">
-          <Button
-            variant="ghost" size="sm"
-            className="w-full h-7 text-xs text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/20"
-            onClick={() => setIsAddSectionChargeModalOpen(true)}
-          >
-            <Plus className="h-3 w-3 mr-1" /> Add section charge
-          </Button>
-        </div>
-      </div>
+      )}
 
       {/* ── Modals ── */}
       <AddSectionModal
@@ -284,7 +399,6 @@ export function TemplateSectionCard({
             setIsAddSectionChargeModalOpen(false);
             setEditingSectionCharge(null);
           }}
-          templateId={templateId}
           sectionId={section.id}
           sectionToken={sectionToken}
           editCharge={editingSectionCharge}

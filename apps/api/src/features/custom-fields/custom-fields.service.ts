@@ -78,5 +78,5 @@ export function createDynamicZodSchema(definitions: CustomFieldDefinition[]) {
     shape[def.fieldKey] = fieldSchema;
   }
 
-  return z.object(shape).strict();
+  return z.object(shape).passthrough();
 }

@@ -1,10 +1,10 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { apiUrl } from "@/lib/constants";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { TemplateSectionCard } from "./template-section-card";
 import { SectionColor } from "./template-row-list";
 import { useState } from "react";
@@ -12,7 +12,19 @@ import { AddSectionModal } from "./add-section-modal";
 import { buildTokenMap, fmt } from "@/lib/formula-evaluator";
 import { BuilderProvider, useBuilderContext } from "./builder-context";
 import { TemplateFormulaBar } from "./template-formula-bar";
+import { toast } from "sonner";
+import { AddHeaderFieldModal } from "./add-header-field-modal";
 import { cn } from "@/lib/utils";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // ─── Section color palette ────────────────────────────────────────────────────
 export const SECTION_PALETTE: SectionColor[] = [
@@ -55,22 +67,22 @@ function AddSectionDivider({ onClick }: { onClick: () => void }) {
 // The token area is outside the table (absolute-positioned per row), so NO token space here.
 function TableHeaderRow() {
   return (
-    <div className="flex items-stretch border border-b-0 border-border bg-muted/40 h-9">
+    <div className="flex items-stretch border border-b-0 border-border bg-muted/40 h-10">
       {/* SL */}
-      <div className="w-10 shrink-0 flex items-center justify-center border-r border-border text-xs font-bold text-foreground/60">
+      <div className="w-10 shrink-0 flex items-center justify-center border-r border-border text-sm font-extrabold text-foreground/60">
         SL
       </div>
       {/* Label */}
       <div className="flex-1 px-3 flex items-center gap-2 border-r border-border min-w-0">
-        <span className="text-xs font-bold text-foreground/60">Row Label</span>
-        <span className="text-xs text-foreground/30">(text displayed in PDF)</span>
+        <span className="text-sm font-extrabold text-foreground/60">Row Label</span>
+        <span className="text-sm text-foreground/40">(text displayed in PDF)</span>
       </div>
       {/* USD1 — base/charge values */}
-      <div className="w-20 shrink-0 flex items-center justify-center border-r border-border text-xs font-bold text-foreground/60">
+      <div className="w-20 shrink-0 flex items-center justify-center border-r border-border text-sm font-extrabold text-foreground/60">
         USD
       </div>
       {/* USD2 — row totals */}
-      <div className="w-20 shrink-0 flex items-center justify-center text-xs font-bold text-foreground/60">
+      <div className="w-20 shrink-0 flex items-center justify-center text-sm font-extrabold text-foreground/60">
         USD
       </div>
     </div>
@@ -81,18 +93,18 @@ function TableHeaderRow() {
 // Totals in USD2 (right column). No token space (tokens are absolute per-row).
 function GrandTotalRow({ total }: { total: number | null }) {
   return (
-    <div className="flex items-stretch border border-t-2 border-t-foreground/30 border-border bg-muted/10 h-10">
+    <div className="flex items-stretch border border-t-2 border-t-foreground/30 border-border bg-muted/10 h-12">
       {/* SL empty */}
       <div className="w-10 shrink-0 border-r border-border" />
       {/* Label — "Total" right-aligned */}
       <div className="flex-1 px-3 flex items-center justify-end border-r border-border min-w-0">
-        <span className="text-sm font-bold text-foreground">Total</span>
+        <span className="text-base font-extrabold text-foreground uppercase tracking-wide">Total</span>
       </div>
       {/* USD1 — blank */}
       <div className="w-20 shrink-0 border-r border-border" />
       {/* USD2 — grand total */}
       <div className="w-20 shrink-0 flex items-center justify-end px-3">
-        <span className="text-sm font-bold text-foreground tabular-nums">
+        <span className="text-base font-extrabold text-foreground tabular-nums">
           {total != null ? fmt(total) : "—"}
         </span>
       </div>
@@ -100,83 +112,216 @@ function GrandTotalRow({ total }: { total: number | null }) {
   );
 }
 
-// ─── File Details Header Box ──────────────────────────────────────────────────
-interface FileDetailsHeaderBoxProps {
-  projectCustomFields?: Array<{
+import {
+  DragDropContext,
+  Droppable,
+  Draggable,
+  DropResult,
+} from "@hello-pangea/dnd";
+import { GripVertical } from "lucide-react";
+
+export interface FileDetailsHeaderBoxProps {
+  templateHeaderFields?: Array<{
     id: string;
-    fieldName: string;
-    fieldKey: string;
+    label: string;
+    fileFieldKey: string;
     fieldType: string;
-    isRequired: boolean;
   }>;
+  project?: any; // The actual project data to populate values
+  onDelete?: (id: string) => void;
+  onAdd?: () => void;
+  onReorder?: (newOrder: any[]) => void;
+  isTemplateMode?: boolean;
 }
 
-function FileDetailsHeaderBox({ projectCustomFields = [], zoomLevel = 0 }: FileDetailsHeaderBoxProps & { zoomLevel?: number }) {
-  // Combine system fields with the dynamic custom fields from the database
-  const systemFields = [
-    { id: "sys-name", fieldName: "Name", fieldKey: "name" },
-    { id: "sys-client", fieldName: "Client", fieldKey: "clientId" },
-    { id: "sys-status", fieldName: "Status", fieldKey: "status" },
-  ];
+export function FileDetailsHeaderBox({ 
+  templateHeaderFields = [], 
+  project, 
+  onDelete, 
+  onAdd, 
+  onReorder,
+  isTemplateMode = false, 
+  zoomLevel = 0 
+}: FileDetailsHeaderBoxProps & { zoomLevel?: number }) {
+  const { selectedCell } = useBuilderContext();
+  const isFormulaMode = !!selectedCell;
 
-  const allFields = [...systemFields, ...projectCustomFields];
-
-  // Split into two columns for the layout
-  const half = Math.ceil(allFields.length / 2);
-  const leftCol = allFields.slice(0, half);
-  const rightCol = allFields.slice(half);
-
-  const renderVal = (field: any) => {
-    return <span className="text-foreground/20 font-light">—</span>;
+  const handleTokenClick = (e: React.MouseEvent, clickedToken: string) => {
+    e.stopPropagation();
+    if (isFormulaMode) {
+      window.dispatchEvent(new CustomEvent("insert-token", { detail: clickedToken }));
+    } else {
+      navigator.clipboard.writeText(clickedToken);
+      toast.success("Token copied");
+    }
   };
 
-  const renderFieldRow = (field: any) => (
-    <div key={field.id} className="flex items-center min-w-0">
-      <span className="w-32 shrink-0 text-foreground/50 font-bold uppercase tracking-wider truncate" title={field.fieldName}>
-        {field.fieldName}
-      </span>
-      <span className="text-foreground/30 mr-3 shrink-0">:</span>
-      <span className="text-foreground font-semibold truncate flex-1 min-w-0">
-        {renderVal(field)}
-      </span>
+  const renderVal = (field: any) => {
+    if (!project) return <span className="text-foreground/20 font-light">—</span>;
+    
+    let val: any = "—";
+    if (field.fileFieldKey === "clientId") {
+       val = project.client?.name || "—";
+    } else if (field.fileFieldKey === "name") {
+       val = project.name || "—";
+    } else if (field.fileFieldKey === "status") {
+       // project.status is a FK to projectStatuses.id (UUID) — resolve the name
+       val = project.statusRelation?.name || project.status || "—";
+    } else if (project.customFields) {
+       val = project.customFields[field.fileFieldKey] ?? "—";
+    }
+
+    if (val === "—" || val === null || val === undefined) {
+      return <span className="text-foreground/20 font-light">—</span>;
+    }
+    return val;
+  };
+
+  const renderFieldRow = (field: any) => {
+    const isSelectable = field.isFormulaInjectable;
+    
+    return (
+      <div className="flex justify-between items-center group relative h-6 w-full">
+        <div 
+          className={cn(
+            "flex gap-2 w-full items-center",
+            isSelectable && "transition-colors select-none",
+            isSelectable && isFormulaMode && "cursor-pointer text-primary hover:bg-primary/5 rounded-md -ml-1 pl-1",
+            isSelectable && !isFormulaMode && "cursor-pointer hover:text-foreground hover:bg-muted/10 rounded-md -ml-1 pl-1"
+          )}
+          onClick={(e) => isSelectable && field.fileFieldKey && handleTokenClick(e, field.fileFieldKey)}
+          title={isSelectable ? (isFormulaMode ? "Insert into formula" : "Copy token") : undefined}
+        >
+          <span 
+            className={cn(
+              "font-semibold uppercase tracking-widest w-28 shrink-0 truncate",
+              isSelectable && isFormulaMode ? "text-primary/70" : "text-muted-foreground"
+            )}
+            style={{ fontSize: 12 + zoomLevel }}
+          >
+            {field.label}
+          </span>
+          <span className="text-muted-foreground/40 shrink-0">:</span>
+          <span 
+            className="font-medium truncate"
+            style={{ fontSize: 14 + zoomLevel }}
+          >
+            {renderVal(field)}
+          </span>
+        </div>
+      {isTemplateMode && onDelete && (
+        <button
+          onClick={() => onDelete(field.id)}
+          className="opacity-0 group-hover:opacity-100 absolute -right-4 p-1 text-muted-foreground hover:text-destructive transition-all"
+          title="Remove field from template"
+        >
+          <X className="w-3 h-3" />
+        </button>
+      )}
     </div>
   );
+};
 
-  if (allFields.length === 0) return null;
+  const handleDragEnd = (result: DropResult) => {
+    if (!result.destination || !onReorder) return;
+    const items = Array.from(templateHeaderFields);
+    const [reorderedItem] = items.splice(result.source.index, 1);
+    items.splice(result.destination.index, 0, reorderedItem);
+    onReorder(items);
+  };
 
   return (
-    <div 
-      className="border border-border bg-card/10 backdrop-blur-sm font-mono grid grid-cols-2 mt-4 mb-4 rounded-sm select-none"
-      style={{ fontSize: 11 + zoomLevel }}
-    >
-      {/* Left Column */}
-      <div className="border-r border-border p-3 space-y-2.5">
-        {leftCol.map(renderFieldRow)}
+    <div className="relative group mt-3">
+      <div className="border border-border rounded-lg bg-card shadow-sm px-6 py-5">
+        <DragDropContext onDragEnd={handleDragEnd}>
+          <Droppable droppableId="header-fields" direction="horizontal">
+            {(provided) => (
+              <div 
+                className="grid grid-cols-2 gap-x-12 gap-y-4"
+                ref={provided.innerRef}
+                {...provided.droppableProps}
+              >
+                {templateHeaderFields.map((field, index) => (
+                  <Draggable key={field.id} draggableId={field.id} index={index} isDragDisabled={!isTemplateMode || !onReorder}>
+                    {(provided, snapshot) => (
+                      <div
+                        ref={provided.innerRef}
+                        {...provided.draggableProps}
+                        style={{
+                          ...provided.draggableProps.style,
+                        }}
+                        className={cn(
+                          "flex items-center gap-2",
+                          snapshot.isDragging && "bg-card shadow-md z-10 p-1 -m-1 rounded-md border border-primary/20"
+                        )}
+                      >
+                        {isTemplateMode && onReorder && (
+                          <div {...provided.dragHandleProps} className="text-muted-foreground/30 hover:text-foreground cursor-grab opacity-0 group-hover:opacity-100 transition-opacity">
+                            <GripVertical className="h-4 w-4" />
+                          </div>
+                        )}
+                        {renderFieldRow(field)}
+                      </div>
+                    )}
+                  </Draggable>
+                ))}
+                {provided.placeholder}
+              </div>
+            )}
+          </Droppable>
+        </DragDropContext>
       </div>
-
-      {/* Right Column */}
-      <div className="p-3 space-y-2.5">
-        {rightCol.map(renderFieldRow)}
-      </div>
+      
+      {isTemplateMode && onAdd && (
+        <button
+          onClick={onAdd}
+          className="absolute -top-3 -right-3 opacity-0 group-hover:opacity-100 transition-opacity bg-background border border-border shadow-sm rounded-md p-1.5 hover:bg-muted text-muted-foreground hover:text-foreground"
+          title="Add a field to template description"
+        >
+          <Plus className="w-4 h-4" />
+        </button>
+      )}
     </div>
   );
 }
 
 // ─── Inner workspace (inside BuilderProvider) ─────────────────────────────────
-function WorkspaceInner({ templateId, zoomLevel = 0 }: { templateId: string, zoomLevel?: number }) {
-  const { setTokenMap, tokenPoolOpen } = useBuilderContext();
+
+function WorkspaceInner({ templateId, draftId, zoomLevel = 0, project }: { templateId?: string, draftId?: string, zoomLevel?: number, project?: any }) {
+  const { setTokenMap, tokenPoolOpen, apiBasePath, invalidateKey, mode } = useBuilderContext();
+  const queryClient = useQueryClient();
   const [insertAtIndex, setInsertAtIndex] = useState<number | null>(null);
+  const [isAddHeaderModalOpen, setIsAddHeaderModalOpen] = useState(false);
+  const [fieldToDelete, setFieldToDelete] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleOpenModal = () => setIsAddHeaderModalOpen(true);
+    window.addEventListener("open-add-header-field-modal", handleOpenModal);
+    return () => window.removeEventListener("open-add-header-field-modal", handleOpenModal);
+  }, []);
 
   const { data: sections, isLoading } = useQuery({
-    queryKey: ["template-sections", templateId],
+    queryKey: invalidateKey,
     queryFn: async () => {
       const res = await fetch(
-        `${apiUrl}/api/invoice-templates/${templateId}/sections`,
+        `${apiBasePath}/sections`,
         { credentials: "include" }
       );
       if (!res.ok) throw new Error("Failed to fetch sections");
       return res.json();
     },
+  });
+
+  const { data: templateHeaderFields, refetch: refetchHeaderFields } = useQuery({
+    queryKey: ["template-header-fields", templateId],
+    queryFn: async () => {
+      const res = await fetch(`${apiUrl}/api/invoice-templates/${templateId}/header-fields`, {
+        credentials: "include",
+      });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!templateId,
   });
 
   const { data: projectCustomFields } = useQuery({
@@ -191,12 +336,30 @@ function WorkspaceInner({ templateId, zoomLevel = 0 }: { templateId: string, zoo
     },
   });
 
+  // ── Fetch constants (template constants for template mode, draft constants key fed through same endpoint for draft mode) ──
+  const constantsQueryKey = draftId
+    ? ["draft-constants", draftId]
+    : ["template-constants", templateId];
+  const constantsUrl = draftId
+    ? `${apiUrl}/api/invoices/drafts/${draftId}/constants`
+    : `${apiUrl}/api/invoice-templates/${templateId}/constants`;
+  const { data: constantsData } = useQuery({
+    queryKey: constantsQueryKey,
+    queryFn: async () => {
+      const res = await fetch(constantsUrl, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!(draftId || templateId),
+  });
+
   const sortedSections = [...(sections || [])].sort(
     (a: any, b: any) => a.sortOrder - b.sortOrder
   );
 
   // ── Compute token map and push it to context ──────────────────────────────
-  const tokenMap = buildTokenMap(sortedSections);
+  // Pass constants so formula rows that reference L11, etc. resolve correctly
+  const tokenMap = buildTokenMap(sortedSections, undefined, constantsData ?? []);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { setTokenMap(tokenMap); }, [JSON.stringify(tokenMap)]);
@@ -216,6 +379,21 @@ function WorkspaceInner({ templateId, zoomLevel = 0 }: { templateId: string, zoo
         return sum + (v ?? 0);
       }, 0)
     : null;
+
+  const handleConfirmDeleteField = async () => {
+    if (!fieldToDelete) return;
+    try {
+      await fetch(`${apiUrl}/api/invoice-templates/${templateId}/header-fields/${fieldToDelete}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      refetchHeaderFields();
+    } catch (error) {
+      console.error("Failed to delete header field", error);
+    } finally {
+      setFieldToDelete(null);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -239,7 +417,32 @@ function WorkspaceInner({ templateId, zoomLevel = 0 }: { templateId: string, zoo
       )}
     >
       {/* ── File Details Header Box ── */}
-      <FileDetailsHeaderBox projectCustomFields={projectCustomFields} zoomLevel={zoomLevel} />
+      <FileDetailsHeaderBox 
+        templateHeaderFields={templateHeaderFields || []} 
+        project={project}
+        zoomLevel={zoomLevel} 
+        isTemplateMode={!draftId}
+        onDelete={(fieldId) => setFieldToDelete(fieldId)}
+        onReorder={async (newOrder) => {
+          if (draftId) return;
+          queryClient.setQueryData(["template-header-fields", templateId], newOrder);
+          try {
+            await fetch(`${apiUrl}/api/invoice-templates/${templateId}/header-fields/reorder`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify({ fieldIds: newOrder.map((f: any) => f.id) })
+            });
+            refetchHeaderFields();
+          } catch (e) {
+            console.error(e);
+            refetchHeaderFields();
+          }
+        }}
+        onAdd={() => {
+          window.dispatchEvent(new CustomEvent("open-add-header-field-modal"));
+        }}
+      />
 
       {/* ── Sticky formula bar ── */}
       <div className="sticky top-0 z-30 pt-6">
@@ -252,7 +455,7 @@ function WorkspaceInner({ templateId, zoomLevel = 0 }: { templateId: string, zoo
       {/* ── Sections ── */}
       {/* overflow-visible is REQUIRED so row tokens (position:absolute right:100%) escape the border */}
       <div className="border-x border-border bg-background overflow-visible">
-        <AddSectionDivider onClick={() => setInsertAtIndex(0)} />
+        {mode !== "fill" && <AddSectionDivider onClick={() => setInsertAtIndex(0)} />}
 
         {sortedSections.length === 0 ? (
           <div className="py-8 text-center text-sm text-muted-foreground/50">
@@ -264,7 +467,8 @@ function WorkspaceInner({ templateId, zoomLevel = 0 }: { templateId: string, zoo
             return (
               <div key={section.id}>
                 <TemplateSectionCard
-                  templateId={templateId}
+                  templateId={templateId || ""}
+                  draftId={draftId}
                   section={section}
                   allSections={sortedSections}
                   isFirst={idx === 0}
@@ -273,9 +477,11 @@ function WorkspaceInner({ templateId, zoomLevel = 0 }: { templateId: string, zoo
                   sectionColor={sectionColor}
                   tokenMap={tokenMap}
                 />
-                <AddSectionDivider
-                  onClick={() => setInsertAtIndex(section.sortOrder + 1)}
-                />
+                {mode !== "fill" && (
+                  <AddSectionDivider
+                    onClick={() => setInsertAtIndex(section.sortOrder + 1)}
+                  />
+                )}
               </div>
             );
           })
@@ -289,28 +495,54 @@ function WorkspaceInner({ templateId, zoomLevel = 0 }: { templateId: string, zoo
         <AddSectionModal
           isOpen={true}
           onClose={() => setInsertAtIndex(null)}
-          templateId={templateId}
+          templateId={templateId || ""}
+          draftId={draftId}
           insertAtIndex={insertAtIndex}
           existingSections={sortedSections}
         />
       )}
+
+      {templateId && (
+        <AddHeaderFieldModal
+          isOpen={isAddHeaderModalOpen}
+          onClose={() => setIsAddHeaderModalOpen(false)}
+          templateId={templateId}
+          onSuccess={() => refetchHeaderFields()}
+        />
+      )}
+
+      {/* ── Delete Field Alert Dialog ── */}
+      <AlertDialog open={!!fieldToDelete} onOpenChange={(open) => !open && setFieldToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action will remove the field from the template. It will not delete the custom field from the global schema, but any formulas relying on this token will become invalid.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDeleteField} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Yes, delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
 
-// ─── Exported workspace (wraps in BuilderProvider) ────────────────────────────
+// ─── Exported workspace ────────────────────────────
 export function TemplateBuilderWorkspace({
   templateId,
-  tokenPoolOpen = false,
+  draftId,
   zoomLevel = 0,
+  project,
 }: {
-  templateId: string;
-  tokenPoolOpen?: boolean;
+  templateId?: string;
+  draftId?: string;
   zoomLevel?: number;
+  project?: any;
 }) {
-  return (
-    <BuilderProvider tokenPoolOpen={tokenPoolOpen}>
-      <WorkspaceInner templateId={templateId} zoomLevel={zoomLevel} />
-    </BuilderProvider>
-  );
+  return <WorkspaceInner templateId={templateId} draftId={draftId} zoomLevel={zoomLevel} project={project} />;
 }

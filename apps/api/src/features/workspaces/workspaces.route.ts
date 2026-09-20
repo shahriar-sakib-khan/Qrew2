@@ -13,6 +13,9 @@ workspacesRouter.route('/custom-fields', customFieldsRouter);
 workspacesRouter.route('/clients', clientsRouter);
 workspacesRouter.route('/projects', projectsRouter);
 
+// POST /api/workspaces/create
+workspacesRouter.post('/create', WorkspacesController.createWorkspace);
+
 // GET /api/workspaces/dashboard-stats
 workspacesRouter.get('/dashboard-stats', WorkspacesController.getDashboardStats);
 
@@ -22,6 +25,10 @@ workspacesRouter.get('/permissions/me', PermissionsController.getMyPermissions);
 // GET/PATCH /api/workspaces/settings
 workspacesRouter.get('/settings', WorkspacesController.getSettings);
 workspacesRouter.patch('/settings', requireOrgPermission('org:manage'), WorkspacesController.updateSettings);
+
+// GET/PATCH /api/workspaces/user-preferences
+workspacesRouter.get('/user-preferences', WorkspacesController.getUserPreferences);
+workspacesRouter.patch('/user-preferences', WorkspacesController.updateUserPreferences);
 
 // POST /api/workspaces/staff/invite
 workspacesRouter.post(

@@ -1,16 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { format } from "date-fns";
 import {
   MoreHorizontal,
-  ChevronLeft,
-  ChevronRight,
   Search,
   Loader2,
-  Users,
   ShieldAlert,
   ArrowUpCircle
 } from "lucide-react";
@@ -19,7 +15,6 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
@@ -47,6 +42,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { apiUrl } from "@/lib/constants";
 import { toast } from "sonner";
 import { useSession } from "@/lib/auth-client";
+import { useTableCellFilter } from "@/hooks/use-table-cell-filter";
+import { FilterableTableHeader, FilterableTableCell } from "@/components/ui/table-filter-components";
 
 interface UserRecord {
   id: string;
@@ -64,6 +61,14 @@ export function SuperAdminUsersTable() {
   const queryClient = useQueryClient();
   const { data: session } = useSession();
   const currentUserRole = (session?.user as any)?.role ?? "user";
+
+  const {
+    filters,
+    toggleFilter,
+    clearColumnFilter,
+    filterRows,
+    isColumnFiltered,
+  } = useTableCellFilter();
 
   const page = Number(searchParams.get("page") || "1");
   const search = searchParams.get("search") || "";
@@ -106,7 +111,6 @@ export function SuperAdminUsersTable() {
       });
       if (search) queryParams.set("search", search);
 
-      // Re-using the admin listing endpoint because it's already built for O(log N) fetching
       const res = await fetch(`${apiUrl}/api/admin/users?${queryParams.toString()}`, {
         credentials: "include",
       });
@@ -165,6 +169,18 @@ export function SuperAdminUsersTable() {
     }
   };
 
+  const extractors = useMemo(() => {
+    return {
+      'name': (u: UserRecord) => u.name,
+      'email': (u: UserRecord) => u.email,
+      'role': (u: UserRecord) => u.role === "super_admin" ? "Super Admin" : u.role === "admin" ? "Admin" : "User",
+    };
+  }, []);
+
+  const displayUsers = useMemo(() => {
+    return filterRows(usersList, extractors);
+  }, [usersList, filterRows, extractors]);
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-4">
@@ -188,10 +204,31 @@ export function SuperAdminUsersTable() {
         <Table>
           <TableHeader className="bg-muted/30">
             <TableRow>
-              <TableHead className="w-[220px]">Name</TableHead>
-              <TableHead className="w-[250px]">Email</TableHead>
-              <TableHead className="w-[140px]">System Role</TableHead>
-              <TableHead className="w-[80px] text-right">Actions</TableHead>
+              <FilterableTableHeader
+                columnKey="name"
+                title="Name"
+                isFiltered={isColumnFiltered("name")}
+                activeValue={filters["name"]}
+                onClear={() => clearColumnFilter("name")}
+                className="w-[220px]"
+              />
+              <FilterableTableHeader
+                columnKey="email"
+                title="Email"
+                isFiltered={isColumnFiltered("email")}
+                activeValue={filters["email"]}
+                onClear={() => clearColumnFilter("email")}
+                className="w-[250px]"
+              />
+              <FilterableTableHeader
+                columnKey="role"
+                title="System Role"
+                isFiltered={isColumnFiltered("role")}
+                activeValue={filters["role"]}
+                onClear={() => clearColumnFilter("role")}
+                className="w-[140px]"
+              />
+              <TableCell className="w-[80px] text-right font-medium text-muted-foreground">Actions</TableCell>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -199,39 +236,68 @@ export function SuperAdminUsersTable() {
               <TableRow>
                 <TableCell colSpan={4} className="h-48 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></TableCell>
               </TableRow>
-            ) : usersList.map((user: UserRecord) => (
-              <TableRow key={user.id} className="hover:bg-muted/40">
-                <TableCell className="font-medium text-foreground">{user.name}</TableCell>
-                <TableCell className="text-muted-foreground">{user.email}</TableCell>
-                <TableCell>{getRoleBadge(user.role)}</TableCell>
-                <TableCell className="text-right">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted">
-                        <span className="sr-only">Open menu</span>
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-48 z-[100]">
-                      <DropdownMenuLabel>Role Actions</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem 
-                        disabled={user.role === "super_admin" || (user.id === (session?.user as any)?.id)}
-                        onClick={() => {
-                          setSelectedUser(user);
-                          setNewRole(user.role === "admin" ? "super_admin" : "admin");
-                          setElevateModalOpen(true);
-                        }}
-                        className="cursor-pointer font-medium text-indigo-500 focus:text-indigo-500 focus:bg-indigo-500/10"
-                      >
-                        <ArrowUpCircle className="mr-2 h-4 w-4" />
-                        Elevate Role
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+            ) : displayUsers.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={4} className="h-48 text-center text-muted-foreground">
+                  No users found matching current filters.
                 </TableCell>
               </TableRow>
-            ))}
+            ) : (
+              displayUsers.map((user: UserRecord) => (
+                <TableRow key={user.id} className="hover:bg-muted/40 transition-colors">
+                  <FilterableTableCell
+                    columnKey="name"
+                    value={user.name}
+                    isFiltered={isColumnFiltered("name")}
+                    onToggleFilter={toggleFilter}
+                  >
+                    {user.name}
+                  </FilterableTableCell>
+                  <FilterableTableCell
+                    columnKey="email"
+                    value={user.email}
+                    isFiltered={isColumnFiltered("email")}
+                    onToggleFilter={toggleFilter}
+                  >
+                    {user.email}
+                  </FilterableTableCell>
+                  <FilterableTableCell
+                    columnKey="role"
+                    value={user.role === "super_admin" ? "Super Admin" : user.role === "admin" ? "Admin" : "User"}
+                    isFiltered={isColumnFiltered("role")}
+                    onToggleFilter={toggleFilter}
+                  >
+                    {getRoleBadge(user.role)}
+                  </FilterableTableCell>
+                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted">
+                          <span className="sr-only">Open menu</span>
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48 z-[100]">
+                        <DropdownMenuLabel>Role Actions</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem 
+                          disabled={user.role === "super_admin" || (user.id === (session?.user as any)?.id)}
+                          onClick={() => {
+                            setSelectedUser(user);
+                            setNewRole(user.role === "admin" ? "super_admin" : "admin");
+                            setElevateModalOpen(true);
+                          }}
+                          className="cursor-pointer font-medium text-indigo-500 focus:text-indigo-500 focus:bg-indigo-500/10"
+                        >
+                          <ArrowUpCircle className="mr-2 h-4 w-4" />
+                          Elevate Role
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </div>

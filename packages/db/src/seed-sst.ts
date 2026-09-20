@@ -6,6 +6,7 @@ import {
   clients, projects, expenseCategories, expenses, requisitions, 
   walletTransactions, orgRoles, orgRolePermissions, invoices, invoiceLineItems 
 } from './index';
+import { seedPermissionsDefaults } from './seed-permissions';
 
 function generateKey(password: string, salt: string): Promise<Buffer> {
   return new Promise((resolve, reject) => {
@@ -30,6 +31,8 @@ async function hashPassword(password: string) {
 
 async function seedSST() {
   console.log("🌊 Seeding SeaSideTraders (SST) Organization...");
+
+  await seedPermissionsDefaults(db);
 
   // Generate a real scrypt hash for '12345678' to match better-auth v1.x expected format
   const defaultHash = await hashPassword('12345678');
@@ -103,6 +106,9 @@ async function seedSST() {
   const orgDb = await db.query.organizations.findFirst({ where: (orgs, { eq }) => eq(orgs.slug, 'seasidetraders') });
   if (!orgDb) throw new Error("Org not created");
 
+  const { seedOrganizationDefaults } = await import('./org-initializer');
+  await seedOrganizationDefaults(db, orgDb.id, owner.id);
+
   // 2.5 Clean up existing SeaSideTraders data to make seeding idempotent and prevent duplicates
   console.log("🧹 Cleaning up existing SeaSideTraders data to ensure fresh seeding...");
   
@@ -158,8 +164,10 @@ async function seedSST() {
       { roleId: gmRoleId, permissionKey: 'finance:request_funds' },
       { roleId: gmRoleId, permissionKey: 'finance:approve_funds' },
       { roleId: gmRoleId, permissionKey: 'finance:record_expense' },
-      { roleId: gmRoleId, permissionKey: 'finance:view_invoices' },
-      { roleId: gmRoleId, permissionKey: 'finance:manage_invoices' }
+      { roleId: gmRoleId, permissionKey: 'invoice:view' },
+      { roleId: gmRoleId, permissionKey: 'invoice:create' },
+      { roleId: gmRoleId, permissionKey: 'invoice:edit' },
+      { roleId: gmRoleId, permissionKey: 'invoice:delete' }
     ]);
   }
 
@@ -289,8 +297,8 @@ async function seedSST() {
     { entity: 'project', name: 'Terminal Number', key: 'terminal_number', type: 'text', req: false },
     { entity: 'project', name: 'Port Number', key: 'port_number', type: 'text', req: false },
     { entity: 'project', name: 'Port', key: 'port', type: 'single_select', req: true, options: ['CDG', 'Mongla', 'Singapore', 'Dubai'] },
-    { entity: 'project', name: 'GRT', key: 'grt', type: 'boolean', req: false },
-    { entity: 'project', name: 'NRT', key: 'nrt', type: 'boolean', req: false },
+    { entity: 'project', name: 'GRT', key: 'grt', type: 'number', req: false },
+    { entity: 'project', name: 'NRT', key: 'nrt', type: 'number', req: false },
   ];
 
   for (const f of fields) {
@@ -380,7 +388,32 @@ async function seedSST() {
     'Crew Change', 'Maintenance', 'Port Transit', 'Supply Delivery'
   ];
 
-  const projectStatuses = ['active', 'active', 'active', 'completed', 'completed', 'pending', 'canceled', 'archived'] as const;
+  const dbStatuses = await db.query.projectStatuses.findMany({ where: (s, { eq }) => eq(s.organizationId, orgDb.id) });
+  const createdStatus = dbStatuses.find(s => s.name === 'Created');
+  const completedStatus = dbStatuses.find(s => s.name === 'Completed');
+  
+  const { projectStatuses } = await import('./index');
+  const activeStatusId = uuidv4();
+  await db.insert(projectStatuses).values({
+    id: activeStatusId, organizationId: orgDb.id, name: 'Active', order: 3, isDefault: false, isSystem: false
+  }).onConflictDoNothing();
+  
+  const pendingStatusId = uuidv4();
+  await db.insert(projectStatuses).values({
+    id: pendingStatusId, organizationId: orgDb.id, name: 'Pending', order: 4, isDefault: false, isSystem: false
+  }).onConflictDoNothing();
+
+  const statusChoices = [
+    { sId: activeStatusId, ls: 'open' },
+    { sId: activeStatusId, ls: 'open' },
+    { sId: activeStatusId, ls: 'open' },
+    { sId: completedStatus?.id || activeStatusId, ls: 'completed' },
+    { sId: completedStatus?.id || activeStatusId, ls: 'completed' },
+    { sId: pendingStatusId, ls: 'open' },
+    { sId: activeStatusId, ls: 'canceled' },
+    { sId: completedStatus?.id || activeStatusId, ls: 'archived' }
+  ] as const;
+
   const ports = ['CDG', 'Mongla', 'Singapore', 'Dubai'];
 
   const createdProjects: any[] = [];
@@ -390,7 +423,7 @@ async function seedSST() {
     const suffix = voyageSuffixes[Math.floor(Math.random() * voyageSuffixes.length)];
     const projectName = `${vessel} ${suffix}`;
     const client = createdClients[Math.floor(Math.random() * createdClients.length)];
-    const status = projectStatuses[i % projectStatuses.length];
+    const choice = statusChoices[i % statusChoices.length];
     
     const arrival = getRandomDateInPastDays(90);
     const departure = new Date(arrival.getTime() + (86400000 * (1 + Math.floor(Math.random() * 4)))); // 1 to 4 days later
@@ -401,19 +434,21 @@ async function seedSST() {
     const customFields = {
       voyage_number: voyageNum,
       arrival_date: arrival.toISOString(),
-      departure_date: status === 'completed' || status === 'archived' ? departure.toISOString() : undefined,
+      departure_date: choice.ls === 'completed' || choice.ls === 'archived' ? departure.toISOString() : undefined,
       terminal_number: `T-0${Math.floor(1 + Math.random() * 9)}`,
       port_number: `P-${Math.floor(10 + Math.random() * 89)}`,
       port: port,
-      grt: Math.random() > 0.3,
-      nrt: Math.random() > 0.5
+      grt: Math.floor(20000 + Math.random() * 50000),
+      nrt: Math.floor(10000 + Math.random() * 20000)
     };
 
     await db.insert(projects).values({
       id: projectId,
       organizationId: orgDb.id,
       name: projectName,
-      status: status,
+      status: choice.sId,
+      lifecycleState: choice.ls,
+      archivedAt: choice.ls === 'archived' ? new Date() : null,
       clientId: client.id,
       customFields: customFields,
       createdAt: arrival
@@ -655,6 +690,12 @@ async function seedSST() {
   const invoiceCount = Math.min(16, projectIdsWithExpenses.length);
   const invoiceStatuses = ['draft', 'issued', 'issued', 'paid', 'paid', 'paid', 'void', 'disputed'] as const;
 
+  const { invoiceTypes } = await import('./index');
+  const defaultInvoiceType = await db.query.invoiceTypes.findFirst({
+    where: (it: any, { and, eq }: any) => and(eq(it.organizationId, orgDb.id), eq(it.isDefault, true))
+  });
+  if (!defaultInvoiceType) throw new Error("Default invoice type not found");
+
   for (let i = 0; i < invoiceCount; i++) {
     const projectId = projectIdsWithExpenses[i];
     const projectExpenses = expensesByProject[projectId];
@@ -688,7 +729,7 @@ async function seedSST() {
       organizationId: orgDb.id,
       clientId: projectObj.clientId,
       projectId: projectId,
-      documentType: "general",
+      documentType: defaultInvoiceType.id,
       documentNumber: invNumber,
       status: status,
       generatedByUserId: createdUsers['kabir@sst.com'].id,

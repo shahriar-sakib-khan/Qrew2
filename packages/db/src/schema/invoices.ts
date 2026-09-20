@@ -4,6 +4,7 @@ import { projects } from "./projects";
 import { clients } from "./clients";
 import { documentTypeEnum, invoiceStatusEnum } from "./invoice-enums";
 import { invoiceTemplates } from "./invoice-templates";
+import { invoiceTypes } from "./invoice-types-table";
 import { relations } from "drizzle-orm";
 
 export const invoices = pgTable(
@@ -19,7 +20,7 @@ export const invoices = pgTable(
     clientId: text("client_id")
       .notNull()
       .references(() => clients.id, { onDelete: "restrict" }),
-    documentType: documentTypeEnum("document_type").notNull(),
+    documentType: text("document_type").references(() => invoiceTypes.id, { onDelete: "set null" }),
     documentNumber: text("document_number").notNull(),
     status: invoiceStatusEnum("status").default("draft").notNull(),
     sourceTemplateId: text("source_template_id")

@@ -6,6 +6,7 @@ import {
   expenseCategories,
   templateHeaderFields,
   projects,
+  projectStatuses,
 } from "@starter/db";
 import * as math from "mathjs";
 
@@ -105,11 +106,18 @@ export async function resolveScope(input: ResolveScopeInput): Promise<Record<str
   // -----------------------------------------------------------------------
 
   // Fetch the project row (for customFields + direct columns)
-  const [project] = await db
-    .select()
+  const [projectData] = await db
+    .select({
+      project: projects,
+      statusName: projectStatuses.name,
+    })
     .from(projects)
+    .leftJoin(projectStatuses, eq(projects.status, projectStatuses.id))
     .where(and(eq(projects.id, projectId), eq(projects.organizationId, organizationId)))
     .limit(1);
+
+  const project = projectData?.project;
+  const statusName = projectData?.statusName;
 
   // Fetch injectable header fields for this template
   const headerFields = await db
@@ -138,8 +146,12 @@ export async function resolveScope(input: ResolveScopeInput): Promise<Record<str
     if (project) {
       let rawValue: string | number | null = null;
 
-      // Check direct columns first (e.g. field.fileFieldKey === 'name')
-      if (field.fileFieldKey in (project as any)) {
+      // Special case: status column stores UUID, but we want the name
+      if (field.fileFieldKey === "status") {
+        rawValue = statusName ?? project.status;
+      }
+      // Check direct columns next (e.g. field.fileFieldKey === 'name')
+      else if (field.fileFieldKey in (project as any)) {
         rawValue = (project as any)[field.fileFieldKey];
       } else if (project.customFields && field.fileFieldKey in project.customFields) {
         // Fall through to customFields JSONB
@@ -165,6 +177,22 @@ export async function resolveScope(input: ResolveScopeInput): Promise<Record<str
     // Log tokens that resolve to 0 for debugging
     if ((bn as math.BigNumber).equals(0)) {
       console.debug(`[TokenResolver] ${tokenKey} resolved to 0 for project ${projectId}`);
+    }
+  }
+
+  // NEW: Add all project custom fields directly to the scope so they can be referenced by their exact fieldKey
+  if (project && project.customFields) {
+    for (const [key, value] of Object.entries(project.customFields)) {
+      if (value !== null && value !== undefined) {
+        const parsed = parseFloat(String(value));
+        if (!isNaN(parsed)) {
+          const bn = bigMath.bignumber(parsed);
+          scope[key] = (bn as math.BigNumber).toFixed(6);
+          scope[key.toUpperCase()] = (bn as math.BigNumber).toFixed(6);
+          // Also support FILE_ prefix for completeness
+          scope[`FILE_${key.toUpperCase()}`] = (bn as math.BigNumber).toFixed(6);
+        }
+      }
     }
   }
 

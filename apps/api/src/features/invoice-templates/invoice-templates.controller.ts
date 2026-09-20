@@ -1,16 +1,18 @@
 import { Context } from "hono";
-import { db, invoiceTemplates } from "@starter/db";
+import { db, invoiceTemplates, templateHeaderFields, invoiceTypes, templateSections } from "@starter/db";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 
 const createTemplateSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
+  documentType: z.string().optional(),
 });
 
 const updateTemplateSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().optional(),
+  documentType: z.string().optional(),
 });
 
 export class InvoiceTemplatesController {
@@ -20,8 +22,22 @@ export class InvoiceTemplatesController {
     if (!organizationId) return c.json({ error: "Unauthorized" }, 401);
 
     const templates = await db
-      .select()
+      .select({
+        id: invoiceTemplates.id,
+        organizationId: invoiceTemplates.organizationId,
+        name: invoiceTemplates.name,
+        description: invoiceTemplates.description,
+        documentType: invoiceTemplates.documentType,
+        documentTypeName: invoiceTypes.name,
+        scope: invoiceTemplates.scope,
+        currency: invoiceTemplates.currency,
+        version: invoiceTemplates.version,
+        isArchived: invoiceTemplates.isArchived,
+        createdAt: invoiceTemplates.createdAt,
+        updatedAt: invoiceTemplates.updatedAt,
+      })
       .from(invoiceTemplates)
+      .leftJoin(invoiceTypes, eq(invoiceTemplates.documentType, invoiceTypes.id))
       .where(eq(invoiceTemplates.organizationId, organizationId));
 
     return c.json(templates);
@@ -34,8 +50,22 @@ export class InvoiceTemplatesController {
     if (!organizationId) return c.json({ error: "Unauthorized" }, 401);
 
     const template = await db
-      .select()
+      .select({
+        id: invoiceTemplates.id,
+        organizationId: invoiceTemplates.organizationId,
+        name: invoiceTemplates.name,
+        description: invoiceTemplates.description,
+        documentType: invoiceTemplates.documentType,
+        documentTypeName: invoiceTypes.name,
+        scope: invoiceTemplates.scope,
+        currency: invoiceTemplates.currency,
+        version: invoiceTemplates.version,
+        isArchived: invoiceTemplates.isArchived,
+        createdAt: invoiceTemplates.createdAt,
+        updatedAt: invoiceTemplates.updatedAt,
+      })
       .from(invoiceTemplates)
+      .leftJoin(invoiceTypes, eq(invoiceTemplates.documentType, invoiceTypes.id))
       .where(
         and(
           eq(invoiceTemplates.id, id),
@@ -58,16 +88,65 @@ export class InvoiceTemplatesController {
     const parsed = createTemplateSchema.safeParse(body);
     if (!parsed.success) return c.json({ error: parsed.error }, 400);
 
+    const templateId = crypto.randomUUID();
+
     const [newTemplate] = await db
       .insert(invoiceTemplates)
       .values({
-        id: crypto.randomUUID(),
+        id: templateId,
         organizationId,
         name: parsed.data.name,
         description: parsed.data.description,
+        documentType: parsed.data.documentType,
         createdByUserId: user.id,
       })
       .returning();
+
+    // Seed default system fields for the template header
+    const systemFields = [
+      { fieldType: "file_field" as const, fileFieldKey: "name", label: "Name", sortOrder: 1, isFormulaInjectable: false },
+      { fieldType: "file_field" as const, fileFieldKey: "clientId", label: "Client", sortOrder: 2, isFormulaInjectable: false },
+      { fieldType: "file_field" as const, fileFieldKey: "status", label: "Status", sortOrder: 3, isFormulaInjectable: false },
+    ];
+
+    // Fetch existing global project custom fields
+    const { customFieldDefinitions } = await import("@starter/db");
+    const projectFields = await db
+      .select()
+      .from(customFieldDefinitions)
+      .where(
+        and(
+          eq(customFieldDefinitions.organizationId, organizationId),
+          eq(customFieldDefinitions.entityType, "project")
+        )
+      );
+
+    const customFieldsToSeed = projectFields.map((field, idx) => ({
+      fieldType: "file_field" as const,
+      fileFieldKey: field.fieldKey,
+      label: field.fieldName,
+      sortOrder: systemFields.length + 1 + idx,
+      isFormulaInjectable: field.fieldType === "number",
+    }));
+
+    const allHeaderFields = [...systemFields, ...customFieldsToSeed].map((f) => ({
+      id: crypto.randomUUID(),
+      templateId,
+      ...f,
+    }));
+
+    if (allHeaderFields.length > 0) {
+      await db.insert(templateHeaderFields).values(allHeaderFields);
+    }
+
+    // Seed default section 1
+    await db.insert(templateSections).values({
+      id: crypto.randomUUID(),
+      templateId,
+      sectionToken: "SECTION_1",
+      displayName: "1",
+      sortOrder: 0,
+    });
 
     return c.json(newTemplate, 201);
   }

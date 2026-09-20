@@ -16,6 +16,7 @@ export const requireOrgPermission = (requiredPermission: string) => {
 
     // 2. Global Admin Bypass (Super Admins ignore tenant boundaries)
     if (sessionData.user.role === 'super_admin') {
+      c.set('isOwner', true);
       return await next();
     }
 
@@ -37,11 +38,16 @@ export const requireOrgPermission = (requiredPermission: string) => {
     });
 
     if (currentMember?.role === 'owner') {
+      c.set('isOwner', true);
       return await next(); // Owners bypass all PBAC checks
     }
 
     // 4. Resolve & Verify Permissions
     const userPermissions = await PermissionService.resolvePermissions(sessionData.user.id, orgId);
+    
+    // Inject for downstream scrubber logic
+    c.set('isOwner', false);
+    c.set('userPermissions', userPermissions);
 
     if (!userPermissions.has(requiredPermission)) {
       console.warn(`[PBAC] Blocked: User ${sessionData.user.id} attempted to access ${requiredPermission}`);

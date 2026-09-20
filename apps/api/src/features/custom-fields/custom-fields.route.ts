@@ -4,11 +4,11 @@ import { requireOrgPermission } from '../../infra/middleware/require-permission'
 
 export const customFieldsRouter = new Hono();
 
-// We might want to use a specific permission like 'schema:manage_fields' later,
-// but for now, any generic admin/workspace permission could work. We'll use schema:manage_fields 
-// based on what's in seed.ts.
+// Everyone authenticated in the org can read field definitions
+// (private fields are filtered server-side based on role)
+customFieldsRouter.get('/', CustomFieldsController.listDefinitions);
 
-customFieldsRouter.get('/', CustomFieldsController.listDefinitions); // Everyone in org can read to render forms
-customFieldsRouter.post('/', requireOrgPermission('schema:manage_fields'), CustomFieldsController.createDefinition);
-customFieldsRouter.put('/:id', requireOrgPermission('schema:manage_fields'), CustomFieldsController.updateDefinition);
-customFieldsRouter.delete('/:id', requireOrgPermission('schema:manage_fields'), CustomFieldsController.deleteDefinition);
+// Only users with workspace:manage_fields can create/update/delete field definitions
+customFieldsRouter.post('/', requireOrgPermission('workspace:manage_fields'), CustomFieldsController.createDefinition);
+customFieldsRouter.put('/:id', requireOrgPermission('workspace:manage_fields'), CustomFieldsController.updateDefinition);
+customFieldsRouter.delete('/:id', requireOrgPermission('workspace:manage_fields'), CustomFieldsController.deleteDefinition);

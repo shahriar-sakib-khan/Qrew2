@@ -1,0 +1,41 @@
+# ============================================================
+# .dockerignore — What Docker should NEVER upload
+# ============================================================
+#
+# When Docker builds an image, it first packages your entire
+# project folder into a "build context" and sends it to the
+# Docker daemon. Without this file, it would upload gigabytes
+# of node_modules and .git history on every single build.
+# This file is the equivalent of .gitignore but for Docker.
+# ============================================================
+
+# Version control — Docker doesn't need your git history
+.git
+.gitignore
+
+# All node_modules — Docker installs them fresh inside the container
+**/node_modules
+
+# Build artifacts — we build fresh inside the container
+**/dist
+**/.next
+**/.turbo
+
+# Local environment files — NEVER bake secrets into an image!
+# Secrets are injected at runtime by Render's environment variables.
+**/.env
+**/.env.local
+**/.env.*.local
+
+# Editor and OS noise
+.vscode
+.idea
+**/.DS_Store
+**/Thumbs.db
+
+# Test coverage reports — not needed in production
+**/coverage
+
+# Docker files themselves
+**/Dockerfile
+**/.dockerignore

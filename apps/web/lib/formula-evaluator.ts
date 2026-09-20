@@ -92,7 +92,7 @@ export function evaluateFormula(formula: string, tokens: TokenMap): number | nul
  * Sections must already have .rows[].charges, .sectionCharges populated.
  * (rows no longer have .components)
  */
-export function buildTokenMap(sections: any[], orgConfigs?: any[]): TokenMap {
+export function buildTokenMap(sections: any[], orgConfigs?: any[], templateConstants?: any[]): TokenMap {
   const tokens: TokenMap = {};
 
   // Inject global constants first so they are available for formulas
@@ -104,6 +104,18 @@ export function buildTokenMap(sections: any[], orgConfigs?: any[]): TokenMap {
           // If percentage, store the decimal value
           tokens[config.configKey] = config.valueType === "percentage" ? val / 100 : val;
         }
+      }
+    }
+  }
+
+  // Inject template constants next
+  if (templateConstants) {
+    const constantsArray = Array.isArray(templateConstants) ? templateConstants : Object.values(templateConstants);
+    for (const constant of constantsArray) {
+      const val = parseFloat(constant.value ?? constant.defaultValue);
+      const key = constant.key ?? constant.token;
+      if (!isNaN(val) && key) {
+        tokens[key] = val;
       }
     }
   }
@@ -137,9 +149,10 @@ export function buildTokenMap(sections: any[], orgConfigs?: any[]): TokenMap {
       }
 
       // ── 2. Evaluate row charges ────────────────────────────────────────────
-      // Expose the preliminary base token so charge formulas can reference ROW_X_TOTAL
+      // Expose the preliminary base token so charge formulas can reference ROW_X_TOTAL and ROW_X
       const rowTokenTotal = `${row.rowToken}_TOTAL`;
       tokens[rowTokenTotal] = rowBase; // preliminary — updated below
+      tokens[row.rowToken] = rowBase;  // base token (without charges)
 
       let rowChargesSum = 0;
       for (const charge of rowCharges) {
@@ -154,7 +167,7 @@ export function buildTokenMap(sections: any[], orgConfigs?: any[]): TokenMap {
       // ── 3. Row TOTAL = base + charges ──────────────────────────────────────
       const rowTotal = rowBase + rowChargesSum;
       tokens[rowTokenTotal] = rowTotal;
-      tokens[row.rowToken] = rowBase; // base token (without charges)
+      // base token was already set above
 
       sectionBase += rowBase;
       sectionRowChargesTotal += rowChargesSum;

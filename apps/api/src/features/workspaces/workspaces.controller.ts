@@ -8,6 +8,61 @@ import * as schema from '@starter/db';
 import { users, members, orgRoles, orgMemberRoles } from '@starter/db'; 
 
 export class WorkspacesController {
+  static async createWorkspace(c: Context) {
+    try {
+      const sessionData = await auth.api.getSession({ headers: c.req.raw.headers });
+      if (!sessionData?.session) return c.json({ error: 'Unauthorized' }, 401);
+      
+      const body = await c.req.json();
+      const { name } = body;
+      if (!name) return c.json({ error: 'Organization name is required' }, 400);
+
+      const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+      const orgId = uuidv4();
+      const memberId = uuidv4();
+      const userId = sessionData.user.id;
+
+      // Check quota: max 5 owned workspaces per standard user account
+      if (sessionData.user.role === 'user') {
+        const [{ ownedCount }] = await db
+          .select({ ownedCount: sql<number>`count(*)::int` })
+          .from(schema.members)
+          .where(and(eq(schema.members.userId, userId), eq(schema.members.role, 'owner')));
+
+        if (ownedCount >= 5) {
+          return c.json({ error: 'Workspace limit reached (maximum 5 owned workspaces per account).' }, 403);
+        }
+      }
+
+      await db.transaction(async (tx) => {
+        // 1. Create Organization
+        await tx.insert(schema.organizations).values({
+          id: orgId,
+          name,
+          slug,
+          createdAt: new Date(),
+        });
+
+        // 2. Create Member (Owner)
+        await tx.insert(schema.members).values({
+          id: memberId,
+          organizationId: orgId,
+          userId: userId,
+          role: 'owner',
+          createdAt: new Date(),
+        });
+
+        // 3. Seed Defaults
+        await schema.seedOrganizationDefaults(tx, orgId, userId);
+      });
+
+      return c.json({ success: true, organizationId: orgId }, 201);
+    } catch (error) {
+      console.error('[WorkspacesController.createWorkspace] Failed:', error);
+      return c.json({ error: 'Failed to create workspace' }, 500);
+    }
+  }
+
   static async inviteStaff(c: Context) {
     try {
       // 1. Authenticate and get active context
@@ -33,8 +88,31 @@ export class WorkspacesController {
         return c.json({ error: 'Invalid role selected.' }, 400);
       }
 
-      const normalizedEmail = email.toLowerCase();
+      const normalizedEmail = email.toLowerCase().trim();
       
+      // Check if user with this email is already a member of the workspace
+      const existingUserByEmail = await db.query.users.findFirst({
+        where: eq(users.email, normalizedEmail)
+      });
+
+      if (existingUserByEmail) {
+        const existingMember = await db.query.members.findFirst({
+          where: and(eq(members.userId, existingUserByEmail.id), eq(members.organizationId, activeOrgId))
+        });
+        if (existingMember) {
+          return c.json({ error: 'User is already a member of this workspace' }, 400);
+        }
+      }
+
+      // Remove any existing pending invitation for this email in the organization
+      await db.delete(schema.invitations).where(
+        and(
+          eq(schema.invitations.organizationId, activeOrgId),
+          eq(schema.invitations.email, normalizedEmail),
+          eq(schema.invitations.status, 'pending')
+        )
+      );
+
       // Get org details for the email
       const org = await db.query.organizations.findFirst({
         where: eq(schema.organizations.id, activeOrgId)
@@ -195,45 +273,53 @@ export class WorkspacesController {
         return c.json({ error: 'Invitation has expired' }, 400);
       }
 
-      if (invite.email !== sessionData.user.email) {
+      // Enforce email verification before accepting invitation
+      if (!sessionData.user.emailVerified) {
+        return c.json({ error: 'Email verification required to accept workspace invitations' }, 403);
+      }
+
+      // Case-insensitive email comparison
+      if (invite.email.toLowerCase() !== sessionData.user.email.toLowerCase()) {
         return c.json({ error: 'This invitation is for a different email address' }, 403);
       }
 
-      // Check if user is already a member
-      const alreadyMember = await db.query.members.findFirst({
-        where: and(eq(members.userId, sessionData.user.id), eq(members.organizationId, invite.organizationId))
-      });
-
-      if (alreadyMember) {
-        // Just delete the invite
-        await db.delete(schema.invitations).where(eq(schema.invitations.id, inviteId));
-        return c.json({ success: true, message: 'Already a member' }, 200);
-      }
-
-      // Bind to organization (Better Auth base role)
-      const newMemberId = uuidv4();
-      await db.insert(members).values({
-        id: newMemberId,
-        organizationId: invite.organizationId,
-        userId: sessionData.user.id,
-        role: 'member',
-      });
-
-      // Bind to Custom PBAC role if provided
-      if (invite.role) {
-        await db.insert(orgMemberRoles).values({
-          id: uuidv4(),
-          organizationId: invite.organizationId,
-          memberId: newMemberId,
-          roleId: invite.role, // role column holds our PBAC roleId
-          assignedBy: invite.inviterId,
+      // Atomic transaction for invitation acceptance
+      return await db.transaction(async (tx) => {
+        // Check if user is already a member
+        const alreadyMember = await tx.query.members.findFirst({
+          where: and(eq(members.userId, sessionData.user.id), eq(members.organizationId, invite.organizationId))
         });
-      }
 
-      // Update invitation status to accepted or just delete it
-      await db.delete(schema.invitations).where(eq(schema.invitations.id, inviteId));
+        if (alreadyMember) {
+          await tx.delete(schema.invitations).where(eq(schema.invitations.id, inviteId));
+          return c.json({ success: true, message: 'Already a member' }, 200);
+        }
 
-      return c.json({ success: true, organizationId: invite.organizationId }, 200);
+        // Bind to organization (Better Auth base role)
+        const newMemberId = uuidv4();
+        await tx.insert(members).values({
+          id: newMemberId,
+          organizationId: invite.organizationId,
+          userId: sessionData.user.id,
+          role: 'member',
+        });
+
+        // Bind to Custom PBAC role if provided
+        if (invite.role) {
+          await tx.insert(orgMemberRoles).values({
+            id: uuidv4(),
+            organizationId: invite.organizationId,
+            memberId: newMemberId,
+            roleId: invite.role, // role column holds our PBAC roleId
+            assignedBy: invite.inviterId,
+          });
+        }
+
+        // Delete invitation after successful acceptance
+        await tx.delete(schema.invitations).where(eq(schema.invitations.id, inviteId));
+
+        return c.json({ success: true, organizationId: invite.organizationId }, 200);
+      });
     } catch (error) {
       console.error('[WorkspacesController.acceptInvitation] Failed:', error);
       return c.json({ error: 'Internal Server Error' }, 500);
@@ -247,6 +333,23 @@ export class WorkspacesController {
 
       const activeOrgId = sessionData.session.activeOrganizationId;
       if (!activeOrgId) return c.json({ error: 'No active workspace selected' }, 400);
+
+      c.set('organizationId', activeOrgId);
+      
+      const currentMember = await db.query.members.findFirst({
+        where: and(
+          eq(members.userId, sessionData.user.id),
+          eq(members.organizationId, activeOrgId)
+        )
+      });
+      const isOwner = sessionData.user.role === 'super_admin' || currentMember?.role === 'owner';
+      c.set('isOwner', isOwner);
+
+      if (!isOwner) {
+         const { PermissionService } = await import('../../features/permissions/permission.service');
+         const userPermissions = await PermissionService.resolvePermissions(sessionData.user.id, activeOrgId);
+         c.set('userPermissions', userPermissions);
+      }
 
       const staffList = await db.select({
         memberId: members.id,
@@ -302,7 +405,11 @@ export class WorkspacesController {
         };
       });
 
-      return c.json({ staff }, 200);
+      const { scrubEntityData, getScrubberConfig } = await import('../../infra/lib/data-scrubber');
+      const scrubberConfig = await getScrubberConfig(c, 'staff');
+      const scrubbedStaff = staff.map(s => scrubEntityData(s, scrubberConfig, 'staff'));
+
+      return c.json({ staff: scrubbedStaff }, 200);
     } catch (error) {
       console.error('[WorkspacesController.listStaff] Failed:', error);
       return c.json({ error: 'Internal Server Error' }, 500);
@@ -448,6 +555,76 @@ export class WorkspacesController {
       return c.json({ success: true, metadata: newMetadata });
     } catch (error) {
       console.error('[WorkspacesController.updateSettings] Failed:', error);
+      return c.json({ error: 'Internal Server Error' }, 500);
+    }
+  }
+
+  static async getUserPreferences(c: Context) {
+    try {
+      const sessionData = await auth.api.getSession({ headers: c.req.raw.headers });
+      if (!sessionData?.session) return c.json({ error: 'Unauthorized' }, 401);
+      
+      const orgId = sessionData.session.activeOrganizationId;
+      if (!orgId) return c.json({ error: 'No active workspace selected' }, 400);
+
+      const userId = sessionData.user.id;
+      const { organizations } = await import('@starter/db');
+
+      const org = await db.query.organizations.findFirst({
+        where: eq(organizations.id, orgId)
+      });
+      if (!org) return c.json({ error: 'Organization not found' }, 404);
+
+      let metadata: any = {};
+      try {
+        if (org.metadata) metadata = JSON.parse(org.metadata);
+      } catch (e) {}
+
+      const userPrefs = metadata[`userPrefs_${userId}`] || {};
+      return c.json({ preferences: userPrefs });
+    } catch (error) {
+      console.error('[WorkspacesController.getUserPreferences] Failed:', error);
+      return c.json({ error: 'Internal Server Error' }, 500);
+    }
+  }
+
+  static async updateUserPreferences(c: Context) {
+    try {
+      const sessionData = await auth.api.getSession({ headers: c.req.raw.headers });
+      if (!sessionData?.session) return c.json({ error: 'Unauthorized' }, 401);
+      
+      const orgId = sessionData.session.activeOrganizationId;
+      if (!orgId) return c.json({ error: 'No active workspace selected' }, 400);
+
+      const userId = sessionData.user.id;
+      const body = await c.req.json();
+      const preferences = body.preferences || {};
+
+      const { organizations } = await import('@starter/db');
+
+      const org = await db.query.organizations.findFirst({
+        where: eq(organizations.id, orgId)
+      });
+      if (!org) return c.json({ error: 'Organization not found' }, 404);
+
+      let currentMetadata: any = {};
+      try {
+        if (org.metadata) currentMetadata = JSON.parse(org.metadata);
+      } catch (e) {}
+
+      const key = `userPrefs_${userId}`;
+      const currentUserPrefs = currentMetadata[key] || {};
+      const updatedUserPrefs = { ...currentUserPrefs, ...preferences };
+
+      const newMetadata = { ...currentMetadata, [key]: updatedUserPrefs };
+
+      await db.update(organizations)
+        .set({ metadata: JSON.stringify(newMetadata) })
+        .where(eq(organizations.id, orgId));
+
+      return c.json({ success: true, preferences: updatedUserPrefs });
+    } catch (error) {
+      console.error('[WorkspacesController.updateUserPreferences] Failed:', error);
       return c.json({ error: 'Internal Server Error' }, 500);
     }
   }

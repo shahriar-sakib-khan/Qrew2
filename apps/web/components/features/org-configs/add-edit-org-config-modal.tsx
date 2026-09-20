@@ -48,6 +48,7 @@ export function AddEditOrgConfigModal({
     configKey: "",
     configValue: "",
     valueType: "number",
+    displayLabel: "",
   });
 
   useEffect(() => {
@@ -56,12 +57,14 @@ export function AddEditOrgConfigModal({
         configKey: editConfig.configKey,
         configValue: editConfig.configValue,
         valueType: editConfig.valueType,
+        displayLabel: editConfig.displayLabel === editConfig.configKey ? "" : editConfig.displayLabel,
       });
     } else {
       setFormData({
         configKey: "",
         configValue: "",
         valueType: "number",
+        displayLabel: "",
       });
     }
   }, [editConfig, isOpen]);
@@ -109,7 +112,7 @@ export function AddEditOrgConfigModal({
     mutation.mutate({
       ...formData,
       configKey: editConfig ? undefined : token,
-      displayLabel: token,
+      displayLabel: formData.displayLabel || undefined,
       isFormulaInjectable: true,
     });
   };
@@ -128,7 +131,7 @@ export function AddEditOrgConfigModal({
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="configKey">Token</Label>
+            <Label htmlFor="configKey">Token Key</Label>
             <div className="flex items-center">
               <span className="text-muted-foreground font-mono bg-muted px-3 py-2 text-sm border border-r-0 rounded-l-md select-none border-input">
                 ORG_
@@ -148,6 +151,7 @@ export function AddEditOrgConfigModal({
                 disabled={!!editConfig}
               />
             </div>
+            <p className="text-[11px] text-muted-foreground">Only uppercase letters, numbers, and underscores.</p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -155,7 +159,7 @@ export function AddEditOrgConfigModal({
               <Label htmlFor="valueType">Value Type</Label>
               <Select
                 value={formData.valueType}
-                onValueChange={(val) => setFormData({ ...formData, valueType: val })}
+                onValueChange={(val) => setFormData({ ...formData, valueType: val, configValue: "" })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select type" />
@@ -171,11 +175,23 @@ export function AddEditOrgConfigModal({
               <Label htmlFor="configValue">Value (Optional)</Label>
               <Input
                 id="configValue"
+                type="text"
+                inputMode={formData.valueType === "number" ? "decimal" : "text"}
                 value={formData.configValue}
                 onChange={(e) => setFormData({ ...formData, configValue: e.target.value })}
-                placeholder={formData.valueType === "number" ? "e.g. 0.15" : "e.g. standard"}
+                placeholder={formData.valueType === "number" ? "e.g. 0.05 for 5%" : "e.g. default text"}
               />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="displayLabel">Description (Optional)</Label>
+            <Input
+              id="displayLabel"
+              value={(formData as any).displayLabel || ""}
+              onChange={(e) => setFormData({ ...formData, displayLabel: e.target.value } as any)}
+              placeholder="Brief description of this constant"
+            />
           </div>
 
           <DialogFooter>

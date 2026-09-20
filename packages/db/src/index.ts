@@ -35,5 +35,7 @@ export const db = createDb()
 // ---------------------------------------------------------------
 // Schema re-exports
 // ---------------------------------------------------------------
-export * from './schema'
+export * from './schema';
+export * from './org-initializer';
+export * from './org-initializer';
 export * from './formula-codec'

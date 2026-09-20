@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { format } from "date-fns";
@@ -17,29 +17,22 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
 import { apiUrl } from "@/lib/constants";
 import { useSession } from "@/lib/auth-client";
 import { SecurityActionModal, SecurityActionType, SecurityUserContext } from "./security-action-modal";
 import { UsersDataTableActions } from "./users-data-table-actions";
 import { ImpersonateActionModal } from "./impersonate-action-modal";
+import { UserDetailsModal } from "./user-details-modal";
 import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-
+import { useTableCellFilter } from "@/hooks/use-table-cell-filter";
+import { FilterableTableHeader, FilterableTableCell } from "@/components/ui/table-filter-components";
 
 interface UserRecord {
   id: string;
@@ -77,6 +70,14 @@ export function UsersDataTable() {
   const { data: session } = useSession();
   const currentUserRole = (session?.user as any)?.role ?? "user";
 
+  const {
+    filters,
+    toggleFilter,
+    clearColumnFilter,
+    filterRows,
+    isColumnFiltered,
+  } = useTableCellFilter();
+
   // 1. Parse URL State
   const page = Number(searchParams.get("page") || "1");
   const search = searchParams.get("search") || "";
@@ -99,6 +100,11 @@ export function UsersDataTable() {
     user: SecurityUserContext | null;
   }>({ isOpen: false, user: null });
 
+  const [detailsModal, setDetailsModal] = useState<{
+    isOpen: boolean;
+    user: SecurityUserContext | null;
+  }>({ isOpen: false, user: null });
+
   // Callbacks passed to the columns/actions
   const handleSecurityAction = (user: SecurityUserContext, action: SecurityActionType) => {
     setSecurityModal({ isOpen: true, user, actionType: action });
@@ -106,6 +112,10 @@ export function UsersDataTable() {
 
   const handleImpersonateAction = (user: SecurityUserContext) => {
     setImpersonateModal({ isOpen: true, user });
+  };
+
+  const handleViewDetails = (user: SecurityUserContext) => {
+    setDetailsModal({ isOpen: true, user });
   };
 
   // Sync state if URL changes externally (e.g. browser back button)
@@ -125,7 +135,7 @@ export function UsersDataTable() {
         } else {
           currentParams.delete("search");
         }
-        currentParams.set("page", "1"); // Reset to page 1 on new search
+        currentParams.set("page", "1");
         router.push(`${pathname}?${currentParams.toString()}`);
       }
     }, 300);
@@ -159,7 +169,7 @@ export function UsersDataTable() {
 
       return res.json();
     },
-    placeholderData: (prev) => prev, // Keeps old data visible during transitions
+    placeholderData: (prev) => prev,
     staleTime: 5000,
   });
 
@@ -176,7 +186,6 @@ export function UsersDataTable() {
   });
   const availableWorkspaces = workspacesData?.data || [];
 
-  // Helper: Role-specific styling
   const getRoleBadge = (role: string) => {
     switch (role) {
       case "super_admin":
@@ -210,6 +219,20 @@ export function UsersDataTable() {
   const meta = data?.meta;
   const total = meta?.total || 0;
   const totalPages = meta?.totalPages || 1;
+
+  const extractors = useMemo(() => {
+    return {
+      'name': (u: UserRecord) => u.name,
+      'email': (u: UserRecord) => u.email,
+      'workspace': (u: UserRecord) => u.primaryWorkspace,
+      'role': (u: UserRecord) => u.role === "super_admin" ? "Super Admin" : u.role === "admin" ? "Admin" : "User",
+      'joined': (u: UserRecord) => u.createdAt ? format(new Date(u.createdAt), "MMM d, yyyy") : "-",
+    };
+  }, []);
+
+  const displayUsers = useMemo(() => {
+    return filterRows(usersList, extractors);
+  }, [usersList, filterRows, extractors]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -270,17 +293,51 @@ export function UsersDataTable() {
         <Table>
           <TableHeader className="bg-muted/30">
             <TableRow>
-              <TableHead className="w-[220px]">Name</TableHead>
-              <TableHead className="w-[250px]">Email</TableHead>
-              <TableHead className="w-[200px]">Workspace(s)</TableHead>
-              <TableHead className="w-[140px]">System Role</TableHead>
-              <TableHead className="w-[150px]">Joined</TableHead>
-              <TableHead className="w-[80px] text-right">Actions</TableHead>
+              <FilterableTableHeader
+                columnKey="name"
+                title="Name"
+                isFiltered={isColumnFiltered("name")}
+                activeValue={filters["name"]}
+                onClear={() => clearColumnFilter("name")}
+                className="w-[220px]"
+              />
+              <FilterableTableHeader
+                columnKey="email"
+                title="Email"
+                isFiltered={isColumnFiltered("email")}
+                activeValue={filters["email"]}
+                onClear={() => clearColumnFilter("email")}
+                className="w-[250px]"
+              />
+              <FilterableTableHeader
+                columnKey="workspace"
+                title="Workspace(s)"
+                isFiltered={isColumnFiltered("workspace")}
+                activeValue={filters["workspace"]}
+                onClear={() => clearColumnFilter("workspace")}
+                className="w-[200px]"
+              />
+              <FilterableTableHeader
+                columnKey="role"
+                title="System Role"
+                isFiltered={isColumnFiltered("role")}
+                activeValue={filters["role"]}
+                onClear={() => clearColumnFilter("role")}
+                className="w-[140px]"
+              />
+              <FilterableTableHeader
+                columnKey="joined"
+                title="Joined"
+                isFiltered={isColumnFiltered("joined")}
+                activeValue={filters["joined"]}
+                onClear={() => clearColumnFilter("joined")}
+                className="w-[150px]"
+              />
+              <TableCell className="w-[80px] text-right font-medium text-muted-foreground">Actions</TableCell>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading && usersList.length === 0 ? (
-              // Skeletal Loading state
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i} className="animate-pulse">
                   <TableCell><div className="h-4 bg-muted/65 rounded w-32" /></TableCell>
@@ -291,37 +348,51 @@ export function UsersDataTable() {
                   <TableCell className="text-right"><div className="h-8 w-8 bg-muted/65 rounded ml-auto" /></TableCell>
                 </TableRow>
               ))
-            ) : usersList.length === 0 ? (
-              // Empty State
+            ) : displayUsers.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="h-48 text-center text-muted-foreground">
                   <div className="flex flex-col items-center justify-center gap-2">
                     <Users className="h-8 w-8 stroke-1 text-muted-foreground/60" />
-                    <span>No users found. Try adjusting your search query.</span>
+                    <span>No users found matching current filters.</span>
                   </div>
                 </TableCell>
               </TableRow>
             ) : (
-              // Render Records
-              usersList.map((user) => (
+              displayUsers.map((user) => (
                 <TableRow
                   key={user.id}
                   className={`hover:bg-muted/40 transition-colors ${
                     isPlaceholderData ? "opacity-70" : ""
                   }`}
                 >
-                  <TableCell className="font-medium text-foreground">
+                  <FilterableTableCell
+                    columnKey="name"
+                    value={user.name}
+                    isFiltered={isColumnFiltered("name")}
+                    onToggleFilter={toggleFilter}
+                    onTextClick={() => handleViewDetails(user)}
+                  >
                     {user.name}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
+                  </FilterableTableCell>
+                  <FilterableTableCell
+                    columnKey="email"
+                    value={user.email}
+                    isFiltered={isColumnFiltered("email")}
+                    onToggleFilter={toggleFilter}
+                  >
                     <div className="flex flex-col">
                       <span>{user.email}</span>
                       {user.emailVerified && (
                         <span className="text-[10px] text-green-500 font-normal">Verified</span>
                       )}
                     </div>
-                  </TableCell>
-                  <TableCell>
+                  </FilterableTableCell>
+                  <FilterableTableCell
+                    columnKey="workspace"
+                    value={user.primaryWorkspace}
+                    isFiltered={isColumnFiltered("workspace")}
+                    onToggleFilter={toggleFilter}
+                  >
                     {user.primaryWorkspace === 'No Workspace' ? (
                       <span className="text-sm text-muted-foreground italic">None</span>
                     ) : (
@@ -351,17 +422,30 @@ export function UsersDataTable() {
                         )}
                       </div>
                     )}
-                  </TableCell>
-                  <TableCell>{getRoleBadge(user.role)}</TableCell>
-                  <TableCell className="text-muted-foreground text-sm">
+                  </FilterableTableCell>
+                  <FilterableTableCell
+                    columnKey="role"
+                    value={user.role === "super_admin" ? "Super Admin" : user.role === "admin" ? "Admin" : "User"}
+                    isFiltered={isColumnFiltered("role")}
+                    onToggleFilter={toggleFilter}
+                  >
+                    {getRoleBadge(user.role)}
+                  </FilterableTableCell>
+                  <FilterableTableCell
+                    columnKey="joined"
+                    value={user.createdAt ? format(new Date(user.createdAt), "MMM d, yyyy") : "-"}
+                    isFiltered={isColumnFiltered("joined")}
+                    onToggleFilter={toggleFilter}
+                  >
                     {user.createdAt ? format(new Date(user.createdAt), "MMM d, yyyy") : "-"}
-                  </TableCell>
-                  <TableCell className="text-right">
+                  </FilterableTableCell>
+                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                     <UsersDataTableActions
                       user={{ id: user.id, email: user.email, role: user.role }}
                       currentUserRole={currentUserRole}
                       onImpersonate={handleImpersonateAction}
                       onSecurityAction={handleSecurityAction}
+                      onViewDetails={handleViewDetails}
                     />
                   </TableCell>
                 </TableRow>
@@ -401,7 +485,7 @@ export function UsersDataTable() {
           </div>
         </div>
       )}
-      {/* Shared Modals Mounted at the Root */}
+      
       <SecurityActionModal 
         isOpen={securityModal.isOpen} 
         onClose={() => setSecurityModal((prev) => ({ ...prev, isOpen: false }))} 
@@ -409,11 +493,16 @@ export function UsersDataTable() {
         actionType={securityModal.actionType} 
       />
 
-      {/* Phase 1 Impersonate Modal (Refactored to match this pattern) */}
       <ImpersonateActionModal
         isOpen={impersonateModal.isOpen}
         onClose={() => setImpersonateModal((prev) => ({ ...prev, isOpen: false }))}
         user={impersonateModal.user}
+      />
+
+      <UserDetailsModal
+        isOpen={detailsModal.isOpen}
+        onClose={() => setDetailsModal((prev) => ({ ...prev, isOpen: false }))}
+        user={detailsModal.user}
       />
     </div>
   );

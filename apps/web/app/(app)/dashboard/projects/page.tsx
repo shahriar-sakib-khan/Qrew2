@@ -1,18 +1,12 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
-import { Plus, List, FolderTree } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Plus, List, FolderTree, Folder, SlidersHorizontal } from "lucide-react";
 import { AddProjectModal } from "@/components/features/projects/add-project-modal";
 import { useQuery } from "@tanstack/react-query";
 import { apiUrl } from "@/lib/constants";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -20,21 +14,54 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { ListView } from "@/components/features/projects/list-view";
 import { FolderView } from "@/components/features/projects/folder-view";
+import { ExplorerView } from "@/components/features/projects/explorer-view";
+
+import { Can } from "@/components/features/auth/can";
 import { ProjectDetailsModal } from "@/components/features/projects/project-details-modal";
 import { ClientDetailsModal } from "@/components/features/clients/client-details-modal";
-import { Can } from "@/components/features/auth/can";
 
 export default function ProjectsPage() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [projectToEdit, setProjectToEdit] = useState<any>(null);
+  const [projectToView, setProjectToView] = useState<any>(null);
   const [clientToView, setClientToView] = useState<any>(null);
-  const [viewMode, setViewMode] = useState<"list" | "folder">("list");
+  const [viewMode, setViewMode] = useState<"list" | "tree" | "folder">("list");
   const [sortBy, setSortBy] = useState<string>("createdAt_desc");
   const [groupByKey, setGroupByKey] = useState<string>("createdAt");
   const [activeTab, setActiveTab] = useState<"active" | "archived">("active");
+
+  const [hiddenCols, setHiddenCols] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const saved = localStorage.getItem("projects-hidden-cols");
+    if (saved) {
+      try {
+        setHiddenCols(JSON.parse(saved));
+      } catch(e) {}
+    }
+  }, []);
+
+  const toggleColumn = (key: string, checked: boolean) => {
+    const next = { ...hiddenCols };
+    if (checked) {
+      delete next[key];
+    } else {
+      next[key] = true;
+    }
+    setHiddenCols(next);
+    localStorage.setItem("projects-hidden-cols", JSON.stringify(next));
+  };
 
   const { data: orgSettings } = useQuery({
     queryKey: ["orgSettings"],
@@ -45,7 +72,7 @@ export default function ProjectsPage() {
     },
   });
 
-  const { data: rawCustomFields, isLoading: fieldsLoading } = useQuery({
+  const { data: rawCustomFields, isLoading: customFieldsLoading } = useQuery({
     queryKey: ["custom-fields", "project"],
     queryFn: async () => {
       const res = await fetch(`${apiUrl}/api/workspaces/custom-fields?entityType=project`, { credentials: "include" });
@@ -60,119 +87,108 @@ export default function ProjectsPage() {
     if (Array.isArray(allowedColumns) && allowedColumns.length > 0) {
       return rawCustomFields.filter((cf: any) => allowedColumns.includes(cf.id));
     }
-    // If no columns are explicitly allowed/configured, we show all of them.
     return rawCustomFields;
   }, [rawCustomFields, orgSettings]);
 
-  // Default to Arrival Date if it exists
-  useEffect(() => {
-    if (customFields) {
-      const arrivalField = customFields.find((f: any) => f.fieldName.toLowerCase().includes("arrival"));
-      if (arrivalField) {
-        setGroupByKey(arrivalField.fieldKey);
-        setSortBy(`${arrivalField.fieldKey}_desc`);
-      }
-    }
+  const dateFields = useMemo(() => {
+    return customFields?.filter((cf: any) => cf.fieldType === "date") || [];
   }, [customFields]);
 
   const { data: projects, isLoading: projectsLoading, refetch } = useQuery({
     queryKey: ["projects", activeTab],
     queryFn: async () => {
-      const res = await fetch(`${apiUrl}/api/workspaces/projects?status=${activeTab}`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch projects");
+      const res = await fetch(`${apiUrl}/api/workspaces/projects?status=${activeTab === 'archived' ? 'archived' : 'active'}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch files");
       return res.json();
     },
   });
 
+  const { data: allStatuses } = useQuery({
+    queryKey: ["projectStatuses"],
+    queryFn: async () => {
+      const res = await fetch(`${apiUrl}/api/workspaces/projects/statuses`, { credentials: "include" });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data : data.statuses || [];
+    },
+  });
+
+  const workflowsEnabled = !!orgSettings?.metadata?.sysWorkflowsEnabled;
+
   const sortedProjects = useMemo(() => {
     if (!projects) return [];
-    
-    const [sortField, sortOrder] = sortBy.split("_");
-    
-    return [...projects].sort((a: any, b: any) => {
-      let valA, valB;
+    const copy = [...projects];
 
-      if (sortField === "createdAt") {
-        valA = new Date(a.createdAt).getTime();
-        valB = new Date(b.createdAt).getTime();
-      } else if (sortField === "archivedAt") {
-        valA = a.archivedAt ? new Date(a.archivedAt).getTime() : 0;
-        valB = b.archivedAt ? new Date(b.archivedAt).getTime() : 0;
-      } else if (sortField === "name") {
-        valA = a.name.toLowerCase();
-        valB = b.name.toLowerCase();
+    return copy.sort((a, b) => {
+      const [field, direction] = sortBy.split("_");
+      const isAsc = direction === "asc";
+
+      let valA: any = a[field];
+      let valB: any = b[field];
+
+      if (field === "createdAt" || field === "archivedAt") {
+        valA = a[field] ? new Date(a[field]).getTime() : 0;
+        valB = b[field] ? new Date(b[field]).getTime() : 0;
+      } else if (field === "name") {
+        valA = a.name?.toLowerCase() || "";
+        valB = b.name?.toLowerCase() || "";
       } else {
-        // Custom field sort
-        valA = a.customFields?.[sortField] || "";
-        valB = b.customFields?.[sortField] || "";
-        
-        // Try parsing dates if possible for custom fields
-        const dateA = new Date(valA);
-        const dateB = new Date(valB);
-        if (!isNaN(dateA.getTime()) && !isNaN(dateB.getTime())) {
-          valA = dateA.getTime();
-          valB = dateB.getTime();
-        }
+        valA = a.customFields?.[field] || "";
+        valB = b.customFields?.[field] || "";
       }
 
-      if (valA < valB) return sortOrder === "asc" ? -1 : 1;
-      if (valA > valB) return sortOrder === "asc" ? 1 : -1;
+      if (valA < valB) return isAsc ? -1 : 1;
+      if (valA > valB) return isAsc ? 1 : -1;
       return 0;
     });
   }, [projects, sortBy]);
 
-  // Extract date custom fields for grouping dropdown
-  const dateFields = useMemo(() => {
-    if (!customFields) return [];
-    return customFields.filter((cf: any) => cf.fieldType === "date");
-  }, [customFields]);
-
-  const handleEdit = (project: any) => {
-    setProjectToEdit(project);
-    setIsAddModalOpen(true);
+  const handleDelete = async (project: any) => {
+    if (!confirm(`Are you sure you want to permanently delete "${project.name}"? This action cannot be undone.`)) return;
+    try {
+      const res = await fetch(`${apiUrl}/api/workspaces/projects/${project.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      toast.success("File deleted permanently");
+      refetch();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete file");
+    }
   };
 
   const handleArchiveToggle = async (project: any) => {
-    const isArchived = project.status === "archived";
+    const isArchived = !!project.archivedAt;
     const endpoint = isArchived ? "unarchive" : "archive";
     try {
       const res = await fetch(`${apiUrl}/api/workspaces/projects/${project.id}/${endpoint}`, {
         method: "PATCH",
         credentials: "include",
       });
-      if (!res.ok) throw new Error(`Failed to ${endpoint} file`);
-      toast.success(`File successfully ${isArchived ? "unarchived" : "archived"}`);
+      if (!res.ok) throw new Error(await res.text());
+      toast.success(isArchived ? "File unarchived" : "File archived");
       refetch();
     } catch (err: any) {
-      toast.error(err.message);
+      toast.error(err.message || `Failed to ${endpoint} file`);
     }
   };
 
-  const handleDelete = async (project: any) => {
-    if (!confirm(`Are you sure you want to delete ${project.name}? This cannot be undone.`)) return;
-    try {
-      const res = await fetch(`${apiUrl}/api/workspaces/projects/${project.id}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Failed to delete file");
-      toast.success("File deleted successfully");
-      refetch();
-    } catch (err: any) {
-      toast.error(err.message);
-    }
+  const handleEdit = (project: any) => {
+    setProjectToEdit(project);
+    setIsAddModalOpen(true);
   };
-
-  const [projectToView, setProjectToView] = useState<any>(null);
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Files Dashboard</h1>
-          <p className="text-muted-foreground text-sm">Manage, sort, and organize your files.</p>
+          <p className="text-sm text-muted-foreground">
+            Manage, sort, and organize your files.
+          </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <Button onClick={() => { setProjectToEdit(null); setIsAddModalOpen(true); }}>
             <Plus className="mr-2 h-4 w-4" />
             Add File
@@ -189,17 +205,20 @@ export default function ProjectsPage() {
         </TabsList>
 
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-muted/30 p-2 rounded-lg border mb-4">
-          <ToggleGroup type="single" value={viewMode} onValueChange={(val) => val && setViewMode(val as "list" | "folder")}>
+          <ToggleGroup type="single" value={viewMode} onValueChange={(val) => val && setViewMode(val as any)}>
             <ToggleGroupItem value="list" aria-label="Toggle list view">
               <List className="h-4 w-4 mr-2" /> List
             </ToggleGroupItem>
+            <ToggleGroupItem value="tree" aria-label="Toggle tree view">
+              <FolderTree className="h-4 w-4 mr-2" /> Tree
+            </ToggleGroupItem>
             <ToggleGroupItem value="folder" aria-label="Toggle folder view">
-              <FolderTree className="h-4 w-4 mr-2" /> Folder
+              <Folder className="h-4 w-4 mr-2" /> Folder
             </ToggleGroupItem>
           </ToggleGroup>
 
           <div className="flex items-center gap-3 w-full sm:w-auto">
-            {viewMode === "folder" ? (
+            {viewMode === "tree" || viewMode === "folder" ? (
                <div className="flex items-center gap-2 text-sm">
                  <span className="text-muted-foreground whitespace-nowrap">Group by:</span>
                  <Select value={groupByKey} onValueChange={setGroupByKey}>
@@ -242,6 +261,42 @@ export default function ProjectsPage() {
                  </Select>
                </div>
             )}
+            
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-9 w-9 sm:w-auto px-0 sm:px-3">
+                  <SlidersHorizontal className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">View</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-[200px]">
+                <DropdownMenuCheckboxItem checked={!hiddenCols['sys-project-client']} onCheckedChange={(c) => toggleColumn('sys-project-client', c)}>
+                  Client
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem checked={!hiddenCols['sys-project-status']} onCheckedChange={(c) => toggleColumn('sys-project-status', c)}>
+                  Status
+                </DropdownMenuCheckboxItem>
+                <Can I="finance:view_expenses">
+                  <DropdownMenuCheckboxItem checked={!hiddenCols['total_expenses']} onCheckedChange={(c) => toggleColumn('total_expenses', c)}>
+                    Total Expenses
+                  </DropdownMenuCheckboxItem>
+                </Can>
+                <DropdownMenuCheckboxItem checked={!hiddenCols['createdAt']} onCheckedChange={(c) => toggleColumn('createdAt', c)}>
+                  Created At
+                </DropdownMenuCheckboxItem>
+                {activeTab === "archived" && (
+                  <DropdownMenuCheckboxItem checked={!hiddenCols['archivedAt']} onCheckedChange={(c) => toggleColumn('archivedAt', c)}>
+                    Archived At
+                  </DropdownMenuCheckboxItem>
+                )}
+                {customFields?.length > 0 && <DropdownMenuSeparator />}
+                {customFields?.map((cf: any) => (
+                  <DropdownMenuCheckboxItem key={cf.id} checked={!hiddenCols[cf.id]} onCheckedChange={(c) => toggleColumn(cf.id, c)}>
+                    {cf.fieldName}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
@@ -259,8 +314,11 @@ export default function ProjectsPage() {
                 onViewClient={setClientToView}
                 isArchivedView={false}
                 visibleColumns={orgSettings?.metadata?.clientFileViewColumns}
+                hiddenColumns={hiddenCols}
+                allStatuses={allStatuses || []}
+                workflowsEnabled={workflowsEnabled}
               />
-            ) : (
+            ) : viewMode === "tree" ? (
               <FolderView 
                 projects={sortedProjects} 
                 customFields={customFields || []} 
@@ -271,6 +329,22 @@ export default function ProjectsPage() {
                 onArchiveToggle={handleArchiveToggle}
                 onViewClient={setClientToView}
                 isArchivedView={false}
+              />
+            ) : (
+              <ExplorerView
+                projects={sortedProjects}
+                customFields={customFields || []}
+                groupByKey={groupByKey}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                onView={setProjectToView}
+                onArchiveToggle={handleArchiveToggle}
+                onViewClient={setClientToView}
+                isArchivedView={false}
+                visibleColumns={orgSettings?.metadata?.clientFileViewColumns}
+                hiddenColumns={hiddenCols}
+                allStatuses={allStatuses || []}
+                workflowsEnabled={workflowsEnabled}
               />
             )}
           </div>
@@ -291,8 +365,11 @@ export default function ProjectsPage() {
                 showArchivedAt={true}
                 isArchivedView={true}
                 visibleColumns={orgSettings?.metadata?.clientFileViewColumns}
+                hiddenColumns={hiddenCols}
+                allStatuses={allStatuses || []}
+                workflowsEnabled={workflowsEnabled}
               />
-            ) : (
+            ) : viewMode === "tree" ? (
               <FolderView 
                 projects={sortedProjects} 
                 customFields={customFields || []} 
@@ -304,6 +381,23 @@ export default function ProjectsPage() {
                 onViewClient={setClientToView}
                 showArchivedAt={true}
                 isArchivedView={true}
+              />
+            ) : (
+              <ExplorerView
+                projects={sortedProjects}
+                customFields={customFields || []}
+                groupByKey={groupByKey}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                onView={setProjectToView}
+                onArchiveToggle={handleArchiveToggle}
+                onViewClient={setClientToView}
+                showArchivedAt={true}
+                isArchivedView={true}
+                visibleColumns={orgSettings?.metadata?.clientFileViewColumns}
+                hiddenColumns={hiddenCols}
+                allStatuses={allStatuses || []}
+                workflowsEnabled={workflowsEnabled}
               />
             )}
           </div>
@@ -318,12 +412,15 @@ export default function ProjectsPage() {
         }} 
         editProject={projectToEdit}
       />
+
       <ProjectDetailsModal
         project={projectToView}
         onClose={() => setProjectToView(null)}
       />
+
       <ClientDetailsModal
         client={clientToView}
+        mode="full"
         onClose={() => setClientToView(null)}
       />
     </div>

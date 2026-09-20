@@ -29,4 +29,8 @@ export * from "./invoice-configs";
 export * from "./invoice-templates";
 export * from "./invoice-instances";
 export * from "./invoice-types";
+export * from "./invoice-types-table";
 export * from "./project_attachments";
+export * from "./project-statuses";
+export * from "./project-status-transitions";
+export * from "./project-status-fields";

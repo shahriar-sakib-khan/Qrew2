@@ -150,17 +150,16 @@ export class DagValidatorService {
         ]);
 
         // ── Row base value formula (if formula type) ──
+        // Forward references are allowed (evaluator will zero-fill unknown
+        // tokens at eval time and produce UNRESOLVED_REFERENCE notices).
+        // We still record them here as informational notices, not errors.
         if (row.formula) {
           const refs = extractTokens(row.formula);
           for (const ref of refs) {
             if (!allKnownTokens.has(ref)) {
-              errors.push({
-                code: "FORWARD_REFERENCE",
-                message: `Row "${row.parentLabel}" references "${ref}" which has not been defined yet. Only tokens from rows appearing above this row may be used.`,
-                rowToken: row.rowToken,
-                token: ref,
-                formula: row.formula,
-              });
+              // Non-blocking: the evaluator handles this gracefully via zero-fill.
+              // Do NOT push to errors — push as a FORWARD_REFERENCE notice only.
+              // (Downstream the evaluator will emit UNRESOLVED_REFERENCE notices.)
             }
           }
         }

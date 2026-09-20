@@ -1,25 +1,56 @@
 import { type Context } from 'hono';
 import { z } from 'zod';
-import { db, customFieldDefinitions } from '@starter/db';
+import { db, customFieldDefinitions, members } from '@starter/db';
 import { type SQL, eq, and } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 import { auth } from '../../infra/lib/auth';
+import { logger } from '../../infra/lib/logger';
+
+const log = logger.child({ module: 'custom-fields' });
+
+// ─── Validation Schemas ────────────────────────────────────────────────────
 
 const createDefinitionSchema = z.object({
   entityType: z.enum(['client', 'project', 'staff']),
   fieldName: z.string().min(1),
-  fieldKey: z.string().min(1).transform(val => val.toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_|_$/g, "")),
+  // fieldKey is always normalized to UPPERCASE_WITH_UNDERSCORES server-side.
+  // Client must not rely on case; the transformed value is what gets stored.
+  fieldKey: z.string().min(1).transform(val =>
+    val.toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_|_$/g, '')
+  ),
   fieldType: z.enum(['text', 'number', 'date', 'boolean', 'single_select', 'multi_select', 'others']),
   isRequired: z.boolean().default(false),
   options: z.array(z.string()).nullable().optional(),
+  isDetailed: z.boolean().default(false),
+  isSensitive: z.boolean().default(false),
+  // Category 3 (Private): completely hidden from all non-owners regardless of workflow state
+  isPrivate: z.boolean().default(false),
 });
 
+// ─── Helper: resolve org ownership ────────────────────────────────────────
+/**
+ * Returns true if the requesting user is an org owner or super-admin.
+ * Private fields are only visible to these roles.
+ */
+async function isOrgOwnerOrAdmin(userId: string, orgId: string): Promise<boolean> {
+  const sessionData = await auth.api.getSession({ headers: new Headers() });
+  // Check via direct DB lookup — role='owner' on the members table
+  const member = await db.query.members.findFirst({
+    where: and(eq(members.userId, userId), eq(members.organizationId, orgId)),
+  });
+  return member?.role === 'owner';
+}
+
+// ─── Controller ───────────────────────────────────────────────────────────
+
 export class CustomFieldsController {
-  static async listDefinitions(c: Context) {
+  static async listDefinitions(c: Context): Promise<any> {
     const sessionData = await auth.api.getSession({ headers: c.req.raw.headers });
     const orgId = sessionData?.session?.activeOrganizationId;
+    const userId = sessionData?.user?.id;
+    const userRole = sessionData?.user?.role; // 'super_admin' if global admin
 
-    if (!orgId) {
+    if (!orgId || !userId) {
       return c.json({ error: 'Unauthorized', message: 'No active organization selected.' }, 401);
     }
 
@@ -35,10 +66,22 @@ export class CustomFieldsController {
       orderBy: (defs, { asc }) => [asc(defs.createdAt)],
     });
 
+    // Category 3 (Private): filter out private fields for non-owners/non-super-admins.
+    // Super admins bypass all tenant restrictions.
+    if (userRole !== 'super_admin') {
+      const member = await db.query.members.findFirst({
+        where: and(eq(members.userId, userId), eq(members.organizationId, orgId)),
+      });
+      const isOwner = member?.role === 'owner';
+      if (!isOwner) {
+        return c.json(definitions.filter(d => !d.isPrivate));
+      }
+    }
+
     return c.json(definitions);
   }
 
-  static async createDefinition(c: Context) {
+  static async createDefinition(c: Context): Promise<any> {
     const sessionData = await auth.api.getSession({ headers: c.req.raw.headers });
     const orgId = sessionData?.session?.activeOrganizationId;
 
@@ -61,7 +104,7 @@ export class CustomFieldsController {
         eq(customFieldDefinitions.organizationId, orgId),
         eq(customFieldDefinitions.entityType, data.entityType),
         eq(customFieldDefinitions.fieldKey, data.fieldKey)
-      )
+      ),
     });
 
     if (existing) {
@@ -76,13 +119,17 @@ export class CustomFieldsController {
       fieldKey: data.fieldKey,
       fieldType: data.fieldType,
       isRequired: data.isRequired,
-      options: data.options,
+      options: data.options ?? null,
+      isDetailed: data.isDetailed,
+      isSensitive: data.isSensitive,
+      isPrivate: data.isPrivate,
     }).returning();
 
+    log.info({ orgId, fieldId: newDef.id, fieldKey: newDef.fieldKey }, 'Created custom field definition');
     return c.json(newDef, 201);
   }
 
-  static async deleteDefinition(c: Context) {
+  static async deleteDefinition(c: Context): Promise<any> {
     const sessionData = await auth.api.getSession({ headers: c.req.raw.headers });
     const orgId = sessionData?.session?.activeOrganizationId;
 
@@ -91,29 +138,27 @@ export class CustomFieldsController {
     }
 
     const id = c.req.param('id');
+    if (!id) return c.json({ error: 'Missing ID' }, 400);
 
-    if (!id) {
-      return c.json({ error: 'Missing ID' }, 400);
-    }
-
-    // First check if it exists and isn't seeded/locked (if we choose to enforce that here)
     const existing = await db.query.customFieldDefinitions.findFirst({
       where: and(
         eq(customFieldDefinitions.id, id),
         eq(customFieldDefinitions.organizationId, orgId)
-      )
+      ),
     });
 
-    if (!existing) {
-      return c.json({ error: 'Not Found' }, 404);
+    if (!existing) return c.json({ error: 'Not Found' }, 404);
+
+    if (existing.isSeeded) {
+      return c.json({ error: 'Seeded (system) fields cannot be deleted' }, 403);
     }
 
     await db.delete(customFieldDefinitions).where(eq(customFieldDefinitions.id, id));
-
+    log.info({ orgId, fieldId: id }, 'Deleted custom field definition');
     return c.json({ success: true });
   }
 
-  static async updateDefinition(c: Context) {
+  static async updateDefinition(c: Context): Promise<any> {
     const sessionData = await auth.api.getSession({ headers: c.req.raw.headers });
     const orgId = sessionData?.session?.activeOrganizationId;
 
@@ -130,18 +175,19 @@ export class CustomFieldsController {
       where: and(
         eq(customFieldDefinitions.id, id),
         eq(customFieldDefinitions.organizationId, orgId)
-      )
+      ),
     });
 
-    if (!existing) {
-      return c.json({ error: 'Not Found' }, 404);
-    }
+    if (!existing) return c.json({ error: 'Not Found' }, 404);
 
-    // Allow updating name, requirement status, and options.
+    // fieldKey and fieldType are immutable after creation to preserve data integrity
     const updatedData = {
       fieldName: body.fieldName ?? existing.fieldName,
       isRequired: body.isRequired ?? existing.isRequired,
-      options: body.options ?? existing.options,
+      options: body.options !== undefined ? body.options : existing.options,
+      isDetailed: body.isDetailed !== undefined ? body.isDetailed : existing.isDetailed,
+      isSensitive: body.isSensitive !== undefined ? body.isSensitive : existing.isSensitive,
+      isPrivate: body.isPrivate !== undefined ? body.isPrivate : existing.isPrivate,
     };
 
     const [updatedDef] = await db.update(customFieldDefinitions)

@@ -22,7 +22,11 @@ export const invoiceDrafts = pgTable(
     sourceTemplateId: text("source_template_id")
       .references(() => invoiceTemplates.id, { onDelete: "set null" }),
     sourceTemplateVersion: integer("source_template_version"),
+    name: text("name").default("Draft").notNull(),
+    description: text("description"),
+    draftHeaderFields: jsonb("draft_header_fields").$type<any>().default([]).notNull(),
     draftHeaderValues: jsonb("draft_header_values").$type<any>().default({}).notNull(),
+    draftConstants: jsonb("draft_constants").$type<any>().default({}).notNull(),
     draftSections: jsonb("draft_sections").$type<any>().default([]).notNull(),
     lastAutoSavedAt: timestamp("last_auto_saved_at", { mode: "date" }).defaultNow().notNull(),
     createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),

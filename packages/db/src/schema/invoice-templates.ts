@@ -19,6 +19,7 @@ import {
   componentValueTypeEnum,
   sectionChargeBaseEnum,
 } from "./invoice-enums";
+import { invoiceTypes } from "./invoice-types-table";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // INVOICE TEMPLATES
@@ -32,7 +33,7 @@ export const invoiceTemplates = pgTable(
       .references(() => organizations.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     description: text("description"),
-    documentType: documentTypeEnum("document_type").default("general").notNull(),
+    documentType: text("document_type").references(() => invoiceTypes.id, { onDelete: "set null" }),
     scope: templateScopeEnum("scope").default("organization").notNull(),
     currency: text("currency").default("USD").notNull(),
     version: integer("version").default(1).notNull(),

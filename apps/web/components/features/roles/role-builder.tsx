@@ -11,12 +11,12 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { 
   Field, 
   FieldLabel, 
-  FieldError, 
   FieldGroup, 
   FieldSet, 
   FieldLegend, 
@@ -27,6 +27,18 @@ const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
 interface RoleBuilderProps {
   roleId?: string; // undefined = create mode, string = edit mode
+}
+
+// Helper to group permissions by logical action type
+function getPermissionType(key: string): "read" | "write" | "danger" | "other" {
+  const action = key.split(":")[1];
+  if (!action) return "other";
+  
+  if (action.startsWith("view")) return "read";
+  if (["create", "edit", "request", "approve", "record", "manage", "invite"].some(a => action.startsWith(a))) return "write";
+  if (["delete", "archive", "restore", "revoke"].some(a => action.startsWith(a))) return "danger";
+  
+  return "other";
 }
 
 export function RoleBuilder({ roleId }: RoleBuilderProps) {
@@ -224,20 +236,20 @@ export function RoleBuilder({ roleId }: RoleBuilderProps) {
                   const selectedCount = field.state.value.length;
 
                   return (
-                    <div className="space-y-6">
+                    <div className="space-y-10">
                       {/* Selection Counter */}
-                      <div className="flex items-center justify-between px-1 min-h-[28px]">
-                        <span className="text-sm text-muted-foreground">
+                      <div className="flex items-center justify-between px-1 min-h-[28px] border-b pb-4">
+                        <span className="text-sm font-medium text-muted-foreground">
                           {selectedCount} permission{selectedCount !== 1 ? "s" : ""} selected
                         </span>
                         <Button
                           type="button"
-                          variant="ghost"
+                          variant="secondary"
                           size="sm"
-                          className={`h-7 text-xs text-muted-foreground transition-opacity ${selectedCount > 0 ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+                          className={`h-8 transition-opacity ${selectedCount > 0 ? "opacity-100" : "opacity-0 pointer-events-none"}`}
                           onClick={() => field.handleChange([])}
                         >
-                          Clear All
+                          Clear All Selected
                         </Button>
                       </div>
 
@@ -247,19 +259,92 @@ export function RoleBuilder({ roleId }: RoleBuilderProps) {
                           field.state.value.includes(p.key)
                         ).length;
 
+                        const readPerms = perms.filter((p: any) => getPermissionType(p.key) === "read");
+                        const writePerms = perms.filter((p: any) => getPermissionType(p.key) === "write");
+                        const dangerPerms = perms.filter((p: any) => getPermissionType(p.key) === "danger");
+                        const otherPerms = perms.filter((p: any) => getPermissionType(p.key) === "other");
+
+                        const renderGroup = (groupPerms: any[]) => {
+                          if (groupPerms.length === 0) return null;
+                          return (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-4 last:mb-0">
+                              {groupPerms.map((perm: any) => {
+                                const hasAccess = can(perm.key);
+                                const isChecked = field.state.value.includes(perm.key);
+                                const permType = getPermissionType(perm.key);
+
+                                return (
+                                  <label
+                                    key={perm.key}
+                                    className={`relative flex flex-col items-start gap-3 p-6 rounded-2xl border transition-all cursor-pointer select-none ${
+                                      !hasAccess
+                                        ? "opacity-50 cursor-not-allowed bg-muted/50"
+                                        : isChecked
+                                        ? "bg-primary/5 border-primary/30 shadow-sm"
+                                        : "bg-card hover:shadow-md hover:border-primary/20"
+                                    }`}
+                                  >
+                                    <div className="absolute top-5 right-5">
+                                      <Checkbox
+                                        id={`perm-${perm.key}`}
+                                        checked={isChecked}
+                                        disabled={!hasAccess}
+                                        onCheckedChange={(checked) => {
+                                          if (checked) {
+                                            field.pushValue(perm.key);
+                                          } else {
+                                            const index = field.state.value.indexOf(perm.key);
+                                            if (index > -1) field.removeValue(index);
+                                          }
+                                        }}
+                                        className="h-5 w-5"
+                                      />
+                                    </div>
+                                    <div className="flex flex-col gap-2 w-full pr-8">
+                                      <div className="flex items-center gap-2">
+                                        <Badge 
+                                          variant={permType === "danger" ? "destructive" : "secondary"} 
+                                          className={`font-mono font-extrabold text-[14px] px-3 py-1 shadow-sm ${
+                                            isChecked && permType !== 'danger' ? 'bg-primary/20 text-primary' : ''
+                                          }`}
+                                        >
+                                          {perm.key}
+                                        </Badge>
+                                        {!hasAccess && (
+                                          <span className="text-[10px] font-semibold uppercase tracking-wider text-destructive bg-destructive/10 px-1.5 py-0.5 rounded">
+                                            Restricted
+                                          </span>
+                                        )}
+                                      </div>
+                                      <p className="text-[14.5px] text-muted-foreground leading-relaxed mt-1">
+                                        {perm.description || "No description provided."}
+                                      </p>
+                                    </div>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          );
+                        };
+
                         return (
-                          <div key={category} className="space-y-3">
-                            <div className="flex items-center justify-between min-h-[24px]">
-                              <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wider">
-                                {category}
-                              </h4>
+                          <div key={category} className="space-y-6 pt-2">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 min-h-[24px]">
+                              <div className="flex items-center gap-3">
+                                <h4 className="text-xl font-bold tracking-tight">
+                                  {category}
+                                </h4>
+                                <Badge variant="outline" className="bg-muted/50 text-muted-foreground">
+                                  {categoryPermsInSelection}/{perms.length}
+                                </Badge>
+                              </div>
                               <div className="flex items-center gap-3">
                                 {categoryPermsInSelection === perms.length ? (
                                   <Button
                                     type="button"
-                                    variant="ghost"
+                                    variant="outline"
                                     size="sm"
-                                    className="h-6 w-[105px] px-2 text-xs text-muted-foreground hover:text-foreground"
+                                    className="h-8"
                                     onClick={() => {
                                       const keysToRemove = perms.map((p: any) => p.key);
                                       const newValue = field.state.value.filter((k: string) => !keysToRemove.includes(k));
@@ -271,9 +356,9 @@ export function RoleBuilder({ roleId }: RoleBuilderProps) {
                                 ) : (
                                   <Button
                                     type="button"
-                                    variant="ghost"
+                                    variant="outline"
                                     size="sm"
-                                    className="h-6 w-[105px] px-2 text-xs text-muted-foreground hover:text-foreground"
+                                    className="h-8"
                                     onClick={() => {
                                       const current = new Set(field.state.value);
                                       perms.forEach((p: any) => {
@@ -282,62 +367,17 @@ export function RoleBuilder({ roleId }: RoleBuilderProps) {
                                       field.handleChange(Array.from(current));
                                     }}
                                   >
-                                    Select All
+                                    Select All in Category
                                   </Button>
                                 )}
-                                <span className="text-xs text-muted-foreground min-w-[30px] text-right inline-block">
-                                  {categoryPermsInSelection}/{perms.length}
-                               </span>
                               </div>
                             </div>
 
-                            <div className="grid grid-cols-1 gap-3 border rounded-lg p-4 bg-muted/20">
-                              {perms.map((perm: any) => {
-                                const hasAccess = can(perm.key);
-                                const isChecked = field.state.value.includes(perm.key);
-
-                                return (
-                                  <label
-                                    key={perm.key}
-                                    className={`flex items-center gap-3 p-2 rounded-md transition-colors cursor-pointer ${
-                                      !hasAccess
-                                        ? "opacity-50 cursor-not-allowed"
-                                        : isChecked
-                                        ? "bg-primary/5"
-                                        : "hover:bg-muted/50"
-                                    }`}
-                                  >
-                                    <Checkbox
-                                      id={`perm-${perm.key}`}
-                                      checked={isChecked}
-                                      disabled={!hasAccess}
-                                      onCheckedChange={(checked) => {
-                                        if (checked) {
-                                          field.pushValue(perm.key);
-                                        } else {
-                                          const index = field.state.value.indexOf(perm.key);
-                                          if (index > -1) field.removeValue(index);
-                                        }
-                                      }}
-                                    />
-                                    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 flex-1 min-w-0">
-                                      <div className="flex items-center gap-2 sm:w-[220px] shrink-0">
-                                        <span className={`text-sm ${isChecked ? "font-medium" : "font-normal"}`}>
-                                          {perm.key}
-                                        </span>
-                                        {!hasAccess && (
-                                          <span className="text-[10px] font-semibold uppercase tracking-wider text-destructive bg-destructive/10 px-1.5 py-0.5 rounded">
-                                            Restricted
-                                          </span>
-                                        )}
-                                      </div>
-                                      <p className="text-xs text-muted-foreground leading-snug sm:flex-1">
-                                        {perm.description}
-                                      </p>
-                                    </div>
-                                  </label>
-                                );
-                              })}
+                            <div className="flex flex-col gap-3 border rounded-xl p-6 bg-muted/10">
+                              {renderGroup(readPerms)}
+                              {renderGroup(writePerms)}
+                              {renderGroup(dangerPerms)}
+                              {renderGroup(otherPerms)}
                             </div>
                           </div>
                         );
@@ -353,15 +393,16 @@ export function RoleBuilder({ roleId }: RoleBuilderProps) {
           <form.Subscribe
             selector={(state) => [state.isSubmitting]}
             children={([isSubmitting]) => (
-              <div className="flex items-center justify-end gap-3 border-t pt-6">
+               <div className="flex flex-col sm:flex-row items-center justify-end gap-3 pt-4">
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant="outline"
+                  className="w-full sm:w-auto"
                   onClick={() => router.push("/org-admin/roles")}
                 >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={isSubmitting}>
+                <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto">
                   {isSubmitting ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
