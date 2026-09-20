@@ -37,7 +37,7 @@ export function AddRequisitionModal({ isOpen, onClose }: { isOpen: boolean; onCl
   const projects = Array.isArray(projectsData) ? projectsData : [];
 
   const { control, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
-    resolver: zodResolver(schema) as any,
+    resolver: zodResolver(schema as any),
     defaultValues: {
       amount: 0,
       projectId: "",

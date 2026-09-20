@@ -26,9 +26,27 @@ invoicesRouter.post(
 
 // --- DRAFTS ---
 invoicesRouter.get(
+  "/drafts/list",
+  requireOrgPermission("finance:manage_invoices"),
+  DraftsController.listDrafts
+);
+
+invoicesRouter.get(
   "/drafts",
   requireOrgPermission("finance:manage_invoices"),
   DraftsController.getDraft
+);
+
+invoicesRouter.get(
+  "/drafts/:id",
+  requireOrgPermission("finance:manage_invoices"),
+  DraftsController.getDraftById
+);
+
+invoicesRouter.post(
+  "/drafts",
+  requireOrgPermission("finance:manage_invoices"),
+  DraftsController.createDraft
 );
 
 invoicesRouter.put(

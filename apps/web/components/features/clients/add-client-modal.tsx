@@ -36,7 +36,7 @@ export function AddClientModal({ isOpen, onClose, editClient }: { isOpen: boolea
   });
 
   const { control, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
-    resolver: zodResolver(baseSchema) as any,
+    resolver: zodResolver(baseSchema as any),
     defaultValues: {
       name: "",
       email: "",

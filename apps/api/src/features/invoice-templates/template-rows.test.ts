@@ -219,8 +219,8 @@ describe("TemplateRowsController", () => {
       const ctx = makeCtx({ params: { sectionId: SECTION_ID } });
       const res = await TemplateRowsController.listRows(ctx);
       expect(res.status).toBe(200);
-      expect(Array.isArray(res.data)).toBe(true);
-      expect(res.data).toHaveLength(2);
+      expect(Array.isArray((res as any).data)).toBe(true);
+      expect((res as any).data).toHaveLength(2);
     });
 
     it("returns empty array when section has no rows", async () => {
@@ -229,7 +229,7 @@ describe("TemplateRowsController", () => {
       const ctx = makeCtx({ params: { sectionId: SECTION_ID } });
       const res = await TemplateRowsController.listRows(ctx);
       expect(res.status).toBe(200);
-      expect(res.data).toHaveLength(0);
+      expect((res as any).data).toHaveLength(0);
     });
   });
 
@@ -475,7 +475,7 @@ describe("TemplateRowsController", () => {
       const ctx = makeCtx({ params: { rowId: ROW_ID } });
       const res = await TemplateRowsController.deleteRow(ctx);
       expect(res.status).toBe(200);
-      expect(res.data.success).toBe(true);
+      expect((res as any).data.success).toBe(true);
     });
   });
 

@@ -131,7 +131,7 @@ export function getDbMock() {
   return require("@starter/db") as ReturnType<typeof buildDbMock>;
 }
 
-export function buildDbMock() {
+export function buildDbMock(): any {
   return {
     db: {
       select: vi.fn(),

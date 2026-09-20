@@ -265,7 +265,7 @@ export class TemplateRowsController {
   }
 
   /** PATCH /:templateId/sections/:sectionId/rows/:rowId */
-  static async updateRow(c: Context) {
+  static async updateRow(c: Context): Promise<any> {
     const rowId = c.req.param("rowId") as string;
     const organizationId = c.get("organizationId");
     if (!organizationId) return c.json({ error: "Unauthorized" }, 401);

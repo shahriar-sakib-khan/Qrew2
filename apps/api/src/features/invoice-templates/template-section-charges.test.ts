@@ -280,7 +280,7 @@ describe("TemplateSectionChargesController", () => {
       });
       const res = await TemplateSectionChargesController.createSectionCharge(ctx);
       expect(res.status).toBe(201);
-      expect(res.data.formulaBase).toBe("BASE");
+      expect((res as any).data.formulaBase).toBe("BASE");
     });
 
     it("creates charge with formulaBase=TOTAL successfully", async () => {
@@ -356,7 +356,7 @@ describe("TemplateSectionChargesController", () => {
       const ctx = makeCtx({ params: { chargeId: CHARGE_ID }, body: { formulaRest: "* 0.15" } });
       const res = await TemplateSectionChargesController.updateSectionCharge(ctx);
       expect(res.status).toBe(200);
-      expect(res.data.formulaRest).toBe("* 0.15");
+      expect((res as any).data.formulaRest).toBe("* 0.15");
     });
 
     it("updates formulaBase from BASE to TOTAL", async () => {
@@ -367,7 +367,7 @@ describe("TemplateSectionChargesController", () => {
       const ctx = makeCtx({ params: { chargeId: CHARGE_ID }, body: { formulaBase: "TOTAL" } });
       const res = await TemplateSectionChargesController.updateSectionCharge(ctx);
       expect(res.status).toBe(200);
-      expect(res.data.formulaBase).toBe("TOTAL");
+      expect((res as any).data.formulaBase).toBe("TOTAL");
     });
 
     it("returns 400 for invalid formulaBase in update", async () => {
@@ -410,7 +410,7 @@ describe("TemplateSectionChargesController", () => {
       const ctx = makeCtx({ params: { chargeId: CHARGE_ID } });
       const res = await TemplateSectionChargesController.deleteSectionCharge(ctx);
       expect(res.status).toBe(200);
-      expect(res.data.success).toBe(true);
+      expect((res as any).data.success).toBe(true);
     });
   });
 

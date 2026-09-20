@@ -91,7 +91,7 @@ export function PasswordUpdateForm({ theme = "default" }: { theme?: "default" | 
   type PasswordValues = z.infer<typeof passwordSchema>;
 
   const passwordForm = useForm<PasswordValues>({
-    resolver: zodResolver(passwordSchema),
+    resolver: zodResolver(passwordSchema as any),
     defaultValues: { currentPassword: "", newPassword: "", confirmPassword: "" },
   });
 

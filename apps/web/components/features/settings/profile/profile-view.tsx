@@ -27,7 +27,7 @@ export function ProfileView() {
   const [globalMsg, setGlobalMsg] = useState<{ type: "success" | "error", text: string } | null>(null);
 
   const methods = useForm<ProfileValues>({
-    resolver: zodResolver(profileSchema),
+    resolver: zodResolver(profileSchema as any),
     defaultValues: { name: "", avatarFile: null, avatarDeleted: false },
   });
 
