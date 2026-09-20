@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { apiUrl } from "@/lib/constants";
 
 export type ColumnWidthMap = Record<string, number>;
@@ -39,7 +39,9 @@ export function useColumnResizable({
   const { data: userPrefsData } = useQuery({
     queryKey: ["userPreferences"],
     queryFn: async () => {
-      const res = await fetch(`${apiUrl}/api/workspaces/user-preferences`, { credentials: "include" });
+      const res = await fetch(`${apiUrl}/api/workspaces/user-preferences`, {
+        credentials: "include",
+      });
       if (!res.ok) return { preferences: {} };
       return res.json();
     },
@@ -62,25 +64,28 @@ export function useColumnResizable({
   }, [userPrefsData, tableId]);
 
   // Sync to DB (debounced)
-  const syncToDatabase = useCallback((widths: ColumnWidthMap) => {
-    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-    saveTimeoutRef.current = setTimeout(async () => {
-      try {
-        await fetch(`${apiUrl}/api/workspaces/user-preferences`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            preferences: {
-              tableWidths: {
-                [tableId]: widths,
+  const syncToDatabase = useCallback(
+    (widths: ColumnWidthMap) => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = setTimeout(async () => {
+        try {
+          await fetch(`${apiUrl}/api/workspaces/user-preferences`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({
+              preferences: {
+                tableWidths: {
+                  [tableId]: widths,
+                },
               },
-            },
-          }),
-        });
-      } catch (e) {}
-    }, 600);
-  }, [tableId]);
+            }),
+          });
+        } catch (e) {}
+      }, 600);
+    },
+    [tableId],
+  );
 
   const handleResizeStart = useCallback(
     (columnKey: string, startEvent: React.MouseEvent, currentElementWidth?: number) => {
@@ -93,7 +98,8 @@ export function useColumnResizable({
       startEvent.preventDefault();
 
       const startX = startEvent.clientX;
-      const initialWidth = columnWidths[columnKey] || currentElementWidth || defaultWidths[columnKey] || 150;
+      const initialWidth =
+        columnWidths[columnKey] || currentElementWidth || defaultWidths[columnKey] || 150;
 
       let latestWidths = { ...columnWidths };
 
@@ -125,7 +131,7 @@ export function useColumnResizable({
       window.addEventListener("mousemove", onMouseMove);
       window.addEventListener("mouseup", onMouseUp);
     },
-    [columnWidths, defaultWidths, minWidth, maxWidth, tableId, syncToDatabase]
+    [columnWidths, defaultWidths, minWidth, maxWidth, tableId, syncToDatabase],
   );
 
   const resetColumnWidth = useCallback(
@@ -140,7 +146,7 @@ export function useColumnResizable({
         return next;
       });
     },
-    [tableId, syncToDatabase]
+    [tableId, syncToDatabase],
   );
 
   return {

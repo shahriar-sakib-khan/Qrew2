@@ -1,16 +1,13 @@
-import { Context } from "hono";
 import {
   db,
-  templateRows,
-  templateRowCharges,
-  templateSections,
   invoiceTemplates,
-  decodeFormula,
+  templateRowCharges,
+  templateRows,
+  templateSections,
 } from "@starter/db";
-import { buildRowIndex } from "../services/row-index.service";
-import { buildSectionIndex } from "../../sections/services/section-index.service";
-import { buildConstantIndex } from "../../metadata/services/constant-index.service";
-import { eq, and, asc } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
+import { Context } from "hono";
+import { getTemplateFormulaContext } from "../../services/template-formula-context.service";
 
 export async function listRows(c: Context) {
   const sectionId = c.req.param("sectionId") as string;
@@ -24,18 +21,12 @@ export async function listRows(c: Context) {
     .from(templateSections)
     .innerJoin(invoiceTemplates, eq(templateSections.templateId, invoiceTemplates.id))
     .where(
-      and(
-        eq(templateSections.id, sectionId),
-        eq(invoiceTemplates.organizationId, organizationId)
-      )
+      and(eq(templateSections.id, sectionId), eq(invoiceTemplates.organizationId, organizationId)),
     )
     .limit(1);
   if (secCheck.length === 0) return c.json({ error: "Section not found" }, 404);
 
-  // Build id->token maps for formula decoding
-  const { idToToken } = await buildRowIndex(templateId);
-  const { idToToken: secIdToToken } = await buildSectionIndex(templateId);
-  const { tplIdToToken } = await buildConstantIndex(templateId);
+  const context = await getTemplateFormulaContext(templateId, organizationId);
 
   const rows = await db.query.templateRows.findMany({
     where: eq(templateRows.sectionId, sectionId),
@@ -48,12 +39,12 @@ export async function listRows(c: Context) {
   // Decode formulas before sending to frontend
   const decoded = rows.map((row) => ({
     ...row,
-    formula: decodeFormula(row.formula, idToToken, secIdToToken, tplIdToToken),
+    formula: context.decode(row.formula),
     charges: row.charges.map((ch) => ({
       ...ch,
-      formula: decodeFormula(ch.formula, idToToken, secIdToToken, tplIdToToken) ?? ch.formula,
+      formula: context.decode(ch.formula) ?? ch.formula,
     })),
   }));
 
-  return c.json({ rows: decoded, rowIndex: idToToken });
+  return c.json({ rows: decoded, rowIndex: context.rowIdToToken });
 }

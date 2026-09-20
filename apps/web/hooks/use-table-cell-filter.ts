@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 export type ColumnFilters = Record<string, string>;
 
@@ -43,9 +43,11 @@ export function useTableCellFilter() {
   }, []);
 
   const filterRows = useCallback(
-    <T,>(data: T[], extractors: Record<string, (row: T) => any>): T[] => {
+    <T>(data: T[], extractors: Record<string, (row: T) => any>): T[] => {
       if (!data || !Array.isArray(data)) return [];
-      const activeKeys = Object.keys(filters).filter((k) => filters[k] !== undefined && filters[k] !== null && filters[k] !== "");
+      const activeKeys = Object.keys(filters).filter(
+        (k) => filters[k] !== undefined && filters[k] !== null && filters[k] !== "",
+      );
       if (activeKeys.length === 0) return data;
 
       return data.filter((row) => {
@@ -54,20 +56,21 @@ export function useTableCellFilter() {
           const extractor = extractors[colKey];
           if (!extractor) return true;
           const rawValue = extractor(row);
-          if (rawValue === undefined || rawValue === null) return targetValue === "" || targetValue === "-";
+          if (rawValue === undefined || rawValue === null)
+            return targetValue === "" || targetValue === "-";
           const cellStr = String(rawValue).trim().toLowerCase();
           return cellStr === targetValue || cellStr.includes(targetValue);
         });
       });
     },
-    [filters]
+    [filters],
   );
 
   const isColumnFiltered = useCallback(
     (columnKey: string) => {
       return Boolean(filters[columnKey]);
     },
-    [filters]
+    [filters],
   );
 
   return {

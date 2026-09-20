@@ -1,5 +1,5 @@
-import { Suspense } from "react";
 import { Loader2 } from "lucide-react";
+import { Suspense } from "react";
 import { UsersDataTable } from "@/components/features/admin/users-data-table";
 
 export default function ManageUsersPage() {

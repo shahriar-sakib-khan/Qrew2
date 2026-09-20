@@ -8,6 +8,13 @@
       "when": 1785598064014,
       "tag": "0000_rainy_ghost_rider",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788970413755,
+      "tag": "0001_inventory_module",
+      "breakpoints": true
     }
   ]
 }

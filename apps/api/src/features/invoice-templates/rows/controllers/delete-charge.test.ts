@@ -13,10 +13,16 @@ import { deleteCharge } from "./manage-row-charge.controller";
  * Circular reference / cross-token validation is out of scope (engine responsibility).
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  makeCtx, makeRow, makeRowCharge,
-  ORG_ID, TEMPLATE_ID, SECTION_ID, ROW_ID, CHARGE_ID,
+  CHARGE_ID,
+  makeCtx,
+  makeRow,
+  makeRowCharge,
+  ORG_ID,
+  ROW_ID,
+  SECTION_ID,
+  TEMPLATE_ID,
 } from "../../invoice-templates.fixtures";
 
 const { hoistedChain } = vi.hoisted(() => ({
@@ -60,20 +66,38 @@ vi.mock("@starter/db", () => {
 
   return {
     db,
-    eq, and, asc,
+    eq,
+    and,
+    asc,
     encodeFormula: vi.fn((f: any) => f),
     decodeFormula: vi.fn((f: any) => f),
-    templateRows: { id: "id", sectionId: "sectionId", templateId: "templateId", rowToken: "rowToken", sortOrder: "sortOrder" },
-    templateRowCharges: { id: "id", rowId: "rowId", sortOrder: "sortOrder", chargeToken: "chargeToken" },
-    templateSectionCharges: { id: "id", templateId: "templateId", sectionId: "sectionId", sortOrder: "sortOrder" },
+    templateRows: {
+      id: "id",
+      sectionId: "sectionId",
+      templateId: "templateId",
+      rowToken: "rowToken",
+      sortOrder: "sortOrder",
+    },
+    templateRowCharges: {
+      id: "id",
+      rowId: "rowId",
+      sortOrder: "sortOrder",
+      chargeToken: "chargeToken",
+    },
+    templateSectionCharges: {
+      id: "id",
+      templateId: "templateId",
+      sectionId: "sectionId",
+      sortOrder: "sortOrder",
+    },
     templateSections: { id: "id", templateId: "templateId", sectionToken: "sectionToken" },
     templateConstants: { id: "id", templateId: "templateId", token: "token" },
     invoiceTemplates: { id: "id", organizationId: "organizationId" },
   };
 });
 
-import * as TemplateRowChargesController from "./manage-row-charge.controller";
 import { db } from "@starter/db";
+import * as TemplateRowChargesController from "./manage-row-charge.controller";
 
 // ─── Mock helpers ─────────────────────────────────────────────────────────────
 
@@ -83,8 +107,8 @@ const ROW_FIXTURE = makeRow();
 function mockRowOwned(row = ROW_FIXTURE) {
   (db.select as any)
     .mockReturnValueOnce(hoistedChain([{ row }]))
-    .mockReturnValueOnce(hoistedChain([]))  // buildRowIndex
-    .mockReturnValueOnce(hoistedChain([]))  // buildSectionIndex
+    .mockReturnValueOnce(hoistedChain([])) // buildRowIndex
+    .mockReturnValueOnce(hoistedChain([])) // buildSectionIndex
     .mockReturnValueOnce(hoistedChain([])); // buildConstantIndex
 }
 
@@ -92,11 +116,11 @@ function mockRowOwned(row = ROW_FIXTURE) {
 function mockRowOwnedForCreate(row = ROW_FIXTURE) {
   (db.select as any)
     .mockReturnValueOnce(hoistedChain([{ row }]))
-    .mockReturnValueOnce(hoistedChain([]))  // buildRowIndex (encode)
-    .mockReturnValueOnce(hoistedChain([]))  // buildSectionIndex (encode)
-    .mockReturnValueOnce(hoistedChain([]))  // buildConstantIndex (encode)
-    .mockReturnValueOnce(hoistedChain([]))  // buildRowIndex (decode)
-    .mockReturnValueOnce(hoistedChain([]))  // buildSectionIndex (decode)
+    .mockReturnValueOnce(hoistedChain([])) // buildRowIndex (encode)
+    .mockReturnValueOnce(hoistedChain([])) // buildSectionIndex (encode)
+    .mockReturnValueOnce(hoistedChain([])) // buildConstantIndex (encode)
+    .mockReturnValueOnce(hoistedChain([])) // buildRowIndex (decode)
+    .mockReturnValueOnce(hoistedChain([])) // buildSectionIndex (decode)
     .mockReturnValueOnce(hoistedChain([])); // buildConstantIndex (decode)
 }
 
@@ -106,19 +130,18 @@ function mockRowNotFound() {
 
 /** Queue charge-ownership for updateCharge without formula: [0] charge check, [1-3] decode only */
 function mockChargeOwned(charge = makeRowCharge(), withEncodeIndexes = false) {
-  const mock = (db.select as any)
-    .mockReturnValueOnce(hoistedChain([{ charge, row: ROW_FIXTURE }]));
+  const mock = (db.select as any).mockReturnValueOnce(hoistedChain([{ charge, row: ROW_FIXTURE }]));
   if (withEncodeIndexes) {
     mock
-      .mockReturnValueOnce(hoistedChain([]))  // buildRowIndex (encode)
-      .mockReturnValueOnce(hoistedChain([]))  // buildSectionIndex (encode)
+      .mockReturnValueOnce(hoistedChain([])) // buildRowIndex (encode)
+      .mockReturnValueOnce(hoistedChain([])) // buildSectionIndex (encode)
       .mockReturnValueOnce(hoistedChain([])); // buildConstantIndex (encode)
   }
   // Always queue decode indexes (controller always decodes after update)
   mock
-    .mockReturnValueOnce(hoistedChain([]))   // buildRowIndex (decode)
-    .mockReturnValueOnce(hoistedChain([]))   // buildSectionIndex (decode)
-    .mockReturnValueOnce(hoistedChain([]));  // buildConstantIndex (decode)
+    .mockReturnValueOnce(hoistedChain([])) // buildRowIndex (decode)
+    .mockReturnValueOnce(hoistedChain([])) // buildSectionIndex (decode)
+    .mockReturnValueOnce(hoistedChain([])); // buildConstantIndex (decode)
 }
 
 function mockChargeNotFound() {
@@ -142,35 +165,33 @@ function mockUpdateReturns(charge: any) {
 
 // ─── TESTS ────────────────────────────────────────────────────────────────────
 
-
 describe("TemplateRowChargesController - deleteCharge", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     (db.transaction as any).mockImplementation(async (fn: any) => fn(db));
   });
 
-describe("deleteCharge", () => {
-  it("returns 401 when unauthenticated", async () => {
-    const ctx = makeCtx({ orgId: null, params: { chargeId: CHARGE_ID } });
-    const res = await deleteCharge(ctx);
-    expect(res.status).toBe(401);
-  });
+  describe("deleteCharge", () => {
+    it("returns 401 when unauthenticated", async () => {
+      const ctx = makeCtx({ orgId: null, params: { chargeId: CHARGE_ID } });
+      const res = await deleteCharge(ctx);
+      expect(res.status).toBe(401);
+    });
 
-  it("returns 404 when charge not found or belongs to different org", async () => {
-    mockChargeNotFound();
-    const ctx = makeCtx({ params: { chargeId: CHARGE_ID } });
-    const res = await deleteCharge(ctx);
-    expect(res.status).toBe(404);
-  });
+    it("returns 404 when charge not found or belongs to different org", async () => {
+      mockChargeNotFound();
+      const ctx = makeCtx({ params: { chargeId: CHARGE_ID } });
+      const res = await deleteCharge(ctx);
+      expect(res.status).toBe(404);
+    });
 
-  it("deletes charge and returns {success:true}", async () => {
-    (db.select as any).mockReturnValueOnce(hoistedChain([{ id: CHARGE_ID }]));
-    (db.delete as any).mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) });
-    const ctx = makeCtx({ params: { chargeId: CHARGE_ID } });
-    const res = await deleteCharge(ctx);
-    expect(res.status).toBe(200);
-    expect((res as any).data.success).toBe(true);
+    it("deletes charge and returns {success:true}", async () => {
+      (db.select as any).mockReturnValueOnce(hoistedChain([{ id: CHARGE_ID }]));
+      (db.delete as any).mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) });
+      const ctx = makeCtx({ params: { chargeId: CHARGE_ID } });
+      const res = await deleteCharge(ctx);
+      expect(res.status).toBe(200);
+      expect((res as any).data.success).toBe(true);
+    });
   });
-});
-
 });

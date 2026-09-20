@@ -1,5 +1,5 @@
-import { db, invoiceDrafts, users, organizations, projects, invoiceTemplates } from "@starter/db";
-import { eq, and } from "drizzle-orm";
+import { db, invoiceDrafts, invoiceTemplates, organizations, projects, users } from "@starter/db";
+import { and, eq } from "drizzle-orm";
 
 async function main() {
   try {
@@ -14,31 +14,34 @@ async function main() {
     }
 
     console.log("Finding existing...");
-    const [existing] = await db.select()
-        .from(invoiceDrafts)
-        .where(and(
+    const [existing] = await db
+      .select()
+      .from(invoiceDrafts)
+      .where(
+        and(
           eq(invoiceDrafts.organizationId, org[0].id),
           eq(invoiceDrafts.projectId, proj[0].id),
-          eq(invoiceDrafts.userId, user[0].id)
-        ))
-        .limit(1);
+          eq(invoiceDrafts.userId, user[0].id),
+        ),
+      )
+      .limit(1);
 
     if (existing) {
-        console.log("Updating existing...", existing.id);
-        const [updated] = await db.update(invoiceDrafts)
-          .set({
-            sourceTemplateId: tpl.length ? tpl[0].id : undefined,
-            draftHeaderValues: {},
-            draftSections: [],
-            lastAutoSavedAt: new Date()
-          })
-          .where(eq(invoiceDrafts.id, existing.id))
-          .returning();
-        console.log("Updated:", updated.id);
+      console.log("Updating existing...", existing.id);
+      const [updated] = await db
+        .update(invoiceDrafts)
+        .set({
+          sourceTemplateId: tpl.length ? tpl[0].id : undefined,
+          draftHeaderValues: {},
+          draftSections: [],
+          lastAutoSavedAt: new Date(),
+        })
+        .where(eq(invoiceDrafts.id, existing.id))
+        .returning();
+      console.log("Updated:", updated.id);
     } else {
-        console.log("Not found existing.");
+      console.log("Not found existing.");
     }
-    
   } catch (err) {
     console.error("DB Error:", err);
   } finally {

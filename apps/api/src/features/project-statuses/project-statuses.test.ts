@@ -12,8 +12,8 @@
  * Uses vi.mock to avoid a live DB connection.
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Hono } from "hono";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // ─── Mock @starter/db before importing route ──────────────────────────────
 const { mockSelect, mockInsert, mockUpdate, mockDelete, mockQuery } = vi.hoisted(() => {
@@ -24,7 +24,7 @@ const { mockSelect, mockInsert, mockUpdate, mockDelete, mockQuery } = vi.hoisted
     mockDelete: vi.fn(),
     mockQuery: {
       projectStatuses: { findFirst: vi.fn(), findMany: vi.fn() },
-    }
+    },
   };
 });
 
@@ -37,9 +37,30 @@ vi.mock("@starter/db", () => ({
     query: mockQuery,
   },
   projectStatuses: { id: "id", organizationId: "organization_id", name: "name" },
-  projectStatusTransitions: { id: "id", organizationId: "organization_id", fromStatusId: "from_status_id", toStatusId: "to_status_id" },
-  projectStatusFields: { id: "id", organizationId: "organization_id", statusId: "status_id", fieldId: "field_id", isVisibleInStage: "is_visible_in_stage", isRequiredToEnter: "is_required_to_enter" },
-  customFieldDefinitions: { id: "id", organizationId: "organization_id", entityType: "entity_type", fieldName: "field_name", fieldKey: "field_key", fieldType: "field_type", isRequired: "is_required", options: "options" },
+  projectStatusTransitions: {
+    id: "id",
+    organizationId: "organization_id",
+    fromStatusId: "from_status_id",
+    toStatusId: "to_status_id",
+  },
+  projectStatusFields: {
+    id: "id",
+    organizationId: "organization_id",
+    statusId: "status_id",
+    fieldId: "field_id",
+    isVisibleInStage: "is_visible_in_stage",
+    isRequiredToEnter: "is_required_to_enter",
+  },
+  customFieldDefinitions: {
+    id: "id",
+    organizationId: "organization_id",
+    entityType: "entity_type",
+    fieldName: "field_name",
+    fieldKey: "field_key",
+    fieldType: "field_type",
+    isRequired: "is_required",
+    options: "options",
+  },
 }));
 
 vi.mock("../../infra/middleware/require-permission", () => ({
@@ -121,7 +142,7 @@ describe("GET /statuses", () => {
     app.route("/", projectStatusesRoute);
     const res = await app.fetch(makeRequest("GET", "/"));
     expect(res.status).toBe(200);
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     expect(Array.isArray(body)).toBe(true);
   });
 });
@@ -131,27 +152,31 @@ describe("POST /statuses", () => {
 
   it("creates a new status with default color", async () => {
     const newStatus = makeStatus({ id: "new-id", name: "Active" });
-    mockInsert.mockReturnValue({ values: () => ({ returning: () => Promise.resolve([newStatus]) }) });
+    mockInsert.mockReturnValue({
+      values: () => ({ returning: () => Promise.resolve([newStatus]) }),
+    });
 
     const app = new Hono();
     app.route("/", projectStatusesRoute);
     const res = await app.fetch(makeRequest("POST", "/", { name: "Active" }));
     expect(res.status).toBe(201);
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     expect(body.name).toBe("Active");
   });
 
   it("creates a status with custom color and isTerminal flag", async () => {
     const newStatus = makeStatus({ name: "Completed", color: "#22c55e", isTerminal: true });
-    mockInsert.mockReturnValue({ values: () => ({ returning: () => Promise.resolve([newStatus]) }) });
+    mockInsert.mockReturnValue({
+      values: () => ({ returning: () => Promise.resolve([newStatus]) }),
+    });
 
     const app = new Hono();
     app.route("/", projectStatusesRoute);
     const res = await app.fetch(
-      makeRequest("POST", "/", { name: "Completed", color: "#22c55e", isTerminal: true })
+      makeRequest("POST", "/", { name: "Completed", color: "#22c55e", isTerminal: true }),
     );
     expect(res.status).toBe(201);
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     expect(body.isTerminal).toBe(true);
   });
 
@@ -187,7 +212,9 @@ describe("PATCH /statuses/:id", () => {
 
     const app = new Hono();
     app.route("/", projectStatusesRoute);
-    const res = await app.fetch(makeRequest("PATCH", `/${STATUS_ID}`, { name: "In Review", color: "#f59e0b" }));
+    const res = await app.fetch(
+      makeRequest("PATCH", `/${STATUS_ID}`, { name: "In Review", color: "#f59e0b" }),
+    );
     expect(res.status).toBe(200);
   });
 
@@ -206,7 +233,7 @@ describe("PATCH /statuses/:id", () => {
     app.route("/", projectStatusesRoute);
     const res = await app.fetch(makeRequest("PATCH", `/${STATUS_ID}`, { name: "DifferentName" }));
     expect(res.status).toBe(403);
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     expect(body.error).toContain("cannot be renamed");
   });
 
@@ -220,7 +247,7 @@ describe("PATCH /statuses/:id", () => {
     const app = new Hono();
     app.route("/", projectStatusesRoute);
     const res = await app.fetch(
-      makeRequest("PATCH", `/${STATUS_ID}`, { name: "Created", color: "#3b82f6" })
+      makeRequest("PATCH", `/${STATUS_ID}`, { name: "Created", color: "#3b82f6" }),
     );
     expect(res.status).toBe(200);
   });
@@ -238,7 +265,7 @@ describe("DELETE /statuses/:id", () => {
     app.route("/", projectStatusesRoute);
     const res = await app.fetch(makeRequest("DELETE", `/${STATUS_ID}`));
     expect(res.status).toBe(200);
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     expect(body.success).toBe(true);
   });
 
@@ -285,10 +312,10 @@ describe("PUT /statuses/:id/transitions", () => {
     const app = new Hono();
     app.route("/", projectStatusesRoute);
     const res = await app.fetch(
-      makeRequest("PUT", `/${STATUS_ID}/transitions`, { toStatusIds: [STATUS_ID_2] })
+      makeRequest("PUT", `/${STATUS_ID}/transitions`, { toStatusIds: [STATUS_ID_2] }),
     );
     expect(res.status).toBe(200);
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     expect(body.toStatusIds).toContain(STATUS_ID_2);
   });
 
@@ -300,7 +327,7 @@ describe("PUT /statuses/:id/transitions", () => {
     const app = new Hono();
     app.route("/", projectStatusesRoute);
     const res = await app.fetch(
-      makeRequest("PUT", `/${STATUS_ID}/transitions`, { toStatusIds: [] })
+      makeRequest("PUT", `/${STATUS_ID}/transitions`, { toStatusIds: [] }),
     );
     expect(res.status).toBe(200);
   });
@@ -312,10 +339,10 @@ describe("PUT /statuses/:id/transitions", () => {
     const app = new Hono();
     app.route("/", projectStatusesRoute);
     const res = await app.fetch(
-      makeRequest("PUT", `/${STATUS_ID}/transitions`, { toStatusIds: [STATUS_ID_2] })
+      makeRequest("PUT", `/${STATUS_ID}/transitions`, { toStatusIds: [STATUS_ID_2] }),
     );
     expect(res.status).toBe(400);
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     expect(body.error).toContain("Terminal");
   });
 
@@ -329,10 +356,10 @@ describe("PUT /statuses/:id/transitions", () => {
     const app = new Hono();
     app.route("/", projectStatusesRoute);
     const res = await app.fetch(
-      makeRequest("PUT", `/${STATUS_ID}/transitions`, { toStatusIds: [STATUS_ID] })
+      makeRequest("PUT", `/${STATUS_ID}/transitions`, { toStatusIds: [STATUS_ID] }),
     );
     expect(res.status).toBe(400);
-    expect((await res.json() as any).error).toContain("itself");
+    expect(((await res.json()) as any).error).toContain("itself");
   });
 
   it("rejects if a target status does not exist in the org", async () => {
@@ -344,10 +371,10 @@ describe("PUT /statuses/:id/transitions", () => {
     const app = new Hono();
     app.route("/", projectStatusesRoute);
     const res = await app.fetch(
-      makeRequest("PUT", `/${STATUS_ID}/transitions`, { toStatusIds: ["non-existent"] })
+      makeRequest("PUT", `/${STATUS_ID}/transitions`, { toStatusIds: ["non-existent"] }),
     );
     expect(res.status).toBe(400);
-    expect((await res.json() as any).error).toContain("not found");
+    expect(((await res.json()) as any).error).toContain("not found");
   });
 });
 
@@ -368,10 +395,10 @@ describe("PUT /statuses/:id/fields", () => {
     const res = await app.fetch(
       makeRequest("PUT", `/${STATUS_ID}/fields`, {
         fields: [{ fieldId: FIELD_ID, isVisibleInStage: true, isRequiredToEnter: false }],
-      })
+      }),
     );
     expect(res.status).toBe(200);
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     expect(body.fieldCount).toBe(1);
   });
 
@@ -389,7 +416,7 @@ describe("PUT /statuses/:id/fields", () => {
     const res = await app.fetch(
       makeRequest("PUT", `/${STATUS_ID}/fields`, {
         fields: [{ fieldId: FIELD_ID, isVisibleInStage: true, isRequiredToEnter: true }],
-      })
+      }),
     );
     expect(res.status).toBe(200);
   });
@@ -401,11 +428,9 @@ describe("PUT /statuses/:id/fields", () => {
 
     const app = new Hono();
     app.route("/", projectStatusesRoute);
-    const res = await app.fetch(
-      makeRequest("PUT", `/${STATUS_ID}/fields`, { fields: [] })
-    );
+    const res = await app.fetch(makeRequest("PUT", `/${STATUS_ID}/fields`, { fields: [] }));
     expect(res.status).toBe(200);
-    const body = await res.json() as any;
+    const body = (await res.json()) as any;
     expect(body.fieldCount).toBe(0);
   });
 
@@ -419,11 +444,13 @@ describe("PUT /statuses/:id/fields", () => {
     app.route("/", projectStatusesRoute);
     const res = await app.fetch(
       makeRequest("PUT", `/${STATUS_ID}/fields`, {
-        fields: [{ fieldId: "non-existent-field", isVisibleInStage: true, isRequiredToEnter: false }],
-      })
+        fields: [
+          { fieldId: "non-existent-field", isVisibleInStage: true, isRequiredToEnter: false },
+        ],
+      }),
     );
     expect(res.status).toBe(400);
-    expect((await res.json() as any).error).toContain("invalid");
+    expect(((await res.json()) as any).error).toContain("invalid");
   });
 
   it("returns 404 when status not found", async () => {
@@ -431,9 +458,7 @@ describe("PUT /statuses/:id/fields", () => {
 
     const app = new Hono();
     app.route("/", projectStatusesRoute);
-    const res = await app.fetch(
-      makeRequest("PUT", `/non-existent/fields`, { fields: [] })
-    );
+    const res = await app.fetch(makeRequest("PUT", `/non-existent/fields`, { fields: [] }));
     expect(res.status).toBe(404);
   });
 });

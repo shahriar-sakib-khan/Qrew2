@@ -1,8 +1,8 @@
+import { db, projects, requisitions, users, walletTransactions } from "@starter/db";
+import { and, desc, eq } from "drizzle-orm";
 import { type Context } from "hono";
-import { z } from "zod";
-import { db, requisitions, walletTransactions, users, projects } from "@starter/db";
-import { eq, and, desc } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
+import { z } from "zod";
 import { auth } from "../../infra/lib/auth";
 
 const createRequisitionSchema = z.object({
@@ -101,12 +101,7 @@ export async function actionRequisition(c: Context) {
   const [existing] = await db
     .select()
     .from(requisitions)
-    .where(
-      and(
-        eq(requisitions.id, reqId),
-        eq(requisitions.organizationId, organizationId)
-      )
-    );
+    .where(and(eq(requisitions.id, reqId), eq(requisitions.organizationId, organizationId)));
 
   if (!existing) {
     return c.json({ error: "Requisition not found" }, 404);

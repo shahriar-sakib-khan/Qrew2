@@ -1,25 +1,37 @@
 "use client";
 
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { apiUrl } from "@/lib/constants";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { 
-  Users, 
-  FolderOpen, 
-  DollarSign, 
-  Receipt, 
-  TrendingUp, 
-  TrendingDown, 
-  Plus, 
-  ArrowUpRight, 
-  FileText, 
-  Sparkles,
-  Layers,
-  Building2,
-  Activity
-} from "lucide-react";
 import { format } from "date-fns";
+import {
+  Activity,
+  ArrowUpRight,
+  Building2,
+  DollarSign,
+  FileText,
+  FolderOpen,
+  Layers,
+  Plus,
+  Receipt,
+  Sparkles,
+  TrendingDown,
+  TrendingUp,
+  Users,
+} from "lucide-react";
+import Link from "next/link";
+import { useState } from "react";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { Can } from "@/components/features/auth/can";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -28,20 +40,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
+import { apiUrl } from "@/lib/constants";
 import DashboardGenericLoading from "./loading";
-import { Can } from "@/components/features/auth/can";
-import Link from "next/link";
 
 export default function DashboardPage() {
   const [timeframe, setTimeframe] = useState<"6m" | "ytd" | "30d">("6m");
@@ -50,7 +50,9 @@ export default function DashboardPage() {
   const { data: stats, isLoading } = useQuery({
     queryKey: ["dashboard-stats"],
     queryFn: async () => {
-      const res = await fetch(`${apiUrl}/api/workspaces/dashboard-stats`, { credentials: "include" });
+      const res = await fetch(`${apiUrl}/api/workspaces/dashboard-stats`, {
+        credentials: "include",
+      });
       if (!res.ok) throw new Error("Failed to fetch dashboard stats");
       return res.json();
     },
@@ -62,32 +64,32 @@ export default function DashboardPage() {
 
   const getInvoiceStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
-      case "paid": 
-        return "bg-emerald-500/15 text-emerald-500 border-emerald-500/20";
-      case "issued": 
+      case "paid":
+        return "bg-primary/15 text-primary border-primary/20";
+      case "issued":
       case "open":
         return "bg-blue-500/15 text-blue-500 border-blue-500/20";
       case "frozen":
         return "bg-cyan-500/15 text-cyan-500 border-cyan-500/20";
-      case "draft": 
-        return "bg-amber-500/15 text-amber-500 border-amber-500/20";
+      case "draft":
+        return "bg-accent/15 text-accent-foreground border-amber-500/20";
       case "void":
       case "disputed":
-        return "bg-rose-500/15 text-rose-500 border-rose-500/20";
-      default: 
+        return "bg-destructive/15 text-destructive border-destructive/20";
+      default:
         return "bg-muted text-muted-foreground border-border";
     }
   };
 
   const getProjectStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
-      case "active": 
+      case "active":
         return "bg-blue-500/15 text-blue-500 border-blue-500/20";
-      case "completed": 
-        return "bg-emerald-500/15 text-emerald-500 border-emerald-500/20";
-      case "archived": 
+      case "completed":
+        return "bg-primary/15 text-primary border-primary/20";
+      case "archived":
         return "bg-muted text-muted-foreground border-border";
-      default: 
+      default:
         return "bg-muted text-muted-foreground border-border";
     }
   };
@@ -108,8 +110,11 @@ export default function DashboardPage() {
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-3xl font-bold tracking-tight">Workspace Overview</h2>
-            <Badge variant="outline" className="gap-1 bg-emerald-500/10 text-emerald-500 border-emerald-500/30 font-normal">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <Badge
+              variant="outline"
+              className="gap-1 bg-primary/10 text-primary border-primary/30 font-normal"
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
               Live Telemetry
             </Badge>
           </div>
@@ -125,7 +130,9 @@ export default function DashboardPage() {
             <button
               onClick={() => setTimeframe("6m")}
               className={`rounded-md px-2.5 py-1 font-medium transition-all ${
-                timeframe === "6m" ? "bg-background text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+                timeframe === "6m"
+                  ? "bg-background text-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
               6 Months
@@ -133,7 +140,9 @@ export default function DashboardPage() {
             <button
               onClick={() => setTimeframe("ytd")}
               className={`rounded-md px-2.5 py-1 font-medium transition-all ${
-                timeframe === "ytd" ? "bg-background text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+                timeframe === "ytd"
+                  ? "bg-background text-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
               YTD
@@ -141,7 +150,9 @@ export default function DashboardPage() {
             <button
               onClick={() => setTimeframe("30d")}
               className={`rounded-md px-2.5 py-1 font-medium transition-all ${
-                timeframe === "30d" ? "bg-background text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+                timeframe === "30d"
+                  ? "bg-background text-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
               This Month
@@ -160,7 +171,11 @@ export default function DashboardPage() {
 
           <Can I="file:create">
             <Link href="/dashboard/projects">
-              <Button size="sm" variant="outline" className="gap-1.5 border-border/60 bg-background/60 hover:bg-muted">
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 border-border/60 bg-background/60 hover:bg-muted"
+              >
                 <Plus className="h-4 w-4" />
                 New File
               </Button>
@@ -169,7 +184,11 @@ export default function DashboardPage() {
 
           <Can I="client:create">
             <Link href="/dashboard/clients">
-              <Button size="sm" variant="outline" className="gap-1.5 border-border/60 bg-background/60 hover:bg-muted">
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 border-border/60 bg-background/60 hover:bg-muted"
+              >
                 <Plus className="h-4 w-4" />
                 Add Client
               </Button>
@@ -181,7 +200,7 @@ export default function DashboardPage() {
       {/* Metric Cards Grid (Wrapped in PBAC Guards) */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {/* Metric 1: Revenue (Finance Scoped) */}
-        <Can 
+        <Can
           I="invoice:view"
           fallback={
             <Card className="border-border/50 bg-card/40 backdrop-blur-sm shadow-xs transition-all hover:shadow-md">
@@ -191,7 +210,9 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{stats?.activeFiles || 0}</div>
-                <p className="text-xs text-muted-foreground mt-1">Operational projects assigned to workspace</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Operational projects assigned to workspace
+                </p>
               </CardContent>
             </Card>
           }
@@ -199,16 +220,20 @@ export default function DashboardPage() {
           <Card className="border-border/50 bg-card/40 backdrop-blur-sm shadow-xs transition-all hover:shadow-md">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-              <div className="rounded-md bg-emerald-500/10 p-1.5 text-emerald-500">
+              <div className="rounded-md bg-primary/10 p-1.5 text-primary">
                 <TrendingUp className="h-4 w-4" />
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">${Number(stats?.totalRevenue || 0).toLocaleString()}</div>
+              <div className="text-2xl font-bold">
+                ${Number(stats?.totalRevenue || 0).toLocaleString()}
+              </div>
               <div className="flex items-center gap-1.5 mt-1">
-                <span className={`inline-flex items-center text-xs font-semibold ${
-                  (stats?.revenueGrowth || 0) >= 0 ? "text-emerald-500" : "text-rose-500"
-                }`}>
+                <span
+                  className={`inline-flex items-center text-xs font-semibold ${
+                    (stats?.revenueGrowth || 0) >= 0 ? "text-primary" : "text-destructive"
+                  }`}
+                >
                   {(stats?.revenueGrowth || 0) >= 0 ? (
                     <TrendingUp className="mr-0.5 h-3 w-3" />
                   ) : (
@@ -241,17 +266,22 @@ export default function DashboardPage() {
           <Card className="border-border/50 bg-card/40 backdrop-blur-sm shadow-xs transition-all hover:shadow-md">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
-              <div className="rounded-md bg-amber-500/10 p-1.5 text-amber-500">
+              <div className="rounded-md bg-accent/10 p-1.5 text-accent-foreground">
                 <DollarSign className="h-4 w-4" />
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">${Number(stats?.totalExpenses || 0).toLocaleString()}</div>
+              <div className="text-2xl font-bold">
+                ${Number(stats?.totalExpenses || 0).toLocaleString()}
+              </div>
               <div className="flex items-center gap-1.5 mt-1">
-                <span className={`inline-flex items-center text-xs font-semibold ${
-                  (stats?.expenseGrowth || 0) <= 0 ? "text-emerald-500" : "text-amber-500"
-                }`}>
-                  {stats?.expenseGrowth > 0 ? "+" : ""}{stats?.expenseGrowth || 0}%
+                <span
+                  className={`inline-flex items-center text-xs font-semibold ${
+                    (stats?.expenseGrowth || 0) <= 0 ? "text-primary" : "text-accent-foreground"
+                  }`}
+                >
+                  {stats?.expenseGrowth > 0 ? "+" : ""}
+                  {stats?.expenseGrowth || 0}%
                 </span>
                 <span className="text-xs text-muted-foreground">vs last month</span>
               </div>
@@ -318,7 +348,10 @@ export default function DashboardPage() {
             <CardContent>
               <div className="text-2xl font-bold">{stats?.pendingInvoices || 0}</div>
               <p className="text-xs text-muted-foreground mt-1">
-                Awaiting payment • <span className="text-amber-500 font-medium">{stats?.draftInvoices || 0} drafts</span>
+                Awaiting payment •{" "}
+                <span className="text-accent-foreground font-medium">
+                  {stats?.draftInvoices || 0} drafts
+                </span>
               </p>
             </CardContent>
           </Card>
@@ -343,7 +376,8 @@ export default function DashboardPage() {
                 <FolderOpen className="h-12 w-12 text-muted-foreground/40 mb-3" />
                 <h4 className="text-base font-semibold">Workspace Projects Active</h4>
                 <p className="text-sm text-muted-foreground max-w-sm mt-1">
-                  You currently have {stats?.activeFiles || 0} active files in progress across your workspace.
+                  You currently have {stats?.activeFiles || 0} active files in progress across your
+                  workspace.
                 </p>
                 <Link href="/dashboard/projects" className="mt-4">
                   <Button size="sm" variant="outline" className="gap-1">
@@ -361,7 +395,9 @@ export default function DashboardPage() {
                   <Activity className="h-5 w-5 text-primary" />
                   Financial Performance Trend
                 </CardTitle>
-                <CardDescription>Monthly revenue vs operational expenses comparison</CardDescription>
+                <CardDescription>
+                  Monthly revenue vs operational expenses comparison
+                </CardDescription>
               </div>
 
               {/* Chart Metric Toggle */}
@@ -369,7 +405,9 @@ export default function DashboardPage() {
                 <button
                   onClick={() => setChartMetric("both")}
                   className={`rounded px-2 py-0.5 font-medium transition-all ${
-                    chartMetric === "both" ? "bg-background text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+                    chartMetric === "both"
+                      ? "bg-background text-foreground shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   Both
@@ -377,7 +415,9 @@ export default function DashboardPage() {
                 <button
                   onClick={() => setChartMetric("revenue")}
                   className={`rounded px-2 py-0.5 font-medium transition-all ${
-                    chartMetric === "revenue" ? "bg-background text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+                    chartMetric === "revenue"
+                      ? "bg-background text-foreground shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   Revenue
@@ -385,7 +425,9 @@ export default function DashboardPage() {
                 <button
                   onClick={() => setChartMetric("expenses")}
                   className={`rounded px-2 py-0.5 font-medium transition-all ${
-                    chartMetric === "expenses" ? "bg-background text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+                    chartMetric === "expenses"
+                      ? "bg-background text-foreground shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   Expenses
@@ -395,7 +437,10 @@ export default function DashboardPage() {
             <CardContent className="pl-2 pt-4">
               <div className="h-[310px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={monthlyChartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                  <AreaChart
+                    data={monthlyChartData}
+                    margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
+                  >
                     <defs>
                       <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.4} />
@@ -406,51 +451,60 @@ export default function DashboardPage() {
                         <stop offset="95%" stopColor="#f43f5e" stopOpacity={0.0} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.5} />
-                    <XAxis 
-                      dataKey="name" 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} 
-                      dy={10} 
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      vertical={false}
+                      stroke="hsl(var(--border))"
+                      opacity={0.5}
                     />
-                    <YAxis 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} 
+                    <XAxis
+                      dataKey="name"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
+                      dy={10}
+                    />
+                    <YAxis
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
                       tickFormatter={(value) => `$${value}`}
                     />
-                    <Tooltip 
-                      cursor={{ stroke: "hsl(var(--muted-foreground))", strokeWidth: 1, strokeDasharray: "3 3" }}
-                      contentStyle={{ 
-                        backgroundColor: "hsl(var(--background))", 
-                        borderColor: "hsl(var(--border))", 
+                    <Tooltip
+                      cursor={{
+                        stroke: "hsl(var(--muted-foreground))",
+                        strokeWidth: 1,
+                        strokeDasharray: "3 3",
+                      }}
+                      contentStyle={{
+                        backgroundColor: "hsl(var(--background))",
+                        borderColor: "hsl(var(--border))",
                         borderRadius: "8px",
-                        boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)"
+                        boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
                       }}
                       itemStyle={{ color: "hsl(var(--foreground))" }}
                       formatter={(value: any) => [`$${Number(value).toLocaleString()}`, undefined]}
                     />
                     {(chartMetric === "both" || chartMetric === "revenue") && (
-                      <Area 
-                        type="monotone" 
-                        dataKey="revenue" 
+                      <Area
+                        type="monotone"
+                        dataKey="revenue"
                         name="Revenue"
-                        stroke="hsl(var(--primary))" 
+                        stroke="hsl(var(--primary))"
                         strokeWidth={2.5}
-                        fillOpacity={1} 
-                        fill="url(#colorRevenue)" 
+                        fillOpacity={1}
+                        fill="url(#colorRevenue)"
                       />
                     )}
                     {(chartMetric === "both" || chartMetric === "expenses") && (
-                      <Area 
-                        type="monotone" 
-                        dataKey="expenses" 
+                      <Area
+                        type="monotone"
+                        dataKey="expenses"
                         name="Expenses"
-                        stroke="#f43f5e" 
+                        stroke="#f43f5e"
                         strokeWidth={2}
-                        fillOpacity={1} 
-                        fill="url(#colorExpenses)" 
+                        fillOpacity={1}
+                        fill="url(#colorExpenses)"
                       />
                     )}
                   </AreaChart>
@@ -467,14 +521,18 @@ export default function DashboardPage() {
             <Card className="col-span-3 border-border/50 bg-card/40 backdrop-blur-sm flex flex-col">
               <CardHeader>
                 <CardTitle>Registered Clients</CardTitle>
-                <CardDescription>Overview of clients connected to this organization.</CardDescription>
+                <CardDescription>
+                  Overview of clients connected to this organization.
+                </CardDescription>
               </CardHeader>
               <CardContent className="flex-1 flex flex-col items-center justify-center text-center py-8">
                 <Users className="h-10 w-10 text-muted-foreground/40 mb-2" />
                 <p className="text-2xl font-bold">{stats?.totalClients || 0}</p>
                 <p className="text-xs text-muted-foreground mt-1">Total active client accounts</p>
                 <Link href="/dashboard/clients" className="mt-4">
-                  <Button size="sm" variant="outline">Client Directory</Button>
+                  <Button size="sm" variant="outline">
+                    Client Directory
+                  </Button>
                 </Link>
               </CardContent>
             </Card>
@@ -484,7 +542,9 @@ export default function DashboardPage() {
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <div>
                 <CardTitle className="text-base">Recent Invoices</CardTitle>
-                <CardDescription className="text-xs">Latest billing documents generated.</CardDescription>
+                <CardDescription className="text-xs">
+                  Latest billing documents generated.
+                </CardDescription>
               </div>
               <Link href="/dashboard/invoices">
                 <Button size="sm" variant="ghost" className="h-7 text-xs gap-1">
@@ -504,13 +564,19 @@ export default function DashboardPage() {
                 <TableBody>
                   {!stats?.recentInvoices || stats?.recentInvoices?.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={3} className="h-28 text-center text-muted-foreground text-xs">
+                      <TableCell
+                        colSpan={3}
+                        className="h-28 text-center text-muted-foreground text-xs"
+                      >
                         No recent invoices found.
                       </TableCell>
                     </TableRow>
                   ) : (
                     stats?.recentInvoices?.map((inv: any) => (
-                      <TableRow key={inv.id} className="hover:bg-muted/40 transition-colors border-border/40">
+                      <TableRow
+                        key={inv.id}
+                        className="hover:bg-muted/40 transition-colors border-border/40"
+                      >
                         <TableCell className="py-2.5">
                           <div className="font-medium text-sm">{inv.documentNumber}</div>
                           <div className="text-[11px] text-muted-foreground truncate max-w-[110px]">
@@ -521,7 +587,10 @@ export default function DashboardPage() {
                           ${Number(inv.grandTotalAmount || 0).toLocaleString()}
                         </TableCell>
                         <TableCell className="py-2.5 text-right">
-                          <Badge variant="outline" className={`capitalize text-[10px] py-0.5 px-2 font-normal border ${getInvoiceStatusColor(inv.status)}`}>
+                          <Badge
+                            variant="outline"
+                            className={`capitalize text-[10px] py-0.5 px-2 font-normal border ${getInvoiceStatusColor(inv.status)}`}
+                          >
                             {inv.status}
                           </Badge>
                         </TableCell>
@@ -545,7 +614,9 @@ export default function DashboardPage() {
                   <FolderOpen className="h-5 w-5 text-primary" />
                   Recent Operational Files (Projects)
                 </CardTitle>
-                <CardDescription>Files and projects currently active or recently updated.</CardDescription>
+                <CardDescription>
+                  Files and projects currently active or recently updated.
+                </CardDescription>
               </div>
               <Link href="/dashboard/projects">
                 <Button size="sm" variant="outline" className="gap-1 text-xs">
@@ -581,7 +652,10 @@ export default function DashboardPage() {
                           {file.createdAt ? format(new Date(file.createdAt), "MMM d, yyyy") : "-"}
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline" className={`capitalize font-normal border ${getProjectStatusColor(file.status)}`}>
+                          <Badge
+                            variant="outline"
+                            className={`capitalize font-normal border ${getProjectStatusColor(file.status)}`}
+                          >
                             {file.status}
                           </Badge>
                         </TableCell>
@@ -604,4 +678,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-

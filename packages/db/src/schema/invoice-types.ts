@@ -21,11 +21,11 @@ export type ComponentValueType = "normal" | "formula";
 
 /** Frozen line discriminator — used in invoice_line_items.lineType */
 export type LineType =
-  | "row"             // parent row summary line
-  | "row_component"   // sub-value within a multi-value row
-  | "row_charge"      // charge bound to a row
-  | "section_charge"  // charge bound to a section
-  | "grand_total";    // system-generated grand total line
+  | "row" // parent row summary line
+  | "row_component" // sub-value within a multi-value row
+  | "row_charge" // charge bound to a row
+  | "section_charge" // charge bound to a section
+  | "grand_total"; // system-generated grand total line
 
 export type HeaderFieldType = "file_field" | "org_constant" | "manual";
 

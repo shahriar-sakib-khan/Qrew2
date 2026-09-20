@@ -1,18 +1,18 @@
 import {
   db,
-  invoices,
-  invoiceLineItems,
   invoiceDrafts,
+  invoiceLineItems,
+  invoices,
   invoiceTemplates,
+  templateConstants,
   templateRows,
   templateSections,
-  templateConstants,
 } from "@starter/db";
 import { and, eq } from "drizzle-orm";
+import { AstEvaluatorService } from "./ast-evaluator.service";
+import { DagValidatorService } from "./dag-validator.service";
 import { generateDocumentNumber } from "./document-number";
 import { resolveScope } from "./token-resolver.service";
-import { DagValidatorService } from "./dag-validator.service";
-import { AstEvaluatorService } from "./ast-evaluator.service";
 
 interface FreezeParams {
   organizationId: string;
@@ -43,10 +43,7 @@ export async function freezeInvoice(params: FreezeParams) {
       .select()
       .from(invoiceDrafts)
       .where(
-        and(
-          eq(invoiceDrafts.projectId, params.projectId),
-          eq(invoiceDrafts.userId, params.userId)
-        )
+        and(eq(invoiceDrafts.projectId, params.projectId), eq(invoiceDrafts.userId, params.userId)),
       )
       .limit(1);
 
@@ -122,10 +119,12 @@ export async function freezeInvoice(params: FreezeParams) {
       new Set(Object.keys(scope)),
       idToToken,
       secIdToToken,
-      tplIdToToken
+      tplIdToToken,
     );
     if (!dagResult.valid) {
-      throw new Error(`CANNOT_FREEZE_UNRESOLVED: Template has dependency errors: ${dagResult.errors.map(e => e.message).join("; ")}`);
+      throw new Error(
+        `CANNOT_FREEZE_UNRESOLVED: Template has dependency errors: ${dagResult.errors.map((e) => e.message).join("; ")}`,
+      );
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -137,10 +136,12 @@ export async function freezeInvoice(params: FreezeParams) {
       idToToken,
       secIdToToken,
       tplIdToToken,
-      dagResult.topologicalOrder
+      dagResult.topologicalOrder,
     );
     if (evalResult.errors.length > 0) {
-      throw new Error(`CANNOT_FREEZE_UNRESOLVED: Evaluation errors: ${evalResult.errors.map(e => e.message).join("; ")}`);
+      throw new Error(
+        `CANNOT_FREEZE_UNRESOLVED: Evaluation errors: ${evalResult.errors.map((e) => e.message).join("; ")}`,
+      );
     }
 
     let totalBase = 0;
@@ -327,13 +328,9 @@ export async function freezeInvoice(params: FreezeParams) {
     await tx
       .delete(invoiceDrafts)
       .where(
-        and(
-          eq(invoiceDrafts.projectId, params.projectId),
-          eq(invoiceDrafts.userId, params.userId)
-        )
+        and(eq(invoiceDrafts.projectId, params.projectId), eq(invoiceDrafts.userId, params.userId)),
       );
 
     return frozen;
   });
 }
-

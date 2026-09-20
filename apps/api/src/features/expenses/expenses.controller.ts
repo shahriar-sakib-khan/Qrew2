@@ -1,8 +1,8 @@
+import { db, expenseCategories, expenses, projects, users, walletTransactions } from "@starter/db";
+import { and, desc, eq } from "drizzle-orm";
 import { type Context } from "hono";
-import { z } from "zod";
-import { db, expenses, walletTransactions, expenseCategories, users, projects } from "@starter/db";
-import { eq, and, desc } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
+import { z } from "zod";
 import { auth } from "../../infra/lib/auth";
 
 const createExpenseSchema = z.object({
@@ -33,7 +33,7 @@ export async function createExpense(c: Context) {
   // We must do this in a transaction: 1. Create expense, 2. Add debit to wallet
   await db.transaction(async (tx) => {
     const expenseId = uuidv4();
-    
+
     const [insertedExpense] = await tx
       .insert(expenses)
       .values({
@@ -74,7 +74,7 @@ export async function listExpenses(c: Context) {
 
   const projectId = c.req.query("projectId");
 
-  let query = db
+  const query = db
     .select({
       id: expenses.id,
       amount: expenses.amount,
@@ -92,12 +92,12 @@ export async function listExpenses(c: Context) {
 
   // Note: if projectId is passed, we would filter by it, but drizzle eq needs a condition
   // We will do it properly:
-  
-  let conditions: any[] = [eq(expenses.organizationId, organizationId)];
+
+  const conditions: any[] = [eq(expenses.organizationId, organizationId)];
   if (projectId) {
     conditions.push(eq(expenses.projectId, projectId));
   }
-  
+
   // Re-build query with exact conditions
   // We can't spread directly in where if it's dynamic easily without `and`
   // Actually, drizzle has `and(...conditions)`

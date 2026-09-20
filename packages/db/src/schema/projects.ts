@@ -1,10 +1,15 @@
-import { pgTable, text, timestamp, pgEnum, jsonb, integer } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
+import { integer, jsonb, pgEnum, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 import { organizations } from "./auth";
 import { clients } from "./clients";
-import { relations } from "drizzle-orm";
 import { projectStatuses } from "./project-statuses";
 
-export const projectLifecycleStateEnum = pgEnum("project_lifecycle_state", ["open", "completed", "canceled", "archived"]);
+export const projectLifecycleStateEnum = pgEnum("project_lifecycle_state", [
+  "open",
+  "completed",
+  "canceled",
+  "archived",
+]);
 
 export const projects = pgTable("projects", {
   id: text("id").primaryKey(),
@@ -15,7 +20,9 @@ export const projects = pgTable("projects", {
     .notNull()
     .references(() => clients.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
-  status: text("status").references(() => projectStatuses.id).notNull(),
+  status: text("status")
+    .references(() => projectStatuses.id)
+    .notNull(),
   fileSequenceNumber: integer("file_sequence_number"),
   createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { mode: "date" })

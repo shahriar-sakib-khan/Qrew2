@@ -1,6 +1,6 @@
+import { db, invoiceTemplates, templateRows, templateSections } from "@starter/db";
+import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
-import { db, templateRows, templateSections, invoiceTemplates } from "@starter/db";
-import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 
 export async function reorderRows(c: Context) {
@@ -14,10 +14,7 @@ export async function reorderRows(c: Context) {
     .from(templateSections)
     .innerJoin(invoiceTemplates, eq(templateSections.templateId, invoiceTemplates.id))
     .where(
-      and(
-        eq(templateSections.id, sectionId),
-        eq(invoiceTemplates.organizationId, organizationId)
-      )
+      and(eq(templateSections.id, sectionId), eq(invoiceTemplates.organizationId, organizationId)),
     )
     .limit(1);
   if (secResult.length === 0) return c.json({ error: "Section not found" }, 404);
@@ -35,13 +32,8 @@ export async function reorderRows(c: Context) {
         tx
           .update(templateRows)
           .set({ sortOrder: index })
-          .where(
-            and(
-              eq(templateRows.id, id),
-              eq(templateRows.sectionId, sectionId)
-            )
-          )
-      )
+          .where(and(eq(templateRows.id, id), eq(templateRows.sectionId, sectionId))),
+      ),
     );
   });
 

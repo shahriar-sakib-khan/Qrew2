@@ -1,9 +1,9 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { apiUrl } from "@/lib/constants";
-import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Badge } from "@/components/ui/badge";
+import { apiUrl } from "@/lib/constants";
 
 export function TokenInjector({ onSelectToken }: { onSelectToken: (token: string) => void }) {
   const { data: tokens, isLoading } = useQuery({
@@ -40,24 +40,36 @@ export function TokenInjector({ onSelectToken }: { onSelectToken: (token: string
             <div className="px-2 py-1 text-xs text-muted-foreground">No constants defined</div>
           )}
           {tokens?.organizationTokens?.map((t: string) => (
-            <DropdownMenuItem key={t} onSelect={() => onSelectToken(t)} className="flex items-center justify-between cursor-pointer">
+            <DropdownMenuItem
+              key={t}
+              onSelect={() => onSelectToken(t)}
+              className="flex items-center justify-between cursor-pointer"
+            >
               <span className="font-mono text-xs">{t}</span>
-              <Badge variant="outline" className="text-[9px] px-1 py-0">ORG</Badge>
+              <Badge variant="outline" className="text-[9px] px-1 py-0">
+                ORG
+              </Badge>
             </DropdownMenuItem>
           ))}
         </DropdownMenuGroup>
-        
+
         <DropdownMenuSeparator />
-        
+
         <DropdownMenuLabel>Expense Categories</DropdownMenuLabel>
         <DropdownMenuGroup>
           {tokens?.categoryTokens?.length === 0 && (
             <div className="px-2 py-1 text-xs text-muted-foreground">No categories defined</div>
           )}
           {tokens?.categoryTokens?.map((t: string) => (
-            <DropdownMenuItem key={t} onSelect={() => onSelectToken(t)} className="flex items-center justify-between cursor-pointer">
+            <DropdownMenuItem
+              key={t}
+              onSelect={() => onSelectToken(t)}
+              className="flex items-center justify-between cursor-pointer"
+            >
               <span className="font-mono text-xs">{t}</span>
-              <Badge variant="secondary" className="text-[9px] px-1 py-0">CAT</Badge>
+              <Badge variant="secondary" className="text-[9px] px-1 py-0">
+                CAT
+              </Badge>
             </DropdownMenuItem>
           ))}
         </DropdownMenuGroup>

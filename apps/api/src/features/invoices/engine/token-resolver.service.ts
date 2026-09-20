@@ -1,14 +1,14 @@
-import { eq, and, sql } from "drizzle-orm";
 import type { ResolvedScopeV2 } from "@starter/db";
 import {
-  organizationConfigs,
-  expenses,
   expenseCategories,
-  templateHeaderFields,
-  templateConstants,
-  projects,
+  expenses,
+  organizationConfigs,
   projectStatuses,
+  projects,
+  templateConstants,
+  templateHeaderFields,
 } from "@starter/db";
+import { and, eq, sql } from "drizzle-orm";
 import * as math from "mathjs";
 
 const bigMath = math.create(math.all, { number: "BigNumber", precision: 20 });
@@ -70,8 +70,8 @@ export async function resolveScope(input: ResolveScopeInput): Promise<Record<str
       and(
         eq(expenses.categoryId, expenseCategories.id),
         eq(expenses.projectId, projectId),
-        eq(expenses.organizationId, organizationId)
-      )
+        eq(expenses.organizationId, organizationId),
+      ),
     )
     .where(eq(expenseCategories.organizationId, organizationId))
     .groupBy(expenseCategories.tokenKey, expenseCategories.id);
@@ -86,7 +86,7 @@ export async function resolveScope(input: ResolveScopeInput): Promise<Record<str
   }
 
   // -----------------------------------------------------------------------
-  // 2. GBL_* / ORG_* — injectable organization constants
+  // 2. GBL_* — injectable organization constants
   // -----------------------------------------------------------------------
   const orgConfigs = await db
     .select()
@@ -94,15 +94,16 @@ export async function resolveScope(input: ResolveScopeInput): Promise<Record<str
     .where(
       and(
         eq(organizationConfigs.organizationId, organizationId),
-        eq(organizationConfigs.isFormulaInjectable, true)
-      )
+        eq(organizationConfigs.isFormulaInjectable, true),
+      ),
     );
 
   for (const conf of orgConfigs) {
     const bn = bigMath.bignumber(conf.configValue ?? "0");
     const formatted = (bn as math.BigNumber).toFixed(6);
-    scope[`GBL_${conf.configKey}`] = formatted;
-    scope[`ORG_${conf.configKey}`] = formatted;
+    const bareKey = conf.configKey.replace(/^(GBL_|ORG_)/, "");
+    scope[`GBL_${bareKey}`] = formatted;
+    scope[bareKey] = formatted;
   }
 
   // -----------------------------------------------------------------------
@@ -117,8 +118,9 @@ export async function resolveScope(input: ResolveScopeInput): Promise<Record<str
     const val = parseFloat(c.defaultValue ?? "0");
     const bn = bigMath.bignumber(isNaN(val) ? 0 : val);
     const formatted = (bn as math.BigNumber).toFixed(6);
-    scope[c.token] = formatted;
-    scope[`TPL_${c.token}`] = formatted;
+    const bareToken = c.token.replace(/^TPL_/, "");
+    scope[`TPL_${bareToken}`] = formatted;
+    scope[bareToken] = formatted;
   }
 
   // -----------------------------------------------------------------------
@@ -146,19 +148,22 @@ export async function resolveScope(input: ResolveScopeInput): Promise<Record<str
     .where(
       and(
         eq(templateHeaderFields.templateId, templateId),
-        eq(templateHeaderFields.isFormulaInjectable, true)
-      )
+        eq(templateHeaderFields.isFormulaInjectable, true),
+      ),
     );
 
   for (const field of headerFields) {
     if (!field.fileFieldKey) continue;
 
-    const tokenKey = `FILE_${field.fileFieldKey.toUpperCase()}`;
+    const bareKey = field.fileFieldKey.toUpperCase().replace(/^FILE_/, "");
+    const tokenKey = `FILE_${bareKey}`;
 
     // Check if staff provided a manual override for this field
     if (headerFieldValues[field.id] !== undefined) {
       const bn = bigMath.bignumber(headerFieldValues[field.id] || "0");
-      scope[tokenKey] = (bn as math.BigNumber).toFixed(6);
+      const formatted = (bn as math.BigNumber).toFixed(6);
+      scope[tokenKey] = formatted;
+      scope[bareKey] = formatted;
       continue;
     }
 
@@ -178,7 +183,9 @@ export async function resolveScope(input: ResolveScopeInput): Promise<Record<str
         const parsed = parseFloat(String(rawValue));
         if (!isNaN(parsed)) {
           const bn = bigMath.bignumber(parsed);
-          scope[tokenKey] = (bn as math.BigNumber).toFixed(6);
+          const formatted = (bn as math.BigNumber).toFixed(6);
+          scope[tokenKey] = formatted;
+          scope[bareKey] = formatted;
           continue;
         }
       }
@@ -188,17 +195,22 @@ export async function resolveScope(input: ResolveScopeInput): Promise<Record<str
     const defaultVal = field.defaultManualValue ?? "0";
     const parsed = parseFloat(defaultVal);
     const bn = bigMath.bignumber(isNaN(parsed) ? 0 : parsed);
-    scope[tokenKey] = (bn as math.BigNumber).toFixed(6);
+    const formatted = (bn as math.BigNumber).toFixed(6);
+    scope[tokenKey] = formatted;
+    scope[bareKey] = formatted;
   }
 
-  // Inject all project custom fields under FILE_<KEY> prefix (no phantom bare aliases)
+  // Inject all project custom fields under bare key and FILE_<KEY> prefix
   if (project && project.customFields) {
     for (const [key, value] of Object.entries(project.customFields)) {
       if (value !== null && value !== undefined) {
         const parsed = parseFloat(String(value));
         if (!isNaN(parsed)) {
           const bn = bigMath.bignumber(parsed);
-          scope[`FILE_${key.toUpperCase()}`] = (bn as math.BigNumber).toFixed(6);
+          const formatted = (bn as math.BigNumber).toFixed(6);
+          const bareKey = key.toUpperCase().replace(/^FILE_/, "");
+          scope[`FILE_${bareKey}`] = formatted;
+          scope[bareKey] = formatted;
         }
       }
     }
@@ -212,7 +224,7 @@ export async function resolveScope(input: ResolveScopeInput): Promise<Record<str
  * in invoices.resolved_scope.
  */
 export async function resolveScopeWithMeta(
-  input: ResolveScopeInput
+  input: ResolveScopeInput,
 ): Promise<{ scope: Record<string, string>; meta: ResolvedScopeV2 }> {
   const scope = await resolveScope(input);
   const meta: ResolvedScopeV2 = {
@@ -223,5 +235,3 @@ export async function resolveScopeWithMeta(
   };
   return { scope, meta };
 }
-
-

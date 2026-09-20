@@ -1,44 +1,25 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiUrl } from "@/lib/constants";
 import { format } from "date-fns";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  FileText,
-  Pencil,
-  Eye,
-  Receipt,
+  AlertCircle,
   CheckCircle2,
   Clock,
-  AlertCircle,
-  MoreHorizontal,
-  Send,
   CornerUpLeft,
+  Eye,
+  FileText,
+  MoreHorizontal,
+  Pencil,
+  Receipt,
+  Send,
 } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "sonner";
+import { ClientDetailsModal } from "@/components/features/clients/client-details-modal";
 import { GenerateInvoiceModal } from "@/components/features/invoices/generate-invoice-modal";
 import { ProjectDetailsModal } from "@/components/features/projects/project-details-modal";
-import { ClientDetailsModal } from "@/components/features/clients/client-details-modal";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import Link from "next/link";
-import { cn } from "@/lib/utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -49,24 +30,68 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { apiUrl } from "@/lib/constants";
+import { cn } from "@/lib/utils";
 
 // ─── Status display helpers ───────────────────────────────────────────────────
 
 const STATUS_META: Record<string, { label: string; color: string; icon: React.ElementType }> = {
-  draft:    { label: "Draft",          color: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20",         icon: Clock },
-  frozen:   { label: "Ready to Bill",  color: "bg-blue-500/10 text-blue-400 border-blue-500/20",          icon: CheckCircle2 },
-  issued:   { label: "Issued",         color: "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",    icon: Receipt },
-  paid:     { label: "Paid",           color: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20", icon: CheckCircle2 },
-  void:     { label: "Void",           color: "bg-red-500/10 text-red-400 border-red-500/20",             icon: AlertCircle },
-  uncollectible: { label: "Uncollectible", color: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20", icon: AlertCircle },
+  draft: { label: "Draft", color: "bg-muted text-muted-foreground border-border", icon: Clock },
+  frozen: {
+    label: "Ready to Bill",
+    color: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+    icon: CheckCircle2,
+  },
+  issued: {
+    label: "Issued",
+    color: "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
+    icon: Receipt,
+  },
+  paid: {
+    label: "Paid",
+    color: "bg-primary/10 text-primary border-primary/20",
+    icon: CheckCircle2,
+  },
+  void: { label: "Void", color: "bg-red-500/10 text-red-400 border-red-500/20", icon: AlertCircle },
+  uncollectible: {
+    label: "Uncollectible",
+    color: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+    icon: AlertCircle,
+  },
 };
 
 function StatusBadge({ status }: { status: string }) {
-  const meta = STATUS_META[status] ?? { label: status, color: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20", icon: Clock };
+  const meta = STATUS_META[status] ?? {
+    label: status,
+    color: "bg-muted text-muted-foreground border-border",
+    icon: Clock,
+  };
   const Icon = meta.icon;
   return (
-    <span className={cn("inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border", meta.color)}>
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border",
+        meta.color,
+      )}
+    >
       <Icon className="w-3 h-3" />
       {meta.label}
     </span>
@@ -105,7 +130,7 @@ export default function InvoicesPage() {
   const [activeTab, setActiveTab] = useState("drafts");
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
-  
+
   const [selectedFileForDetails, setSelectedFileForDetails] = useState<any>(null);
   const [clientToView, setClientToView] = useState<any>(null);
 
@@ -118,7 +143,7 @@ export default function InvoicesPage() {
     try {
       const res = await fetch(`${apiUrl}/api/invoices/${invoiceId}/${action}`, {
         method: "POST",
-        credentials: "include"
+        credentials: "include",
       });
       if (!res.ok) throw new Error("Action failed");
       toast.success("Invoice updated successfully");
@@ -166,7 +191,7 @@ export default function InvoicesPage() {
 
   // Filter "All Invoices" to exclude frozen/draft (those live in their own tabs)
   const billedInvoices = (allInvoices ?? []).filter(
-    (inv: any) => !["draft", "frozen"].includes(inv.status)
+    (inv: any) => !["draft", "frozen"].includes(inv.status),
   );
   const frozenInvoices = readyToBill ?? [];
 
@@ -207,9 +232,16 @@ export default function InvoicesPage() {
               </TableHeader>
               <TableBody>
                 {draftsLoading ? (
-                  <TableRow><TableCell colSpan={3} className="text-center h-24 text-muted-foreground">Loading drafts…</TableCell></TableRow>
+                  <TableRow>
+                    <TableCell colSpan={3} className="text-center h-24 text-muted-foreground">
+                      Loading drafts…
+                    </TableCell>
+                  </TableRow>
                 ) : (drafts ?? []).length === 0 ? (
-                  <EmptyRow colSpan={3} message="No drafts found. Generate an invoice from a file to create a draft." />
+                  <EmptyRow
+                    colSpan={3}
+                    message="No drafts found. Generate an invoice from a file to create a draft."
+                  />
                 ) : (
                   (drafts ?? []).map((draft: any) => (
                     <TableRow key={draft.id} className="hover:bg-muted/30 transition-colors group">
@@ -230,8 +262,8 @@ export default function InvoicesPage() {
                         {draft.lastAutoSavedAt
                           ? format(new Date(draft.lastAutoSavedAt), "MMM d, yyyy h:mm a")
                           : draft.updatedAt
-                          ? format(new Date(draft.updatedAt), "MMM d, yyyy h:mm a")
-                          : "—"}
+                            ? format(new Date(draft.updatedAt), "MMM d, yyyy h:mm a")
+                            : "—"}
                       </TableCell>
                       {/* Actions */}
                       <TableCell className="text-right">
@@ -265,8 +297,11 @@ export default function InvoicesPage() {
               </TableBody>
             </Table>
           </div>
-          
-          <AlertDialog open={!!draftToDelete} onOpenChange={(open) => !open && setDraftToDelete(null)}>
+
+          <AlertDialog
+            open={!!draftToDelete}
+            onOpenChange={(open) => !open && setDraftToDelete(null)}
+          >
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
@@ -276,7 +311,7 @@ export default function InvoicesPage() {
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel disabled={isDeletingDraft}>Cancel</AlertDialogCancel>
-                <AlertDialogAction 
+                <AlertDialogAction
                   disabled={isDeletingDraft}
                   className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
                   onClick={async (e) => {
@@ -286,7 +321,7 @@ export default function InvoicesPage() {
                     try {
                       const res = await fetch(`${apiUrl}/api/invoices/drafts/${draftToDelete}`, {
                         method: "DELETE",
-                        credentials: "include"
+                        credentials: "include",
                       });
                       if (!res.ok) throw new Error("Failed to delete draft");
                       toast.success("Draft deleted");
@@ -323,9 +358,16 @@ export default function InvoicesPage() {
               </TableHeader>
               <TableBody>
                 {readyLoading ? (
-                  <TableRow><TableCell colSpan={6} className="text-center h-24 text-muted-foreground">Loading…</TableCell></TableRow>
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center h-24 text-muted-foreground">
+                      Loading…
+                    </TableCell>
+                  </TableRow>
                 ) : frozenInvoices.length === 0 ? (
-                  <EmptyRow colSpan={6} message="No invoices ready to bill. Finalize a draft to move it here." />
+                  <EmptyRow
+                    colSpan={6}
+                    message="No invoices ready to bill. Finalize a draft to move it here."
+                  />
                 ) : (
                   frozenInvoices.map((inv: any) => (
                     <TableRow key={inv.id} className="hover:bg-muted/30 transition-colors group">
@@ -341,7 +383,7 @@ export default function InvoicesPage() {
                       </TableCell>
                       {/* File */}
                       <TableCell className="text-sm">
-                        <button 
+                        <button
                           onClick={(e) => {
                             e.stopPropagation();
                             setSelectedFileForDetails(inv.project);
@@ -362,10 +404,14 @@ export default function InvoicesPage() {
                             }}
                             className="flex items-center gap-1 text-muted-foreground hover:text-primary transition-colors focus:outline-none"
                           >
-                            <span className="truncate">{inv.issuedToClientName || inv.project.client.name}</span>
+                            <span className="truncate">
+                              {inv.issuedToClientName || inv.project.client.name}
+                            </span>
                           </button>
                         ) : (
-                          <span className="text-muted-foreground">{inv.issuedToClientName || "—"}</span>
+                          <span className="text-muted-foreground">
+                            {inv.issuedToClientName || "—"}
+                          </span>
                         )}
                       </TableCell>
                       {/* Status */}
@@ -374,7 +420,11 @@ export default function InvoicesPage() {
                       </TableCell>
                       {/* Amount */}
                       <TableCell className="font-semibold tabular-nums text-sm">
-                        ${Number(inv.grandTotalAmount ?? inv.totalAmount ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        $
+                        {Number(inv.grandTotalAmount ?? inv.totalAmount ?? 0).toLocaleString(
+                          undefined,
+                          { minimumFractionDigits: 2, maximumFractionDigits: 2 },
+                        )}
                       </TableCell>
                       {/* Actions */}
                       <TableCell className="text-right">
@@ -401,7 +451,10 @@ export default function InvoicesPage() {
                                 Mark as Paid
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => handleAction(inv.id, "unfreeze")} className="text-amber-600 focus:text-amber-600">
+                              <DropdownMenuItem
+                                onClick={() => handleAction(inv.id, "unfreeze")}
+                                className="text-accent-foreground focus:text-accent-foreground"
+                              >
                                 <CornerUpLeft className="w-4 h-4 mr-2" />
                                 Revert to Draft
                               </DropdownMenuItem>
@@ -433,12 +486,19 @@ export default function InvoicesPage() {
               </TableHeader>
               <TableBody>
                 {allLoading ? (
-                  <TableRow><TableCell colSpan={6} className="text-center h-24 text-muted-foreground">Loading…</TableCell></TableRow>
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center h-24 text-muted-foreground">
+                      Loading…
+                    </TableCell>
+                  </TableRow>
                 ) : billedInvoices.length === 0 ? (
                   <EmptyRow colSpan={6} message="No completed invoices yet." />
                 ) : (
                   billedInvoices.map((inv: any) => (
-                    <TableRow key={inv.id} className="hover:bg-muted/30 transition-colors cursor-pointer group">
+                    <TableRow
+                      key={inv.id}
+                      className="hover:bg-muted/30 transition-colors cursor-pointer group"
+                    >
                       {/* Invoice */}
                       <TableCell>
                         <div className="flex flex-col gap-0.5">
@@ -451,7 +511,7 @@ export default function InvoicesPage() {
                       </TableCell>
                       {/* File */}
                       <TableCell className="text-sm">
-                        <button 
+                        <button
                           onClick={(e) => {
                             e.stopPropagation();
                             setSelectedFileForDetails(inv.project);
@@ -472,10 +532,14 @@ export default function InvoicesPage() {
                             }}
                             className="flex items-center gap-1 text-muted-foreground hover:text-primary transition-colors focus:outline-none"
                           >
-                            <span className="truncate">{inv.issuedToClientName || inv.project.client.name}</span>
+                            <span className="truncate">
+                              {inv.issuedToClientName || inv.project.client.name}
+                            </span>
                           </button>
                         ) : (
-                          <span className="text-muted-foreground">{inv.issuedToClientName || "—"}</span>
+                          <span className="text-muted-foreground">
+                            {inv.issuedToClientName || "—"}
+                          </span>
                         )}
                       </TableCell>
                       {/* Status */}
@@ -488,7 +552,11 @@ export default function InvoicesPage() {
                       </TableCell>
                       {/* Amount */}
                       <TableCell className="text-right font-bold tabular-nums text-sm">
-                        ${Number(inv.grandTotalAmount ?? inv.totalAmount ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        $
+                        {Number(inv.grandTotalAmount ?? inv.totalAmount ?? 0).toLocaleString(
+                          undefined,
+                          { minimumFractionDigits: 2, maximumFractionDigits: 2 },
+                        )}
                       </TableCell>
                     </TableRow>
                   ))
@@ -515,10 +583,7 @@ export default function InvoicesPage() {
       )}
 
       {clientToView && (
-        <ClientDetailsModal
-          client={clientToView}
-          onClose={() => setClientToView(null)}
-        />
+        <ClientDetailsModal client={clientToView} onClose={() => setClientToView(null)} />
       )}
     </div>
   );

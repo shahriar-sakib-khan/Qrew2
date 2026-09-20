@@ -14,7 +14,7 @@ export function Can({ I, children, fallback = null, not = false }: CanProps) {
   const { can, isLoaded } = usePermissionStore();
 
   // Prevent UI flashing: Render nothing while permissions are loading over the network
-  if (!isLoaded) return null; 
+  if (!isLoaded) return null;
 
   const hasPermission = not ? !can(I) : can(I);
 

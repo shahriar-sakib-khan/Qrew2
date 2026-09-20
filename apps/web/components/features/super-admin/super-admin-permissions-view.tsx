@@ -1,9 +1,9 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Shield } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface Permission {
@@ -17,16 +17,25 @@ interface Permission {
 function getPermissionType(key: string): "read" | "write" | "danger" | "other" {
   const action = key.split(":")[1];
   if (!action) return "other";
-  
+
   if (action.startsWith("view")) return "read";
-  if (["create", "edit", "request", "approve", "record", "manage", "invite"].some(a => action.startsWith(a))) return "write";
-  if (["delete", "archive", "restore", "revoke"].some(a => action.startsWith(a))) return "danger";
-  
+  if (
+    ["create", "edit", "request", "approve", "record", "manage", "invite"].some((a) =>
+      action.startsWith(a),
+    )
+  )
+    return "write";
+  if (["delete", "archive", "restore", "revoke"].some((a) => action.startsWith(a))) return "danger";
+
   return "other";
 }
 
 export function SuperAdminPermissionsView() {
-  const { data: permissions, isLoading, error } = useQuery<Permission[]>({
+  const {
+    data: permissions,
+    isLoading,
+    error,
+  } = useQuery<Permission[]>({
     queryKey: ["super-admin-permissions"],
     queryFn: async () => {
       const res = await fetch(`/api/super-admin/permissions`);
@@ -68,10 +77,10 @@ export function SuperAdminPermissionsView() {
     <div className="space-y-8">
       {Object.entries(grouped).map(([category, perms]) => {
         // Sub-group by type within the category
-        const readPerms = perms.filter(p => getPermissionType(p.key) === "read");
-        const writePerms = perms.filter(p => getPermissionType(p.key) === "write");
-        const dangerPerms = perms.filter(p => getPermissionType(p.key) === "danger");
-        const otherPerms = perms.filter(p => getPermissionType(p.key) === "other");
+        const readPerms = perms.filter((p) => getPermissionType(p.key) === "read");
+        const writePerms = perms.filter((p) => getPermissionType(p.key) === "write");
+        const dangerPerms = perms.filter((p) => getPermissionType(p.key) === "danger");
+        const otherPerms = perms.filter((p) => getPermissionType(p.key) === "other");
 
         const renderGroup = (groupPerms: Permission[]) => {
           if (groupPerms.length === 0) return null;
@@ -82,8 +91,8 @@ export function SuperAdminPermissionsView() {
                   key={perm.key}
                   className="p-6 rounded-2xl border bg-card flex flex-col gap-3 shadow-md hover:shadow-lg transition-shadow items-start"
                 >
-                  <Badge 
-                    variant={getPermissionType(perm.key) === "danger" ? "destructive" : "secondary"} 
+                  <Badge
+                    variant={getPermissionType(perm.key) === "danger" ? "destructive" : "secondary"}
                     className="font-mono font-extrabold text-[15px] px-4 py-1.5 shadow-sm"
                   >
                     {perm.key}
@@ -105,7 +114,8 @@ export function SuperAdminPermissionsView() {
                 {category}
               </CardTitle>
               <CardDescription>
-                {perms.length} {perms.length === 1 ? "permission" : "permissions"} available in this section.
+                {perms.length} {perms.length === 1 ? "permission" : "permissions"} available in this
+                section.
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-6 flex flex-col gap-2">

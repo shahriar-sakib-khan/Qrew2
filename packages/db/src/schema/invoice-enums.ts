@@ -1,18 +1,12 @@
 import { pgEnum } from "drizzle-orm/pg-core";
 
 // ── Template scope ────────────────────────────────────────────────────────────
-export const templateScopeEnum = pgEnum("template_scope_enum", [
-  "organization",
-  "preset",
-]);
+export const templateScopeEnum = pgEnum("template_scope_enum", ["organization", "preset"]);
 
 // ── Component value type (replaces old rowTypeEnum for computation purpose) ──
 // 'normal'  = manual entry, optional initialValue pre-fill
 // 'formula' = computed by engine from a bare-token expression
-export const componentValueTypeEnum = pgEnum("component_value_type_enum", [
-  "normal",
-  "formula",
-]);
+export const componentValueTypeEnum = pgEnum("component_value_type_enum", ["normal", "formula"]);
 
 // ── Section charge formula base ───────────────────────────────────────────────
 // Controls which section aggregate is used as the base in a section charge formula.
@@ -44,12 +38,7 @@ export const invoiceStatusEnum = pgEnum("invoice_status_enum", [
 ]);
 
 // ── Invoice document type ─────────────────────────────────────────────────────
-export const documentTypeEnum = pgEnum("document_type_enum", [
-  "pda",
-  "fda",
-  "proforma",
-  "general",
-]);
+export const documentTypeEnum = pgEnum("document_type_enum", ["pda", "fda", "proforma", "general"]);
 
 // ── Org config value type ─────────────────────────────────────────────────────
 export const configValueTypeEnum = pgEnum("config_value_type_enum", [

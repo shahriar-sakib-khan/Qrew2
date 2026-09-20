@@ -1,7 +1,7 @@
-import { pgTable, text, timestamp, integer } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
+import { integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 import { organizations, users } from "./auth";
 import { projects } from "./projects";
-import { relations } from "drizzle-orm";
 
 export const projectAttachments = pgTable("project_attachments", {
   id: text("id").primaryKey(),
@@ -11,8 +11,7 @@ export const projectAttachments = pgTable("project_attachments", {
   projectId: text("project_id")
     .notNull()
     .references(() => projects.id, { onDelete: "cascade" }),
-  uploadedBy: text("uploaded_by")
-    .references(() => users.id, { onDelete: "set null" }),
+  uploadedBy: text("uploaded_by").references(() => users.id, { onDelete: "set null" }),
   fileName: text("file_name").notNull(),
   fileSize: integer("file_size").notNull(),
   fileType: text("file_type").notNull(),

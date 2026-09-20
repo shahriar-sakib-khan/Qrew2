@@ -1,8 +1,8 @@
-import Redis from 'ioredis'
-import { logger } from './logger'
+import Redis from "ioredis";
+import { logger } from "./logger";
 
 if (!process.env.REDIS_URL) {
-  throw new Error('REDIS_URL is not set.')
+  throw new Error("REDIS_URL is not set.");
 }
 
 /**
@@ -26,18 +26,18 @@ export const redis = new Redis(process.env.REDIS_URL, {
   // After 3 failed attempts, stop retrying and throw.
   // Prevents hanging requests when Redis is genuinely offline.
   maxRetriesPerRequest: 3,
-})
+});
 
-const redisLog = logger.child({ module: 'redis' })
+const redisLog = logger.child({ module: "redis" });
 
-redis.on('connect', () => {
-  redisLog.info('connected')
-})
+redis.on("connect", () => {
+  redisLog.info("connected");
+});
 
-redis.on('error', (err) => {
-  redisLog.error({ err: err.message }, 'error')
-})
+redis.on("error", (err) => {
+  redisLog.error({ err: err.message }, "error");
+});
 
-redis.on('reconnecting', () => {
-  redisLog.warn('reconnecting...')
-})
+redis.on("reconnecting", () => {
+  redisLog.warn("reconnecting...");
+});

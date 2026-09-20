@@ -1,8 +1,10 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, ShieldAlert, Ban, RefreshCcw, KeyRound } from 'lucide-react';
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Ban, KeyRound, Loader2, RefreshCcw, ShieldAlert } from "lucide-react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -10,14 +12,12 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { toast } from 'sonner';
-import { apiUrl } from '@/lib/constants';
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { apiUrl } from "@/lib/constants";
 
-export type SecurityActionType = 'ban' | 'suspend' | 'require_reset' | 'reset_mfa';
+export type SecurityActionType = "ban" | "suspend" | "require_reset" | "reset_mfa";
 
 export interface SecurityUserContext {
   id: string;
@@ -32,66 +32,74 @@ interface SecurityActionModalProps {
   actionType: SecurityActionType | null;
 }
 
-export function SecurityActionModal({ isOpen, onClose, user, actionType }: SecurityActionModalProps) {
-  const [reason, setReason] = useState('');
+export function SecurityActionModal({
+  isOpen,
+  onClose,
+  user,
+  actionType,
+}: SecurityActionModalProps) {
+  const [reason, setReason] = useState("");
   const queryClient = useQueryClient();
 
   // Reset reason when modal opens/closes
   useEffect(() => {
-    if (!isOpen) setReason('');
+    if (!isOpen) setReason("");
   }, [isOpen]);
 
   const config = {
     ban: {
-      title: 'Hard Ban User',
+      title: "Hard Ban User",
       icon: <Ban className="mr-2 h-4 w-4 text-destructive" />,
-      description: 'Permanently ban this user. All active sessions will be immediately terminated.',
-      buttonText: 'Enforce Ban',
-      variant: 'destructive' as const,
+      description: "Permanently ban this user. All active sessions will be immediately terminated.",
+      buttonText: "Enforce Ban",
+      variant: "destructive" as const,
     },
     suspend: {
-      title: 'Suspend Account',
-      icon: <ShieldAlert className="mr-2 h-4 w-4 text-amber-500" />,
-      description: 'Temporarily lock this user out of their account. Active sessions will be terminated.',
-      buttonText: 'Suspend User',
-      variant: 'default' as const,
+      title: "Suspend Account",
+      icon: <ShieldAlert className="mr-2 h-4 w-4 text-accent-foreground" />,
+      description:
+        "Temporarily lock this user out of their account. Active sessions will be terminated.",
+      buttonText: "Suspend User",
+      variant: "default" as const,
     },
     require_reset: {
-      title: 'Force Password Reset',
+      title: "Force Password Reset",
       icon: <RefreshCcw className="mr-2 h-4 w-4" />,
-      description: 'Force this user to reset their password on their next login. Active sessions will be terminated.',
-      buttonText: 'Force Reset',
-      variant: 'default' as const,
+      description:
+        "Force this user to reset their password on their next login. Active sessions will be terminated.",
+      buttonText: "Force Reset",
+      variant: "default" as const,
     },
     reset_mfa: {
-      title: 'Reset MFA',
+      title: "Reset MFA",
       icon: <KeyRound className="mr-2 h-4 w-4" />,
-      description: 'Disable Two-Factor Authentication for this user and require a password reset. Use only when a user has lost their 2FA device.',
-      buttonText: 'Reset MFA',
-      variant: 'destructive' as const,
+      description:
+        "Disable Two-Factor Authentication for this user and require a password reset. Use only when a user has lost their 2FA device.",
+      buttonText: "Reset MFA",
+      variant: "destructive" as const,
     },
   };
 
   const securityMutation = useMutation({
     mutationFn: async (auditReason: string) => {
-      if (!user || !actionType) throw new Error('Missing user or action context');
-      
+      if (!user || !actionType) throw new Error("Missing user or action context");
+
       const res = await fetch(`${apiUrl}/api/admin/security-action`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ targetUserId: user.id, action: actionType, reason: auditReason }),
-        credentials: 'include',
+        credentials: "include",
       });
 
       if (!res.ok) {
         const errorData = await res.json();
-        throw new Error(errorData.message || 'Security action failed');
+        throw new Error(errorData.message || "Security action failed");
       }
       return res.json();
     },
     onSuccess: () => {
       // Invalidate cache to trigger an immediate background refetch of the table data
-      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
       toast.success(`Security action applied to ${user?.email}`);
       onClose();
     },
@@ -103,7 +111,7 @@ export function SecurityActionModal({ isOpen, onClose, user, actionType }: Secur
   const handleEnforce = (e: React.FormEvent) => {
     e.preventDefault();
     if (reason.length < 10) {
-      toast.error('Audit reason must be at least 10 characters.');
+      toast.error("Audit reason must be at least 10 characters.");
       return;
     }
     securityMutation.mutate(reason);
@@ -119,20 +127,17 @@ export function SecurityActionModal({ isOpen, onClose, user, actionType }: Secur
       <DialogContent className="sm:max-w-[425px]">
         <form onSubmit={handleEnforce}>
           <DialogHeader>
-            <DialogTitle className="flex items-center">
-              {currentConfig.title}
-            </DialogTitle>
+            <DialogTitle className="flex items-center">{currentConfig.title}</DialogTitle>
             <DialogDescription>
-              {currentConfig.description} 
-              <br/><br/>
+              {currentConfig.description}
+              <br />
+              <br />
               Target: <strong className="text-foreground">{user.email}</strong>
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="audit-reason">
-                SOC2 Audit Reason (Required)
-              </Label>
+              <Label htmlFor="audit-reason">SOC2 Audit Reason (Required)</Label>
               <Input
                 id="audit-reason"
                 placeholder="e.g., Zendesk #10492 - Credential Stuffing"
@@ -144,11 +149,16 @@ export function SecurityActionModal({ isOpen, onClose, user, actionType }: Secur
             </div>
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose} disabled={securityMutation.isPending}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              disabled={securityMutation.isPending}
+            >
               Cancel
             </Button>
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               variant={currentConfig.variant}
               disabled={securityMutation.isPending || reason.length < 10}
             >

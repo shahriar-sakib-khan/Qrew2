@@ -1,9 +1,13 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { apiUrl } from "@/lib/constants";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Check, Loader2, Plus, X } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
+import { AddExpenseModal } from "@/components/features/financials/add-expense-modal";
+import { AddRequisitionModal } from "@/components/features/financials/add-requisition-modal";
+import { WalletsTab } from "@/components/features/financials/wallets-tab";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -13,14 +17,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Check, X, Loader2 } from "lucide-react";
-import { toast } from "sonner";
-
-import { AddExpenseModal } from "@/components/features/financials/add-expense-modal";
-import { AddRequisitionModal } from "@/components/features/financials/add-requisition-modal";
-import { WalletsTab } from "@/components/features/financials/wallets-tab";
-import { useState } from "react";
-import { Plus } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { apiUrl } from "@/lib/constants";
 import { usePermissionStore } from "@/store/use-permission-store";
 
 export default function FinancialsPage() {
@@ -50,7 +48,7 @@ export default function FinancialsPage() {
   });
 
   const { mutate: actionReq, isPending: actioning } = useMutation({
-    mutationFn: async ({ id, status }: { id: string, status: string }) => {
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
       const res = await fetch(`${apiUrl}/api/requisitions/${id}/action`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -64,7 +62,7 @@ export default function FinancialsPage() {
       queryClient.invalidateQueries({ queryKey: ["requisitions"] });
       toast.success("Requisition updated successfully");
     },
-    onError: () => toast.error("Failed to action requisition")
+    onError: () => toast.error("Failed to action requisition"),
   });
 
   return (
@@ -72,7 +70,9 @@ export default function FinancialsPage() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Financials Dashboard</h1>
-          <p className="text-muted-foreground">Manage organizational expenses and fund requisitions.</p>
+          <p className="text-muted-foreground">
+            Manage organizational expenses and fund requisitions.
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={() => setIsReqModalOpen(true)}>
@@ -109,9 +109,17 @@ export default function FinancialsPage() {
               </TableHeader>
               <TableBody>
                 {loadingExpenses ? (
-                  <TableRow><TableCell colSpan={6} className="text-center h-24">Loading...</TableCell></TableRow>
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center h-24">
+                      Loading...
+                    </TableCell>
+                  </TableRow>
                 ) : expenses?.length === 0 ? (
-                  <TableRow><TableCell colSpan={6} className="text-center h-24">No expenses found.</TableCell></TableRow>
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center h-24">
+                      No expenses found.
+                    </TableCell>
+                  </TableRow>
                 ) : (
                   expenses?.map((ex: any) => (
                     <TableRow key={ex.id}>
@@ -145,9 +153,17 @@ export default function FinancialsPage() {
               </TableHeader>
               <TableBody>
                 {loadingReqs ? (
-                  <TableRow><TableCell colSpan={6} className="text-center h-24">Loading...</TableCell></TableRow>
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center h-24">
+                      Loading...
+                    </TableCell>
+                  </TableRow>
                 ) : requisitions?.length === 0 ? (
-                  <TableRow><TableCell colSpan={6} className="text-center h-24">No requisitions found.</TableCell></TableRow>
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center h-24">
+                      No requisitions found.
+                    </TableCell>
+                  </TableRow>
                 ) : (
                   requisitions?.map((req: any) => (
                     <TableRow key={req.id}>
@@ -159,21 +175,42 @@ export default function FinancialsPage() {
                       <TableCell className="text-right">
                         {req.status === "pending" && can("finance:approve_requisition") && (
                           <div className="flex justify-end gap-2">
-                            <Button size="sm" variant="outline" className="text-green-600" onClick={() => actionReq({ id: req.id, status: "approved" })} disabled={actioning}>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-green-600"
+                              onClick={() => actionReq({ id: req.id, status: "approved" })}
+                              disabled={actioning}
+                            >
                               Approve
                             </Button>
-                            <Button size="sm" variant="outline" className="text-red-600" onClick={() => actionReq({ id: req.id, status: "rejected" })} disabled={actioning}>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-red-600"
+                              onClick={() => actionReq({ id: req.id, status: "rejected" })}
+                              disabled={actioning}
+                            >
                               Reject
                             </Button>
                           </div>
                         )}
                         {req.status === "approved" && can("finance:approve_requisition") && (
-                          <Button size="sm" className="bg-blue-600 hover:bg-blue-700" onClick={() => actionReq({ id: req.id, status: "disbursed" })} disabled={actioning}>
+                          <Button
+                            size="sm"
+                            className="bg-blue-600 hover:bg-blue-700"
+                            onClick={() => actionReq({ id: req.id, status: "disbursed" })}
+                            disabled={actioning}
+                          >
                             Mark Disbursed
                           </Button>
                         )}
-                        {req.status === "disbursed" && <span className="text-xs text-muted-foreground">Disbursed</span>}
-                        {req.status === "rejected" && <span className="text-xs text-muted-foreground">Rejected</span>}
+                        {req.status === "disbursed" && (
+                          <span className="text-xs text-muted-foreground">Disbursed</span>
+                        )}
+                        {req.status === "rejected" && (
+                          <span className="text-xs text-muted-foreground">Rejected</span>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))

@@ -1,13 +1,13 @@
-import { useState, useRef, useEffect, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { Edit2, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { decodeFormula } from "@/lib/formula-evaluator";
 import { cn } from "@/lib/utils";
 import { useBuilderContext } from "../../builder-context";
-import { TableRow } from "./table-row";
-import { decodeFormula } from "@/lib/formula-evaluator";
-import { Button } from "@/components/ui/button";
-import { Edit2, Trash2 } from "lucide-react";
 import { MobileRowActions } from "./row-context-menu";
+import { TableRow } from "./table-row";
 
 export type SectionColor = { border: string; bg: string };
 
@@ -28,20 +28,30 @@ export function ChargeLabelCell({
   const queryClient = useQueryClient();
   const { apiBasePath, invalidateKey } = useBuilderContext();
 
-  useEffect(() => { if (!editing) setDraft(charge.label); }, [charge.label, editing]);
-  useEffect(() => { if (editing) { inputRef.current?.focus(); inputRef.current?.select(); } }, [editing]);
+  useEffect(() => {
+    if (!editing) setDraft(charge.label);
+  }, [charge.label, editing]);
+  useEffect(() => {
+    if (editing) {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }
+  }, [editing]);
 
   const save = useCallback(async () => {
     const trimmed = draft.trim();
     setEditing(false);
     if (trimmed === charge.label || !trimmed) return;
     try {
-      const res = await fetch(`${apiBasePath}/sections/${sectionId}/rows/${rowId}/charges/${charge.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ label: trimmed }),
-      });
+      const res = await fetch(
+        `${apiBasePath}/sections/${sectionId}/rows/${rowId}/charges/${charge.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ label: trimmed }),
+        },
+      );
       if (!res.ok) throw new Error("Failed to save charge label");
       queryClient.invalidateQueries({ queryKey: invalidateKey });
     } catch {
@@ -57,8 +67,14 @@ export function ChargeLabelCell({
         onChange={(e) => setDraft(e.target.value)}
         onBlur={save}
         onKeyDown={(e) => {
-          if (e.key === "Enter") { e.preventDefault(); save(); }
-          if (e.key === "Escape") { setDraft(charge.label); setEditing(false); }
+          if (e.key === "Enter") {
+            e.preventDefault();
+            save();
+          }
+          if (e.key === "Escape") {
+            setDraft(charge.label);
+            setEditing(false);
+          }
         }}
         className={cn(
           "w-full bg-transparent border-none outline-none focus:outline-none text-right",
@@ -114,7 +130,9 @@ export function RowChargeLine({
     <TableRow
       token={charge.chargeToken}
       onEditToken={onEditCharge}
-      formula={allSections && charge.formula ? decodeFormula(charge.formula, allSections) : charge.formula}
+      formula={
+        allSections && charge.formula ? decodeFormula(charge.formula, allSections) : charge.formula
+      }
       zoomLevel={zoomLevel}
       onClickUsd1={onClickUsd1}
       onClickFormula={onClickUsd1}
@@ -132,7 +150,8 @@ export function RowChargeLine({
         onEditCharge || onDeleteCharge ? (
           <>
             <Button
-              variant="ghost" size="icon"
+              variant="ghost"
+              size="icon"
               className="h-6 w-6 text-muted-foreground hover:text-foreground"
               onClick={onEditCharge}
               title="Edit row charge"
@@ -140,7 +159,8 @@ export function RowChargeLine({
               <Edit2 className="h-3.5 w-3.5" />
             </Button>
             <Button
-              variant="ghost" size="icon"
+              variant="ghost"
+              size="icon"
               className="h-6 w-6 text-muted-foreground hover:text-destructive"
               onClick={onDeleteCharge}
               title="Delete charge"
@@ -165,14 +185,17 @@ export function RowChargeLine({
               zoomLevel={zoomLevel}
             />
           ) : (
-            <span className="text-foreground/60 italic leading-snug" style={{ fontSize: 14 + zoomLevel }}>
+            <span
+              className="text-foreground/60 italic leading-snug"
+              style={{ fontSize: 14 + zoomLevel }}
+            >
               {charge.label}
             </span>
           )}
         </div>
       }
       usd1={chargeValue ? <span>{chargeValue}</span> : undefined}
-      usd2={rowTotal   ? <span>{rowTotal}</span>   : undefined}
+      usd2={rowTotal ? <span>{rowTotal}</span> : undefined}
     />
   );
 }

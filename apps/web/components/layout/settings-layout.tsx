@@ -1,10 +1,16 @@
 "use client";
 
+import { Building, Palette, Shield, User } from "lucide-react";
 import React from "react";
-import { User, Shield, Palette, Building } from "lucide-react";
 import { SidebarNavLink } from "@/components/layout/sidebar-nav-link";
 
-export function SettingsLayout({ children, basePath }: { children: React.ReactNode; basePath: string }) {
+export function SettingsLayout({
+  children,
+  basePath,
+}: {
+  children: React.ReactNode;
+  basePath: string;
+}) {
   const tabs = [
     { name: "Profile", href: `${basePath}/settings/profile`, icon: User },
     { name: "Security", href: `${basePath}/settings/security`, icon: Shield },
@@ -31,9 +37,7 @@ export function SettingsLayout({ children, basePath }: { children: React.ReactNo
       </nav>
 
       {/* Settings Content */}
-      <main className="flex-1 min-w-0">
-        {children}
-      </main>
+      <main className="flex-1 min-w-0">{children}</main>
     </div>
   );
 }

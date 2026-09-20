@@ -13,10 +13,16 @@ import { createCharge } from "./create-row-charge.controller";
  * Circular reference / cross-token validation is out of scope (engine responsibility).
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  makeCtx, makeRow, makeRowCharge,
-  ORG_ID, TEMPLATE_ID, SECTION_ID, ROW_ID, CHARGE_ID,
+  CHARGE_ID,
+  makeCtx,
+  makeRow,
+  makeRowCharge,
+  ORG_ID,
+  ROW_ID,
+  SECTION_ID,
+  TEMPLATE_ID,
 } from "../../invoice-templates.fixtures";
 
 const { hoistedChain } = vi.hoisted(() => ({
@@ -60,12 +66,30 @@ vi.mock("@starter/db", () => {
 
   return {
     db,
-    eq, and, asc,
+    eq,
+    and,
+    asc,
     encodeFormula: vi.fn((f: any) => f),
     decodeFormula: vi.fn((f: any) => f),
-    templateRows: { id: "id", sectionId: "sectionId", templateId: "templateId", rowToken: "rowToken", sortOrder: "sortOrder" },
-    templateRowCharges: { id: "id", rowId: "rowId", sortOrder: "sortOrder", chargeToken: "chargeToken" },
-    templateSectionCharges: { id: "id", templateId: "templateId", sectionId: "sectionId", sortOrder: "sortOrder" },
+    templateRows: {
+      id: "id",
+      sectionId: "sectionId",
+      templateId: "templateId",
+      rowToken: "rowToken",
+      sortOrder: "sortOrder",
+    },
+    templateRowCharges: {
+      id: "id",
+      rowId: "rowId",
+      sortOrder: "sortOrder",
+      chargeToken: "chargeToken",
+    },
+    templateSectionCharges: {
+      id: "id",
+      templateId: "templateId",
+      sectionId: "sectionId",
+      sortOrder: "sortOrder",
+    },
     templateSections: { id: "id", templateId: "templateId", sectionToken: "sectionToken" },
     templateConstants: { id: "id", templateId: "templateId", token: "token" },
     invoiceTemplates: { id: "id", organizationId: "organizationId" },
@@ -82,8 +106,8 @@ const ROW_FIXTURE = makeRow();
 function mockRowOwned(row = ROW_FIXTURE) {
   (db.select as any)
     .mockReturnValueOnce(hoistedChain([{ row }]))
-    .mockReturnValueOnce(hoistedChain([]))  // buildRowIndex
-    .mockReturnValueOnce(hoistedChain([]))  // buildSectionIndex
+    .mockReturnValueOnce(hoistedChain([])) // buildRowIndex
+    .mockReturnValueOnce(hoistedChain([])) // buildSectionIndex
     .mockReturnValueOnce(hoistedChain([])); // buildConstantIndex
 }
 
@@ -91,11 +115,11 @@ function mockRowOwned(row = ROW_FIXTURE) {
 function mockRowOwnedForCreate(row = ROW_FIXTURE) {
   (db.select as any)
     .mockReturnValueOnce(hoistedChain([{ row }]))
-    .mockReturnValueOnce(hoistedChain([]))  // buildRowIndex (encode)
-    .mockReturnValueOnce(hoistedChain([]))  // buildSectionIndex (encode)
-    .mockReturnValueOnce(hoistedChain([]))  // buildConstantIndex (encode)
-    .mockReturnValueOnce(hoistedChain([]))  // buildRowIndex (decode)
-    .mockReturnValueOnce(hoistedChain([]))  // buildSectionIndex (decode)
+    .mockReturnValueOnce(hoistedChain([])) // buildRowIndex (encode)
+    .mockReturnValueOnce(hoistedChain([])) // buildSectionIndex (encode)
+    .mockReturnValueOnce(hoistedChain([])) // buildConstantIndex (encode)
+    .mockReturnValueOnce(hoistedChain([])) // buildRowIndex (decode)
+    .mockReturnValueOnce(hoistedChain([])) // buildSectionIndex (decode)
     .mockReturnValueOnce(hoistedChain([])); // buildConstantIndex (decode)
 }
 
@@ -105,19 +129,18 @@ function mockRowNotFound() {
 
 /** Queue charge-ownership for updateCharge without formula: [0] charge check, [1-3] decode only */
 function mockChargeOwned(charge = makeRowCharge(), withEncodeIndexes = false) {
-  const mock = (db.select as any)
-    .mockReturnValueOnce(hoistedChain([{ charge, row: ROW_FIXTURE }]));
+  const mock = (db.select as any).mockReturnValueOnce(hoistedChain([{ charge, row: ROW_FIXTURE }]));
   if (withEncodeIndexes) {
     mock
-      .mockReturnValueOnce(hoistedChain([]))  // buildRowIndex (encode)
-      .mockReturnValueOnce(hoistedChain([]))  // buildSectionIndex (encode)
+      .mockReturnValueOnce(hoistedChain([])) // buildRowIndex (encode)
+      .mockReturnValueOnce(hoistedChain([])) // buildSectionIndex (encode)
       .mockReturnValueOnce(hoistedChain([])); // buildConstantIndex (encode)
   }
   // Always queue decode indexes (controller always decodes after update)
   mock
-    .mockReturnValueOnce(hoistedChain([]))   // buildRowIndex (decode)
-    .mockReturnValueOnce(hoistedChain([]))   // buildSectionIndex (decode)
-    .mockReturnValueOnce(hoistedChain([]));  // buildConstantIndex (decode)
+    .mockReturnValueOnce(hoistedChain([])) // buildRowIndex (decode)
+    .mockReturnValueOnce(hoistedChain([])) // buildSectionIndex (decode)
+    .mockReturnValueOnce(hoistedChain([])); // buildConstantIndex (decode)
 }
 
 function mockChargeNotFound() {
@@ -141,101 +164,130 @@ function mockUpdateReturns(charge: any) {
 
 // ─── TESTS ────────────────────────────────────────────────────────────────────
 
-
 describe("TemplateRowChargesController - createCharge", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     (db.transaction as any).mockImplementation(async (fn: any) => fn(db));
   });
 
-describe("createCharge", () => {
-  it("returns 401 when unauthenticated", async () => {
-    const ctx = makeCtx({ orgId: null, params: { rowId: ROW_ID }, body: { label: "VAT", formula: "PORT_DUES * 0.15" } });
-    const res = await createCharge(ctx);
-    expect(res.status).toBe(401);
-  });
-
-  it("returns 404 when row not found or wrong org", async () => {
-    mockRowNotFound();
-    const ctx = makeCtx({ params: { rowId: ROW_ID }, body: { label: "VAT", formula: "PORT_DUES * 0.15" } });
-    const res = await createCharge(ctx);
-    expect(res.status).toBe(404);
-  });
-
-  it("returns 400 when label is missing", async () => {
-    mockRowOwnedForCreate();
-    const ctx = makeCtx({ params: { rowId: ROW_ID }, body: { formula: "PORT_DUES * 0.15" } });
-    const res = await createCharge(ctx);
-    expect(res.status).toBe(400);
-  });
-
-  it("returns 422 when formula has trailing operator (regex validation)", async () => {
-    (db.select as any).mockReturnValueOnce(hoistedChain([{ row: ROW_FIXTURE }]));
-    const ctx = makeCtx({ params: { rowId: ROW_ID }, body: { label: "VAT", formula: "PORT_DUES *" } });
-    const res = await createCharge(ctx);
-    expect(res.status).toBe(422);
-  });
-
-  it("returns 422 when formula starts with leading + operator", async () => {
-    (db.select as any).mockReturnValueOnce(hoistedChain([{ row: ROW_FIXTURE }]));
-    const ctx = makeCtx({ params: { rowId: ROW_ID }, body: { label: "VAT", formula: "+ PORT_DUES" } });
-    const res = await createCharge(ctx);
-    expect(res.status).toBe(422);
-  });
-
-  it("returns 409 when chargeToken already exists on this row", async () => {
-    (db.select as any).mockReturnValueOnce(hoistedChain([{ row: ROW_FIXTURE }]));
-    (db.query.templateRowCharges.findFirst as any).mockResolvedValue(makeRowCharge()); // collision
-    const ctx = makeCtx({ params: { rowId: ROW_ID }, body: { label: "VAT", formula: "PORT_DUES * 0.15" } });
-    const res = await createCharge(ctx);
-    expect(res.status).toBe(409);
-  });
-
-  it("creates charge with auto-derived chargeToken from rowToken + label", async () => {
-    mockRowOwnedForCreate();
-    (db.query.templateRowCharges.findFirst as any).mockResolvedValue(null);
-    const newCharge = makeRowCharge({ chargeToken: "PORT_DUES_VAT" });
-    mockInsertReturns(newCharge);
-    const ctx = makeCtx({ params: { rowId: ROW_ID }, body: { label: "VAT", formula: "PORT_DUES * 0.15" } });
-    const res = await createCharge(ctx);
-    expect(res.status).toBe(201);
-  });
-
-  it("creates charge with explicit chargeToken overriding auto-derivation", async () => {
-    mockRowOwnedForCreate();
-    (db.query.templateRowCharges.findFirst as any).mockResolvedValue(null);
-    const newCharge = makeRowCharge({ chargeToken: "MY_CUSTOM_TOKEN" });
-    mockInsertReturns(newCharge);
-    const ctx = makeCtx({
-      params: { rowId: ROW_ID },
-      body: { label: "VAT", formula: "PORT_DUES * 0.15", chargeToken: "MY_CUSTOM_TOKEN" },
+  describe("createCharge", () => {
+    it("returns 401 when unauthenticated", async () => {
+      const ctx = makeCtx({
+        orgId: null,
+        params: { rowId: ROW_ID },
+        body: { label: "VAT", formula: "PORT_DUES_BASE * 15%" },
+      });
+      const res = await createCharge(ctx);
+      expect(res.status).toBe(401);
     });
-    const res = await createCharge(ctx);
-    expect(res.status).toBe(201);
-  });
 
-  it("accepts addition operator formula", async () => {
-    mockRowOwnedForCreate();
-    (db.query.templateRowCharges.findFirst as any).mockResolvedValue(null);
-    mockInsertReturns(makeRowCharge({ formula: "PORT_DUES + 500" }));
-    const ctx = makeCtx({ params: { rowId: ROW_ID }, body: { label: "Flat Fee", formula: "PORT_DUES + 500" } });
-    const res = await createCharge(ctx);
-    expect(res.status).toBe(201);
-  });
-
-  it("stores tags and qualifier correctly", async () => {
-    mockRowOwnedForCreate();
-    (db.query.templateRowCharges.findFirst as any).mockResolvedValue(null);
-    const newCharge = makeRowCharge({ tags: ["port", "dues"], qualifier: "if applicable" });
-    mockInsertReturns(newCharge);
-    const ctx = makeCtx({
-      params: { rowId: ROW_ID },
-      body: { label: "VAT", formula: "PORT_DUES * 0.15", tags: ["port", "dues"], qualifier: "if applicable" },
+    it("returns 404 when row not found or wrong org", async () => {
+      mockRowNotFound();
+      const ctx = makeCtx({
+        params: { rowId: ROW_ID },
+        body: { label: "VAT", formula: "PORT_DUES_BASE * 15%" },
+      });
+      const res = await createCharge(ctx);
+      expect(res.status).toBe(404);
     });
-    const res = await createCharge(ctx);
-    expect(res.status).toBe(201);
-    expect((res as any).data.tags).toEqual(["port", "dues"]);
-  });
-});
 
+    it("returns 400 when label is missing", async () => {
+      mockRowOwnedForCreate();
+      const ctx = makeCtx({ params: { rowId: ROW_ID }, body: { formula: "PORT_DUES_BASE * 15%" } });
+      const res = await createCharge(ctx);
+      expect(res.status).toBe(400);
+    });
+
+    it("returns 422 when formula has trailing operator (regex validation)", async () => {
+      (db.select as any).mockReturnValueOnce(hoistedChain([{ row: ROW_FIXTURE }]));
+      const ctx = makeCtx({
+        params: { rowId: ROW_ID },
+        body: { label: "VAT", formula: "PORT_DUES_BASE *" },
+      });
+      const res = await createCharge(ctx);
+      expect(res.status).toBe(422);
+    });
+
+    it("returns 422 when formula starts with leading + operator", async () => {
+      (db.select as any).mockReturnValueOnce(hoistedChain([{ row: ROW_FIXTURE }]));
+      const ctx = makeCtx({
+        params: { rowId: ROW_ID },
+        body: { label: "VAT", formula: "+ PORT_DUES_BASE" },
+      });
+      const res = await createCharge(ctx);
+      expect(res.status).toBe(422);
+    });
+
+    it("returns 409 when chargeToken already exists on this row", async () => {
+      (db.select as any).mockReturnValueOnce(hoistedChain([{ row: ROW_FIXTURE }]));
+      (db.query.templateRowCharges.findFirst as any).mockResolvedValue(makeRowCharge()); // collision
+      const ctx = makeCtx({
+        params: { rowId: ROW_ID },
+        body: { label: "VAT", formula: "PORT_DUES_BASE * 15%" },
+      });
+      const res = await createCharge(ctx);
+      expect(res.status).toBe(409);
+    });
+
+    it("creates charge with auto-derived chargeToken from rowToken + label", async () => {
+      mockRowOwnedForCreate();
+      (db.query.templateRowCharges.findFirst as any).mockResolvedValue(null);
+      const newCharge = makeRowCharge({
+        chargeToken: "PORT_DUES_VAT",
+        formula: "PORT_DUES_BASE * 15%",
+      });
+      mockInsertReturns(newCharge);
+      const ctx = makeCtx({
+        params: { rowId: ROW_ID },
+        body: { label: "VAT", formula: "PORT_DUES_BASE * 15%" },
+      });
+      const res = await createCharge(ctx);
+      expect(res.status).toBe(201);
+    });
+
+    it("creates charge with explicit chargeToken overriding auto-derivation", async () => {
+      mockRowOwnedForCreate();
+      (db.query.templateRowCharges.findFirst as any).mockResolvedValue(null);
+      const newCharge = makeRowCharge({
+        chargeToken: "MY_CUSTOM_TOKEN",
+        formula: "PORT_DUES_BASE * 15%",
+      });
+      mockInsertReturns(newCharge);
+      const ctx = makeCtx({
+        params: { rowId: ROW_ID },
+        body: { label: "VAT", formula: "PORT_DUES_BASE * 15%", chargeToken: "MY_CUSTOM_TOKEN" },
+      });
+      const res = await createCharge(ctx);
+      expect(res.status).toBe(201);
+    });
+
+    it("rejects non-multiplication formula", async () => {
+      (db.select as any).mockReturnValueOnce(hoistedChain([{ row: ROW_FIXTURE }]));
+      const ctx = makeCtx({
+        params: { rowId: ROW_ID },
+        body: { label: "Flat Fee", formula: "PORT_DUES_BASE + 500" },
+      });
+      const res = await createCharge(ctx);
+      expect(res.status).toBe(422);
+    });
+
+    it("stores tags and qualifier correctly", async () => {
+      mockRowOwnedForCreate();
+      (db.query.templateRowCharges.findFirst as any).mockResolvedValue(null);
+      const newCharge = makeRowCharge({ tags: ["port", "dues"], qualifier: "if applicable" });
+      mockInsertReturns(newCharge);
+      const ctx = makeCtx({
+        params: { rowId: ROW_ID },
+        body: {
+          label: "VAT",
+          formula: "PORT_DUES_BASE * 15%",
+          tags: ["port", "dues"],
+          qualifier: "if applicable",
+        },
+      });
+      const res = await createCharge(ctx);
+      expect(res.status).toBe(201);
+      expect((res as any).data.tags).toEqual(["port", "dues"]);
+    });
+  });
 });

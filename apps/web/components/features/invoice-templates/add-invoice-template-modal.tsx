@@ -1,19 +1,26 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus, X, Edit2, Check } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { apiUrl } from "@/lib/constants";
-import { useState, useEffect, useMemo } from "react";
-import { toast } from "sonner";
+import { Check, Edit2, Loader2, Plus, X } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -23,14 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { apiUrl } from "@/lib/constants";
 
 // ─── Block type ───────────────────────────────────────────────────────────────
 
@@ -42,12 +42,12 @@ type DynamicBlock =
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function AddEditInvoiceTemplateModal({ 
-  isOpen, 
+export function AddEditInvoiceTemplateModal({
+  isOpen,
   onClose,
   editTemplate,
-}: { 
-  isOpen: boolean; 
+}: {
+  isOpen: boolean;
   onClose: () => void;
   editTemplate?: any;
 }) {
@@ -56,7 +56,7 @@ export function AddEditInvoiceTemplateModal({
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  
+
   const [prefix, setPrefix] = useState("INV");
   const [isPrefixDirty, setIsPrefixDirty] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
@@ -88,9 +88,7 @@ export function AddEditInvoiceTemplateModal({
         setDigits("3");
       }
 
-      const stripped = rawFormat
-        .replace(/^\{PREFIX\}-?/, "")
-        .replace(/-?\{SEQ(?::\d+)?\}$/, "");
+      const stripped = rawFormat.replace(/^\{PREFIX\}-?/, "").replace(/-?\{SEQ(?::\d+)?\}$/, "");
 
       const blocks: DynamicBlock[] = [];
       for (const part of stripped.split("-")) {
@@ -118,13 +116,18 @@ export function AddEditInvoiceTemplateModal({
   const handleNameChange = (val: string) => {
     setName(val);
     if (!isPrefixDirty) {
-      setPrefix(val.toUpperCase().replace(/\s+/g, "_").replace(/[^A-Z0-9_]/g, "") || "INV");
+      setPrefix(
+        val
+          .toUpperCase()
+          .replace(/\s+/g, "_")
+          .replace(/[^A-Z0-9_]/g, "") || "INV",
+      );
     }
   };
 
   // Year/Month/Day each appear at most once; Text can repeat
   const usedSingleTypes = new Set(
-    dynamicBlocks.filter((b) => b.type !== "text").map((b) => b.type)
+    dynamicBlocks.filter((b) => b.type !== "text").map((b) => b.type),
   );
 
   const addBlock = (type: DynamicBlock["type"]) => {
@@ -132,10 +135,10 @@ export function AddEditInvoiceTemplateModal({
       type === "year"
         ? { type: "year", format: "YYYY" }
         : type === "month"
-        ? { type: "month", format: "MM" }
-        : type === "day"
-        ? { type: "day", format: "DD" }
-        : { type: "text", value: "" };
+          ? { type: "month", format: "MM" }
+          : type === "day"
+            ? { type: "day", format: "DD" }
+            : { type: "text", value: "" };
     setDynamicBlocks((prev) => [...prev, block]);
   };
 
@@ -145,14 +148,14 @@ export function AddEditInvoiceTemplateModal({
 
   const updateBlockFormat = (index: number, format: string) => {
     setDynamicBlocks((prev) =>
-      prev.map((b, i) => (i === index ? ({ ...b, format } as DynamicBlock) : b))
+      prev.map((b, i) => (i === index ? ({ ...b, format } as DynamicBlock) : b)),
     );
   };
 
   const updateTextValue = (index: number, raw: string) => {
     const value = raw.toUpperCase().replace(/[^A-Z0-9_]/g, "");
     setDynamicBlocks((prev) =>
-      prev.map((b, i) => (i === index && b.type === "text" ? { type: "text", value } : b))
+      prev.map((b, i) => (i === index && b.type === "text" ? { type: "text", value } : b)),
     );
   };
 
@@ -173,14 +176,35 @@ export function AddEditInvoiceTemplateModal({
 
   const livePreview = useMemo(() => {
     const now = new Date();
-    const MONTHS = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+    const MONTHS = [
+      "JAN",
+      "FEB",
+      "MAR",
+      "APR",
+      "MAY",
+      "JUN",
+      "JUL",
+      "AUG",
+      "SEP",
+      "OCT",
+      "NOV",
+      "DEC",
+    ];
     const parts: string[] = [prefix || "INV"];
 
     dynamicBlocks.forEach((b) => {
       if (b.type === "year") {
-        parts.push(b.format === "YYYY" ? now.getFullYear().toString() : now.getFullYear().toString().slice(-2));
+        parts.push(
+          b.format === "YYYY"
+            ? now.getFullYear().toString()
+            : now.getFullYear().toString().slice(-2),
+        );
       } else if (b.type === "month") {
-        parts.push(b.format === "MM" ? (now.getMonth() + 1).toString().padStart(2, "0") : MONTHS[now.getMonth()]);
+        parts.push(
+          b.format === "MM"
+            ? (now.getMonth() + 1).toString().padStart(2, "0")
+            : MONTHS[now.getMonth()],
+        );
       } else if (b.type === "day") {
         parts.push(now.getDate().toString().padStart(2, "0"));
       } else if (b.type === "text" && b.value) {
@@ -216,7 +240,7 @@ export function AddEditInvoiceTemplateModal({
     onSuccess: async (data) => {
       toast.success(editTemplate ? "Template updated" : "Template created");
       queryClient.invalidateQueries({ queryKey: ["invoice-templates"] });
-      
+
       if (editTemplate) {
         onClose();
       } else {
@@ -234,20 +258,23 @@ export function AddEditInvoiceTemplateModal({
           queryClient.prefetchQuery({
             queryKey: ["template-sections", id],
             queryFn: () =>
-              fetch(`${apiUrl}/api/invoice-templates/${id}/sections`, { credentials: "include" })
-                .then((r) => r.json()),
+              fetch(`${apiUrl}/api/invoice-templates/${id}/sections`, {
+                credentials: "include",
+              }).then((r) => r.json()),
           }),
           queryClient.prefetchQuery({
             queryKey: ["template-header-fields", id],
             queryFn: () =>
-              fetch(`${apiUrl}/api/invoice-templates/${id}/header-fields`, { credentials: "include" })
-                .then((r) => r.json()),
+              fetch(`${apiUrl}/api/invoice-templates/${id}/header-fields`, {
+                credentials: "include",
+              }).then((r) => r.json()),
           }),
           queryClient.prefetchQuery({
             queryKey: ["template-constants", id],
             queryFn: () =>
-              fetch(`${apiUrl}/api/invoice-templates/${id}/constants`, { credentials: "include" })
-                .then((r) => r.json()),
+              fetch(`${apiUrl}/api/invoice-templates/${id}/constants`, {
+                credentials: "include",
+              }).then((r) => r.json()),
           }),
         ]);
 
@@ -268,10 +295,14 @@ export function AddEditInvoiceTemplateModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && !isNavigating && onClose()}>
-      <DialogContent 
-        className="max-w-[480px] overflow-hidden" 
-        onInteractOutside={(e) => { if (isNavigating) e.preventDefault(); }}
-        onEscapeKeyDown={(e) => { if (isNavigating) e.preventDefault(); }}
+      <DialogContent
+        className="max-w-[480px] overflow-hidden"
+        onInteractOutside={(e) => {
+          if (isNavigating) e.preventDefault();
+        }}
+        onEscapeKeyDown={(e) => {
+          if (isNavigating) e.preventDefault();
+        }}
       >
         {isNavigating && (
           <div className="absolute inset-0 z-50 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center">
@@ -280,12 +311,13 @@ export function AddEditInvoiceTemplateModal({
             <p className="text-xs text-muted-foreground mt-1">This will just take a second.</p>
           </div>
         )}
-        
+
         <DialogHeader>
-          <DialogTitle>{editTemplate ? "Edit Invoice Template" : "Create Invoice Template"}</DialogTitle>
+          <DialogTitle>
+            {editTemplate ? "Edit Invoice Template" : "Create Invoice Template"}
+          </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-6">
-
           {/* Template Name */}
           <div className="space-y-2">
             <Label htmlFor="name">Template Name</Label>
@@ -312,7 +344,6 @@ export function AddEditInvoiceTemplateModal({
 
             {/* ── PILL BAR ─────────────────────────────────────────────── */}
             <div className="flex flex-wrap items-center gap-1 p-1.5 bg-muted/30 border rounded-md min-h-10">
-
               {/* FIXED: Prefix */}
               <Input
                 value={prefix}
@@ -347,23 +378,36 @@ export function AddEditInvoiceTemplateModal({
                     </div>
                   ) : (
                     <div className="relative group">
-                      <Select value={block.format} onValueChange={(v) => updateBlockFormat(index, v)}>
+                      <Select
+                        value={block.format}
+                        onValueChange={(v) => updateBlockFormat(index, v)}
+                      >
                         <SelectTrigger className="h-7 px-2 text-xs font-mono bg-background border shadow-sm w-auto gap-1 focus:ring-1 rounded-md">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                           {block.type === "year" ? (
                             <>
-                              <SelectItem value="YYYY" className="font-mono text-xs">YYYY</SelectItem>
-                              <SelectItem value="YY" className="font-mono text-xs">YY</SelectItem>
+                              <SelectItem value="YYYY" className="font-mono text-xs">
+                                YYYY
+                              </SelectItem>
+                              <SelectItem value="YY" className="font-mono text-xs">
+                                YY
+                              </SelectItem>
                             </>
                           ) : block.type === "month" ? (
                             <>
-                              <SelectItem value="MM" className="font-mono text-xs">MM</SelectItem>
-                              <SelectItem value="MMM" className="font-mono text-xs">MMM</SelectItem>
+                              <SelectItem value="MM" className="font-mono text-xs">
+                                MM
+                              </SelectItem>
+                              <SelectItem value="MMM" className="font-mono text-xs">
+                                MMM
+                              </SelectItem>
                             </>
                           ) : (
-                            <SelectItem value="DD" className="font-mono text-xs">DD</SelectItem>
+                            <SelectItem value="DD" className="font-mono text-xs">
+                              DD
+                            </SelectItem>
                           )}
                         </SelectContent>
                       </Select>
@@ -391,22 +435,38 @@ export function AddEditInvoiceTemplateModal({
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-36">
-                  <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Date</DropdownMenuLabel>
+                  <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
+                    Date
+                  </DropdownMenuLabel>
                   {!usedSingleTypes.has("year") && (
-                    <DropdownMenuItem onClick={() => addBlock("year")} className="text-xs">Year</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => addBlock("year")} className="text-xs">
+                      Year
+                    </DropdownMenuItem>
                   )}
                   {!usedSingleTypes.has("month") && (
-                    <DropdownMenuItem onClick={() => addBlock("month")} className="text-xs">Month</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => addBlock("month")} className="text-xs">
+                      Month
+                    </DropdownMenuItem>
                   )}
                   {!usedSingleTypes.has("day") && (
-                    <DropdownMenuItem onClick={() => addBlock("day")} className="text-xs">Day</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => addBlock("day")} className="text-xs">
+                      Day
+                    </DropdownMenuItem>
                   )}
-                  {usedSingleTypes.has("year") && usedSingleTypes.has("month") && usedSingleTypes.has("day") && (
-                    <DropdownMenuItem disabled className="text-xs text-muted-foreground italic">All date blocks used</DropdownMenuItem>
-                  )}
+                  {usedSingleTypes.has("year") &&
+                    usedSingleTypes.has("month") &&
+                    usedSingleTypes.has("day") && (
+                      <DropdownMenuItem disabled className="text-xs text-muted-foreground italic">
+                        All date blocks used
+                      </DropdownMenuItem>
+                    )}
                   <DropdownMenuSeparator />
-                  <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Other</DropdownMenuLabel>
-                  <DropdownMenuItem onClick={() => addBlock("text")} className="text-xs">Text</DropdownMenuItem>
+                  <DropdownMenuLabel className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
+                    Other
+                  </DropdownMenuLabel>
+                  <DropdownMenuItem onClick={() => addBlock("text")} className="text-xs">
+                    Text
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
 
@@ -417,12 +477,17 @@ export function AddEditInvoiceTemplateModal({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="2" className="font-mono text-xs">2 digits</SelectItem>
-                  <SelectItem value="3" className="font-mono text-xs">3 digits</SelectItem>
-                  <SelectItem value="4" className="font-mono text-xs">4 digits</SelectItem>
+                  <SelectItem value="2" className="font-mono text-xs">
+                    2 digits
+                  </SelectItem>
+                  <SelectItem value="3" className="font-mono text-xs">
+                    3 digits
+                  </SelectItem>
+                  <SelectItem value="4" className="font-mono text-xs">
+                    4 digits
+                  </SelectItem>
                 </SelectContent>
               </Select>
-
             </div>
             {/* ── END PILL BAR ─────────────────────────────────────────── */}
           </div>

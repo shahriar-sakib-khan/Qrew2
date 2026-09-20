@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock @starter/db
 vi.mock("@starter/db", () => {
@@ -37,20 +37,36 @@ vi.mock("@starter/db", () => {
     and,
     sql,
     expenseCategories: { id: "id", tokenKey: "tokenKey", organizationId: "organizationId" },
-    expenses: { categoryId: "categoryId", projectId: "projectId", organizationId: "organizationId", amount: "amount" },
-    organizationConfigs: { organizationId: "organizationId", isFormulaInjectable: "isFormulaInjectable" },
+    expenses: {
+      categoryId: "categoryId",
+      projectId: "projectId",
+      organizationId: "organizationId",
+      amount: "amount",
+    },
+    organizationConfigs: {
+      organizationId: "organizationId",
+      isFormulaInjectable: "isFormulaInjectable",
+    },
     templateConstants: { templateId: "templateId" },
     templateHeaderFields: { templateId: "templateId", isFormulaInjectable: "isFormulaInjectable" },
     projects: { id: "id", organizationId: "organizationId" },
     projectStatuses: { id: "id", name: "name" },
-    invoiceTemplates: { id: "id", documentPrefix: "documentPrefix", numberingFormat: "numberingFormat" },
-    invoiceDocumentSequences: { id: "id", organizationId: "organizationId", currentValue: "currentValue" },
+    invoiceTemplates: {
+      id: "id",
+      documentPrefix: "documentPrefix",
+      numberingFormat: "numberingFormat",
+    },
+    invoiceDocumentSequences: {
+      id: "id",
+      organizationId: "organizationId",
+      currentValue: "currentValue",
+    },
     decodeFormulaForEval: (f: string) => f,
   };
 });
 
-import { DagValidatorService } from "./dag-validator.service";
 import { AstEvaluatorService } from "./ast-evaluator.service";
+import { DagValidatorService } from "./dag-validator.service";
 import { generateDocumentNumber } from "./document-number";
 import type { EvaluatorSection } from "./types";
 
@@ -79,7 +95,7 @@ describe("Invoice Engine Engine & Security Hardening Unit Tests", () => {
                   id: "chg-1",
                   chargeToken: "PORT_DUES_VAT",
                   label: "VAT",
-                  formula: "PORT_DUES * GBL_VAT_RATE",
+                  formula: "PORT_DUES_BASE * GBL_VAT_RATE",
                   sortOrder: 0,
                 },
               ],
@@ -95,7 +111,7 @@ describe("Invoice Engine Engine & Security Hardening Unit Tests", () => {
       expect(result.errors.length).toBe(0);
     });
 
-    it("rejects row charges referencing ROW_<TOKEN>_TOTAL (zero-compounding security)", () => {
+    it("rejects row charges referencing total ROW_<TOKEN> (zero-compounding security)", () => {
       const sections: EvaluatorSection[] = [
         {
           id: "sec-1",
@@ -114,7 +130,7 @@ describe("Invoice Engine Engine & Security Hardening Unit Tests", () => {
                   id: "chg-1",
                   chargeToken: "PORT_DUES_VAT",
                   label: "VAT",
-                  formula: "PORT_DUES_TOTAL * 0.15", // ILLEGAL: referencing TOTAL
+                  formula: "PORT_DUES * 0.15", // ILLEGAL: referencing total PORT_DUES instead of PORT_DUES_BASE
                   sortOrder: 0,
                 },
               ],
@@ -128,8 +144,6 @@ describe("Invoice Engine Engine & Security Hardening Unit Tests", () => {
       expect(result.valid).toBe(false);
       expect(result.errors[0].code).toBe("CHARGE_SCOPE_VIOLATION");
     });
-
-
 
     it("catches circular dependencies", () => {
       const sections: EvaluatorSection[] = [
@@ -157,7 +171,7 @@ describe("Invoice Engine Engine & Security Hardening Unit Tests", () => {
               formula: "ROW_1 * 2", // Circular with ROW_1
               sortOrder: 1,
               charges: [],
-            }
+            },
           ],
           sectionCharges: [],
         },
@@ -190,7 +204,7 @@ describe("Invoice Engine Engine & Security Hardening Unit Tests", () => {
                   id: "chg-1",
                   chargeToken: "PORT_DUES_VAT",
                   label: "VAT",
-                  formula: "PORT_DUES * 0.15",
+                  formula: "PORT_DUES_BASE * 0.15",
                   sortOrder: 0,
                 },
               ],
@@ -201,8 +215,15 @@ describe("Invoice Engine Engine & Security Hardening Unit Tests", () => {
       ];
 
       const dag = DagValidatorService.validate(sections);
-      const { evaluatedSections, grandTotal, errors } = AstEvaluatorService.evaluate(sections, {}, {}, {}, {}, dag.topologicalOrder);
-      
+      const { evaluatedSections, grandTotal, errors } = AstEvaluatorService.evaluate(
+        sections,
+        {},
+        {},
+        {},
+        {},
+        dag.topologicalOrder,
+      );
+
       expect(errors.length).toBe(0);
       expect(evaluatedSections[0].rows[0].baseValue).toBe("100.000000");
       expect(evaluatedSections[0].rows[0].chargesValue).toBe("15.000000");
@@ -217,9 +238,11 @@ describe("Invoice Engine Engine & Security Hardening Unit Tests", () => {
         select: vi.fn(() => ({
           from: vi.fn().mockReturnThis(),
           where: vi.fn().mockReturnThis(),
-          limit: vi.fn().mockResolvedValue([
-            { documentPrefix: "PDA", numberingFormat: "{PREFIX}-{YYYY}-{MM}-{SEQ:4}" },
-          ]),
+          limit: vi
+            .fn()
+            .mockResolvedValue([
+              { documentPrefix: "PDA", numberingFormat: "{PREFIX}-{YYYY}-{MM}-{SEQ:4}" },
+            ]),
         })),
         insert: vi.fn(() => ({
           values: vi.fn().mockReturnThis(),

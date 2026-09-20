@@ -1,31 +1,34 @@
-import type { Context, Next } from 'hono'
-import { createMiddleware } from 'hono/factory'
-import { redis } from '../lib/redis'
-import { logger } from '../lib/logger'
+import type { Context, Next } from "hono";
+import { createMiddleware } from "hono/factory";
+import { logger } from "../lib/logger";
+import { redis } from "../lib/redis";
 
-const rateLimitLog = logger.child({ module: 'rate-limit' })
+const rateLimitLog = logger.child({ module: "rate-limit" });
 
 export const rateLimit = (limit = 100, windowSecs = 60) => {
   return createMiddleware(async (c: Context, next: Next) => {
-    const ip = c.req.header('x-forwarded-for') || '127.0.0.1'
-    const key = `rate-limit:${ip}`
+    const ip = c.req.header("x-forwarded-for") || "127.0.0.1";
+    const key = `rate-limit:${ip}`;
 
     try {
-      const current = await redis.incr(key)
+      const current = await redis.incr(key);
       if (current === 1) {
-        await redis.expire(key, windowSecs)
+        await redis.expire(key, windowSecs);
       }
 
-      c.header('X-RateLimit-Limit', limit.toString())
-      c.header('X-RateLimit-Remaining', Math.max(0, limit - current).toString())
+      c.header("X-RateLimit-Limit", limit.toString());
+      c.header("X-RateLimit-Remaining", Math.max(0, limit - current).toString());
 
       if (current > limit) {
-        return c.json({ error: 'Too Many Requests', message: 'Rate limit exceeded. Try again later.' }, 429)
+        return c.json(
+          { error: "Too Many Requests", message: "Rate limit exceeded. Try again later." },
+          429,
+        );
       }
     } catch (error) {
-      rateLimitLog.error({ error }, 'Redis error, bypassing limit')
+      rateLimitLog.error({ error }, "Redis error, bypassing limit");
     }
 
-    await next()
-  })
-}
+    await next();
+  });
+};

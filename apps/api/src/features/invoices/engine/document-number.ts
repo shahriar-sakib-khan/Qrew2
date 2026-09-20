@@ -1,7 +1,20 @@
-import { sql, eq } from "drizzle-orm";
-import { invoiceTemplates, invoiceDocumentSequences } from "@starter/db";
+import { invoiceDocumentSequences, invoiceTemplates } from "@starter/db";
+import { eq, sql } from "drizzle-orm";
 
-const MONTH_NAMES = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+const MONTH_NAMES = [
+  "JAN",
+  "FEB",
+  "MAR",
+  "APR",
+  "MAY",
+  "JUN",
+  "JUL",
+  "AUG",
+  "SEP",
+  "OCT",
+  "NOV",
+  "DEC",
+];
 
 export async function generateDocumentNumber(input: {
   organizationId: string;
@@ -82,4 +95,3 @@ export async function generateDocumentNumber(input: {
 
   return docNumber;
 }
-

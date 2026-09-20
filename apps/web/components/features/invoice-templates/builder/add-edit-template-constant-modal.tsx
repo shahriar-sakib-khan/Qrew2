@@ -1,21 +1,19 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Info } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { apiUrl } from "@/lib/constants";
-import { useState, useEffect } from "react";
+import { Info, Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-
 import {
   Select,
   SelectContent,
@@ -23,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { apiUrl } from "@/lib/constants";
 
 function processTokenInput(raw: string): string {
   return raw
@@ -33,18 +32,18 @@ function processTokenInput(raw: string): string {
     .replace(/_+/g, "_");
 }
 
-export function AddEditTemplateConstantModal({ 
+export function AddEditTemplateConstantModal({
   apiBasePath,
   invalidateKey,
-  isOpen, 
-  onClose, 
-  editConstant 
-}: { 
+  isOpen,
+  onClose,
+  editConstant,
+}: {
   apiBasePath: string;
   invalidateKey: any[];
-  isOpen: boolean; 
-  onClose: () => void; 
-  editConstant?: any 
+  isOpen: boolean;
+  onClose: () => void;
+  editConstant?: any;
 }) {
   const queryClient = useQueryClient();
 
@@ -61,7 +60,10 @@ export function AddEditTemplateConstantModal({
         key: editConstant.key || editConstant.token,
         valueType: editConstant.valueType || "number",
         value: (editConstant.value || editConstant.defaultValue || "").toString(),
-        description: editConstant.description || editConstant.name === editConstant.token ? "" : (editConstant.name || ""),
+        description:
+          editConstant.description || editConstant.name === editConstant.token
+            ? ""
+            : editConstant.name || "",
       });
     } else {
       setFormData({
@@ -75,17 +77,17 @@ export function AddEditTemplateConstantModal({
 
   const mutation = useMutation({
     mutationFn: async (payload: any) => {
-      const url = editConstant 
+      const url = editConstant
         ? `${apiBasePath}/constants/${editConstant.id}`
         : `${apiBasePath}/constants`;
-      
+
       const res = await fetch(url, {
         method: editConstant ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify(payload),
       });
-      
+
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || "Failed to save constant");
@@ -99,19 +101,19 @@ export function AddEditTemplateConstantModal({
     },
     onError: (err: any) => {
       toast.error(err.message);
-    }
+    },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     let token = formData.key;
     token = token.replace(/_+$/, "");
     if (!token) {
       toast.error("Token is required");
       return;
     }
-    
+
     mutation.mutate({
       key: editConstant ? undefined : token,
       valueType: formData.valueType,
@@ -128,7 +130,8 @@ export function AddEditTemplateConstantModal({
           <div className="flex gap-2 items-start bg-blue-500/10 text-blue-500 p-3 rounded-md text-sm mt-4">
             <Info className="w-4 h-4 shrink-0 mt-0.5" />
             <p>
-              <strong>Template Constant:</strong> Available only within this invoice template for formulas.
+              <strong>Template Constant:</strong> Available only within this invoice template for
+              formulas.
             </p>
           </div>
         </DialogHeader>
@@ -143,9 +146,9 @@ export function AddEditTemplateConstantModal({
                 id="key"
                 value={formData.key}
                 onChange={(e) => {
-                  setFormData({ 
-                    ...formData, 
-                    key: processTokenInput(e.target.value) 
+                  setFormData({
+                    ...formData,
+                    key: processTokenInput(e.target.value),
                   });
                 }}
                 required
@@ -154,7 +157,9 @@ export function AddEditTemplateConstantModal({
                 disabled={!!editConstant}
               />
             </div>
-            <p className="text-[11px] text-muted-foreground">Only uppercase letters, numbers, and underscores.</p>
+            <p className="text-[11px] text-muted-foreground">
+              Only uppercase letters, numbers, and underscores.
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -182,7 +187,9 @@ export function AddEditTemplateConstantModal({
                 inputMode={formData.valueType === "number" ? "decimal" : "text"}
                 value={formData.value}
                 onChange={(e) => setFormData({ ...formData, value: e.target.value })}
-                placeholder={formData.valueType === "number" ? "e.g. 0.05 for 5%" : "e.g. default text"}
+                placeholder={
+                  formData.valueType === "number" ? "e.g. 0.05 for 5%" : "e.g. default text"
+                }
               />
             </div>
           </div>

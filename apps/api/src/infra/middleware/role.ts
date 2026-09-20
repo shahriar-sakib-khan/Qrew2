@@ -1,6 +1,6 @@
-import type { Context, Next } from 'hono'
-import { createMiddleware } from 'hono/factory'
-import type { AuthVariables } from './auth'
+import type { Context, Next } from "hono";
+import { createMiddleware } from "hono/factory";
+import type { AuthVariables } from "./auth";
 
 /**
  * System role hierarchy.
@@ -12,7 +12,7 @@ const ROLE_HIERARCHY: Record<string, number> = {
   user: 1,
   admin: 2,
   super_admin: 3,
-}
+};
 
 /**
  * requireRole(minimumRole)
@@ -34,34 +34,29 @@ const ROLE_HIERARCHY: Record<string, number> = {
  *   app.get('/dashboard', requireAuth, handler)
  */
 export const requireRole = (minimumRole: keyof typeof ROLE_HIERARCHY) => {
-  return createMiddleware<{ Variables: AuthVariables }>(
-    async (c: Context, next: Next) => {
-      const user = c.get('user')
+  return createMiddleware<{ Variables: AuthVariables }>(async (c: Context, next: Next) => {
+    const user = c.get("user");
 
-      // This should never happen if requireAuth ran first,
-      // but guard anyway for safety.
-      if (!user) {
-        return c.json(
-          { error: 'Unauthorized', message: 'Valid session required.' },
-          401
-        )
-      }
-
-      const userRole = (user as any).role as string ?? 'user'
-      const userLevel = ROLE_HIERARCHY[userRole] ?? 0
-      const requiredLevel = ROLE_HIERARCHY[minimumRole] ?? 0
-
-      if (userLevel < requiredLevel) {
-        return c.json(
-          {
-            error: 'Forbidden',
-            message: `Requires ${minimumRole} role or higher.`,
-          },
-          403
-        )
-      }
-
-      await next()
+    // This should never happen if requireAuth ran first,
+    // but guard anyway for safety.
+    if (!user) {
+      return c.json({ error: "Unauthorized", message: "Valid session required." }, 401);
     }
-  )
-}
+
+    const userRole = ((user as any).role as string) ?? "user";
+    const userLevel = ROLE_HIERARCHY[userRole] ?? 0;
+    const requiredLevel = ROLE_HIERARCHY[minimumRole] ?? 0;
+
+    if (userLevel < requiredLevel) {
+      return c.json(
+        {
+          error: "Forbidden",
+          message: `Requires ${minimumRole} role or higher.`,
+        },
+        403,
+      );
+    }
+
+    await next();
+  });
+};

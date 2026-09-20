@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { validateFormulaChars } from "./formula-validator";
 
 describe("validateFormulaChars", () => {
@@ -22,13 +22,17 @@ describe("validateFormulaChars", () => {
   it("should reject circular self-references", () => {
     const res = validateFormulaChars("PORT_DUES + 10", "PORT_DUES");
     expect(res.valid).toBe(false);
-    expect(res.error).toContain('Circular reference: a formula cannot reference its own token "PORT_DUES"');
+    expect(res.error).toContain(
+      'Circular reference: a formula cannot reference its own token "PORT_DUES"',
+    );
   });
 
   it("should reject circular references to own _TOTAL variant", () => {
     const res = validateFormulaChars("PORT_DUES_TOTAL * 0.5", "PORT_DUES");
     expect(res.valid).toBe(false);
-    expect(res.error).toContain('Circular reference: a formula cannot reference its own total "PORT_DUES_TOTAL"');
+    expect(res.error).toContain(
+      'Circular reference: a formula cannot reference its own total "PORT_DUES_TOTAL"',
+    );
   });
 
   it("should allow referencing different tokens", () => {

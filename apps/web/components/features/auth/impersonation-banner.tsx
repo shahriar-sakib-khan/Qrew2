@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { useSession } from '@/lib/auth-client';
-import { Button } from '@/components/ui/button';
-import { AlertTriangle, Loader2 } from 'lucide-react';
-import { useState } from 'react';
-import { toast } from 'sonner';
-import { apiUrl } from '@/lib/constants';
+import { AlertTriangle, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { useSession } from "@/lib/auth-client";
+import { apiUrl } from "@/lib/constants";
 
 export function ImpersonationBanner() {
   const { data: session } = useSession();
@@ -18,21 +18,21 @@ export function ImpersonationBanner() {
     setIsReverting(true);
     try {
       const res = await fetch(`${apiUrl}/api/admin/stop-impersonation`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include', // CRITICAL: Allows receiving the teardown cookies
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include", // CRITICAL: Allows receiving the teardown cookies
       });
 
       if (!res.ok) {
         const errorData = await res.json();
-        throw new Error(errorData.message || 'Failed to exit impersonation');
+        throw new Error(errorData.message || "Failed to exit impersonation");
       }
 
       // Hard refresh to restore Admin context and clear tenant cache
-      window.location.href = '/admin/users';
+      window.location.href = "/admin/users";
     } catch (error: any) {
-      console.error('Failed to exit impersonation', error);
-      toast.error(error.message || 'Could not exit impersonation. Try clearing your cookies.');
+      console.error("Failed to exit impersonation", error);
+      toast.error(error.message || "Could not exit impersonation. Try clearing your cookies.");
       setIsReverting(false);
     }
   };
@@ -42,7 +42,8 @@ export function ImpersonationBanner() {
       <div className="flex items-center gap-2 font-medium text-sm">
         <AlertTriangle className="h-4 w-4 shrink-0" />
         <span>
-          <strong>SECURITY WARNING:</strong> You are actively impersonating {session.user.email}. All actions are audited.
+          <strong>SECURITY WARNING:</strong> You are actively impersonating {session.user.email}.
+          All actions are audited.
         </span>
       </div>
       <Button

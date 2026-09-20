@@ -2,19 +2,10 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Trash2, Mail } from "lucide-react";
-import { toast } from "sonner";
+import { Mail, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
+import { useState } from "react";
+import { toast } from "sonner";
 import { Can } from "@/components/features/auth/can";
 import {
   AlertDialog,
@@ -27,7 +18,15 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 interface Invitation {
   id: string;
@@ -38,12 +37,16 @@ interface Invitation {
 }
 
 export function InvitationsDataTable() {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
   const router = useRouter();
 
   const [revokingInvite, setRevokingInvite] = useState<Invitation | null>(null);
 
-  const { data: invitations = [], isLoading, refetch } = useQuery({
+  const {
+    data: invitations = [],
+    isLoading,
+    refetch,
+  } = useQuery({
     queryKey: ["invitations"],
     queryFn: async () => {
       const res = await fetch(`${apiUrl}/api/workspaces/staff/invites`, { credentials: "include" });
@@ -55,7 +58,7 @@ export function InvitationsDataTable() {
 
   const handleRevoke = async () => {
     if (!revokingInvite) return;
-    
+
     try {
       const res = await fetch(`${apiUrl}/api/workspaces/staff/invites/${revokingInvite.id}`, {
         method: "DELETE",
@@ -77,7 +80,11 @@ export function InvitationsDataTable() {
   };
 
   if (isLoading) {
-    return <div className="p-4 text-center text-muted-foreground animate-pulse">Loading invitations...</div>;
+    return (
+      <div className="p-4 text-center text-muted-foreground animate-pulse">
+        Loading invitations...
+      </div>
+    );
   }
 
   if (invitations.length === 0) {
@@ -112,28 +119,28 @@ export function InvitationsDataTable() {
           <TableBody>
             {invitations.map((invite: Invitation) => (
               <TableRow key={invite.id}>
-                <TableCell className="font-medium">
-                  {invite.email}
-                </TableCell>
+                <TableCell className="font-medium">{invite.email}</TableCell>
                 <TableCell>
-                  <div className={`inline-flex items-center px-2 py-1 rounded-full border text-xs font-medium bg-muted/50`}>
+                  <div
+                    className={`inline-flex items-center px-2 py-1 rounded-full border text-xs font-medium bg-muted/50`}
+                  >
                     {invite.roleName || "Member"}
                   </div>
                 </TableCell>
                 <TableCell>
-                  <div className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 text-[10px] font-semibold uppercase tracking-wider">
+                  <div className="inline-flex items-center px-2 py-0.5 rounded-full bg-accent/10 text-accent-foreground text-[10px] font-semibold uppercase tracking-wider">
                     {invite.status}
                   </div>
                 </TableCell>
                 <TableCell className="text-muted-foreground text-sm">
                   {format(new Date(invite.expiresAt), "MMM d, yyyy")}
                 </TableCell>
-                
+
                 <Can I="staff:provision" fallback={<TableCell></TableCell>}>
                   <TableCell className="text-right">
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                       onClick={() => setRevokingInvite(invite)}
                     >
@@ -146,17 +153,22 @@ export function InvitationsDataTable() {
           </TableBody>
         </Table>
 
-        <AlertDialog open={!!revokingInvite} onOpenChange={(open) => !open && setRevokingInvite(null)}>
+        <AlertDialog
+          open={!!revokingInvite}
+          onOpenChange={(open) => !open && setRevokingInvite(null)}
+        >
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Cancel Invitation?</AlertDialogTitle>
               <AlertDialogDescription>
-                Are you sure you want to cancel the invitation sent to <span className="font-semibold text-foreground">{revokingInvite?.email}</span>? They will no longer be able to use the link to join.
+                Are you sure you want to cancel the invitation sent to{" "}
+                <span className="font-semibold text-foreground">{revokingInvite?.email}</span>? They
+                will no longer be able to use the link to join.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Keep</AlertDialogCancel>
-              <AlertDialogAction 
+              <AlertDialogAction
                 onClick={handleRevoke}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >

@@ -1,6 +1,6 @@
-import type { Context, Next } from 'hono'
-import { createMiddleware } from 'hono/factory'
-import { auth } from '../lib/auth'
+import type { Context, Next } from "hono";
+import { createMiddleware } from "hono/factory";
+import { auth } from "../lib/auth";
 
 /**
  * Hono context variable types.
@@ -9,10 +9,10 @@ import { auth } from '../lib/auth'
  * the app — no casting needed in route handlers.
  */
 export type AuthVariables = {
-  user: typeof auth.$Infer.Session.user
-  session: typeof auth.$Infer.Session.session
-  organizationId: string
-}
+  user: typeof auth.$Infer.Session.user;
+  session: typeof auth.$Infer.Session.session;
+  organizationId: string;
+};
 
 /**
  * requireAuth middleware
@@ -34,60 +34,66 @@ export const requireAuth = createMiddleware<{ Variables: AuthVariables }>(
     // and returns the session + user if valid.
     const session = await auth.api.getSession({
       headers: c.req.raw.headers,
-    })
+    });
 
     if (!session) {
-      return c.json(
-        { error: 'Unauthorized', message: 'Valid session required.' },
-        401
-      )
+      return c.json({ error: "Unauthorized", message: "Valid session required." }, 401);
     }
 
     // Attach user and session to context so route handlers
     // can access them via c.get('user') and c.get('session').
-    c.set('user', session.user)
-    c.set('session', session.session)
+    c.set("user", session.user);
+    c.set("session", session.session);
 
-    await next()
-  }
-)
+    await next();
+  },
+);
 
 export const requireActiveAccount = createMiddleware(async (c: Context, next: Next) => {
-  const user = c.get('user') as any;
+  const user = c.get("user") as any;
 
   // Guard Clause 1: Ensure user exists in context (requiresAuth should have set this)
   if (!user) {
-    return c.json({ error: 'Unauthorized', message: 'Valid session required.' }, 401);
+    return c.json({ error: "Unauthorized", message: "Valid session required." }, 401);
   }
 
   // Guard Clause 2: The Guillotine - Reject Banned/Suspended Users immediately
-  // WHY? To prevent data exfiltration or state mutation from a compromised/bad-actor account 
+  // WHY? To prevent data exfiltration or state mutation from a compromised/bad-actor account
   // that still holds a technically unexpired JWT.
-  if (user.status === 'banned') {
-    return c.json({ 
-      error: 'Forbidden', 
-      code: 'ACCOUNT_BANNED',
-      message: 'This account has been permanently banned.' 
-    }, 403);
+  if (user.status === "banned") {
+    return c.json(
+      {
+        error: "Forbidden",
+        code: "ACCOUNT_BANNED",
+        message: "This account has been permanently banned.",
+      },
+      403,
+    );
   }
 
-  if (user.status === 'suspended') {
-    return c.json({ 
-      error: 'Forbidden', 
-      code: 'ACCOUNT_SUSPENDED',
-      message: 'This account is temporarily suspended. Please contact support.' 
-    }, 403);
+  if (user.status === "suspended") {
+    return c.json(
+      {
+        error: "Forbidden",
+        code: "ACCOUNT_SUSPENDED",
+        message: "This account is temporarily suspended. Please contact support.",
+      },
+      403,
+    );
   }
 
   // Guard Clause 3: Intercept for Password Reset
   if (user.requiresPasswordReset === true) {
-    // WHY custom codes? We return a specific 403 code so the frontend TanStack Query interceptor 
+    // WHY custom codes? We return a specific 403 code so the frontend TanStack Query interceptor
     // can programmatically catch this exact failure and push the user to the /reset-password route.
-    return c.json({ 
-      error: 'Forbidden', 
-      code: 'REQUIRES_PASSWORD_RESET',
-      message: 'Security lockout: You must reset your password to continue.' 
-    }, 403);
+    return c.json(
+      {
+        error: "Forbidden",
+        code: "REQUIRES_PASSWORD_RESET",
+        message: "Security lockout: You must reset your password to continue.",
+      },
+      403,
+    );
   }
 
   await next();

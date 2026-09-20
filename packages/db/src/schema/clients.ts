@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, pgEnum, jsonb } from "drizzle-orm/pg-core";
+import { jsonb, pgEnum, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 import { organizations } from "./auth";
 
 export const clientStatusEnum = pgEnum("client_status", ["active", "lead", "archived"]);

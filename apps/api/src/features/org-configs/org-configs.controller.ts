@@ -1,12 +1,22 @@
+import {
+  db,
+  invoiceTemplates,
+  organizationConfigs,
+  templateRowCharges,
+  templateRows,
+  templateSectionCharges,
+} from "@starter/db";
+import { and, eq, like, sql } from "drizzle-orm";
 import { type Context } from "hono";
-import { z } from "zod";
-import { db, organizationConfigs, templateRows, templateRowCharges, invoiceTemplates } from "@starter/db";
-import { eq, and, like } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
+import { z } from "zod";
 import { auth } from "../../infra/lib/auth";
 
 const createConfigSchema = z.object({
-  configKey: z.string().min(1).regex(/^[A-Z0-9_]+$/, "Must be UPPER_SNAKE_CASE"),
+  configKey: z
+    .string()
+    .min(1)
+    .regex(/^[A-Z0-9_]+$/, "Must be UPPER_SNAKE_CASE"),
   configValue: z.string().optional().default(""),
   displayLabel: z.string().optional(),
   valueType: z.enum(["number", "percentage", "currency_rate", "text"]),
@@ -35,24 +45,28 @@ export async function createConfig(c: Context) {
     return c.json({ error: "Invalid data", details: parsed.error.format() }, 400);
   }
 
+  const bareKey = parsed.data.configKey.replace(/^(GBL_|ORG_)/, "");
+  const configKey = `GBL_${bareKey}`;
+
   try {
     const [newConfig] = await db
       .insert(organizationConfigs)
       .values({
         id: uuidv4(),
         organizationId,
-        configKey: parsed.data.configKey,
+        configKey,
         configValue: parsed.data.configValue,
-        displayLabel: parsed.data.displayLabel || parsed.data.configKey,
+        displayLabel: parsed.data.displayLabel || bareKey,
         valueType: parsed.data.valueType,
         isFormulaInjectable: parsed.data.isFormulaInjectable,
         updatedByUserId: userId,
       })
       .returning();
 
-    return c.json(newConfig, 201);
+    return c.json({ ...newConfig, displayKey: bareKey }, 201);
   } catch (err: any) {
-    if (err.code === '23505') { // Postgres unique violation
+    if (err.code === "23505") {
+      // Postgres unique violation
       return c.json({ error: "Config key must be unique per organization" }, 409);
     }
     console.error("Failed to create org config:", err);
@@ -73,7 +87,12 @@ export async function listConfigs(c: Context) {
     .from(organizationConfigs)
     .where(eq(organizationConfigs.organizationId, organizationId));
 
-  return c.json(configs);
+  const transformed = configs.map((conf) => ({
+    ...conf,
+    displayKey: conf.configKey.replace(/^(GBL_|ORG_)/, ""),
+  }));
+
+  return c.json(transformed);
 }
 
 export async function updateConfig(c: Context) {
@@ -100,14 +119,13 @@ export async function updateConfig(c: Context) {
     .set({
       ...(parsed.data.configValue !== undefined && { configValue: parsed.data.configValue }),
       ...(parsed.data.displayLabel !== undefined && { displayLabel: parsed.data.displayLabel }),
-      ...(parsed.data.isFormulaInjectable !== undefined && { isFormulaInjectable: parsed.data.isFormulaInjectable }),
+      ...(parsed.data.isFormulaInjectable !== undefined && {
+        isFormulaInjectable: parsed.data.isFormulaInjectable,
+      }),
       updatedByUserId: userId,
     })
     .where(
-      and(
-        eq(organizationConfigs.id, id),
-        eq(organizationConfigs.organizationId, organizationId)
-      )
+      and(eq(organizationConfigs.id, id), eq(organizationConfigs.organizationId, organizationId)),
     )
     .returning();
 
@@ -115,7 +133,10 @@ export async function updateConfig(c: Context) {
     return c.json({ error: "Config not found" }, 404);
   }
 
-  return c.json(updatedConfig);
+  return c.json({
+    ...updatedConfig,
+    displayKey: updatedConfig.configKey.replace(/^(GBL_|ORG_)/, ""),
+  });
 }
 
 export async function deleteConfig(c: Context) {
@@ -134,35 +155,62 @@ export async function deleteConfig(c: Context) {
     .select()
     .from(organizationConfigs)
     .where(
-      and(
-        eq(organizationConfigs.id, id),
-        eq(organizationConfigs.organizationId, organizationId)
-      )
+      and(eq(organizationConfigs.id, id), eq(organizationConfigs.organizationId, organizationId)),
     );
 
   if (!config) {
     return c.json({ error: "Config not found" }, 404);
   }
 
-  const tokenToFind = `%ORG_${config.configKey}%`;
+  const bareKey = config.configKey.replace(/^(GBL_|ORG_)/, "");
+  const gblTokenToFind = `%GBL_${bareKey}%`;
 
   // 2. Block if used in any template formula
-  const rowsUsingConfig = await db
-    .select({ id: templateRows.id })
-    .from(templateRows)
-    .innerJoin(invoiceTemplates, eq(invoiceTemplates.id, templateRows.templateId))
-    .where(
-      and(
-        eq(invoiceTemplates.organizationId, organizationId),
-        like(templateRows.formula, tokenToFind)
+  const [rowsUsingConfig, rowChargesUsingConfig, secChargesUsingConfig] = await Promise.all([
+    db
+      .select({ id: templateRows.id })
+      .from(templateRows)
+      .innerJoin(invoiceTemplates, eq(invoiceTemplates.id, templateRows.templateId))
+      .where(
+        and(
+          eq(invoiceTemplates.organizationId, organizationId),
+          sql`${templateRows.formula} LIKE ${gblTokenToFind}`,
+        ),
       )
-    )
-    .limit(1);
+      .limit(1),
+    db
+      .select({ id: templateRowCharges.id })
+      .from(templateRowCharges)
+      .innerJoin(templateRows, eq(templateRowCharges.rowId, templateRows.id))
+      .innerJoin(invoiceTemplates, eq(templateRows.templateId, invoiceTemplates.id))
+      .where(
+        and(
+          eq(invoiceTemplates.organizationId, organizationId),
+          sql`${templateRowCharges.formula} LIKE ${gblTokenToFind}`,
+        ),
+      )
+      .limit(1),
+    db
+      .select({ id: templateSectionCharges.id })
+      .from(templateSectionCharges)
+      .innerJoin(invoiceTemplates, eq(templateSectionCharges.templateId, invoiceTemplates.id))
+      .where(
+        and(
+          eq(invoiceTemplates.organizationId, organizationId),
+          sql`${templateSectionCharges.formula} LIKE ${gblTokenToFind}`,
+        ),
+      )
+      .limit(1),
+  ]);
 
-  if (rowsUsingConfig.length > 0) {
+  if (
+    rowsUsingConfig.length > 0 ||
+    rowChargesUsingConfig.length > 0 ||
+    secChargesUsingConfig.length > 0
+  ) {
     return c.json(
       { error: "Cannot delete config because it is used in one or more template formulas" },
-      409
+      409,
     );
   }
 
@@ -170,10 +218,7 @@ export async function deleteConfig(c: Context) {
   await db
     .delete(organizationConfigs)
     .where(
-      and(
-        eq(organizationConfigs.id, id),
-        eq(organizationConfigs.organizationId, organizationId)
-      )
+      and(eq(organizationConfigs.id, id), eq(organizationConfigs.organizationId, organizationId)),
     );
 
   return c.json({ success: true });

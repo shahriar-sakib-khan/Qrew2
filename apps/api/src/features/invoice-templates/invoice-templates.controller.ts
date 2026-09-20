@@ -1,6 +1,12 @@
+import {
+  db,
+  invoiceDocumentSequences,
+  invoiceTemplates,
+  templateHeaderFields,
+  templateSections,
+} from "@starter/db";
+import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
-import { db, invoiceTemplates, templateHeaderFields, templateSections, invoiceDocumentSequences } from "@starter/db";
-import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 
 const createTemplateSchema = z.object({
@@ -36,7 +42,7 @@ export class InvoiceTemplatesController {
 
     const nextSequence = (seqRow?.currentValue || 0) + 1;
 
-    return c.json(templates.map(t => ({ ...t, nextSequence })));
+    return c.json(templates.map((t) => ({ ...t, nextSequence })));
   }
 
   static async getTemplate(c: Context) {
@@ -48,12 +54,7 @@ export class InvoiceTemplatesController {
     const template = await db
       .select()
       .from(invoiceTemplates)
-      .where(
-        and(
-          eq(invoiceTemplates.id, id),
-          eq(invoiceTemplates.organizationId, organizationId)
-        )
-      )
+      .where(and(eq(invoiceTemplates.id, id), eq(invoiceTemplates.organizationId, organizationId)))
       .limit(1);
 
     if (template.length === 0) return c.json({ error: "Not found" }, 404);
@@ -87,9 +88,27 @@ export class InvoiceTemplatesController {
 
     // Seed default system fields for the template header
     const systemFields = [
-      { fieldType: "file_field" as const, fileFieldKey: "name", label: "Name", sortOrder: 1, isFormulaInjectable: false },
-      { fieldType: "file_field" as const, fileFieldKey: "clientId", label: "Client", sortOrder: 2, isFormulaInjectable: false },
-      { fieldType: "file_field" as const, fileFieldKey: "status", label: "Status", sortOrder: 3, isFormulaInjectable: false },
+      {
+        fieldType: "file_field" as const,
+        fileFieldKey: "name",
+        label: "Name",
+        sortOrder: 1,
+        isFormulaInjectable: false,
+      },
+      {
+        fieldType: "file_field" as const,
+        fileFieldKey: "clientId",
+        label: "Client",
+        sortOrder: 2,
+        isFormulaInjectable: false,
+      },
+      {
+        fieldType: "file_field" as const,
+        fileFieldKey: "status",
+        label: "Status",
+        sortOrder: 3,
+        isFormulaInjectable: false,
+      },
     ];
 
     // Fetch existing global project custom fields
@@ -100,8 +119,8 @@ export class InvoiceTemplatesController {
       .where(
         and(
           eq(customFieldDefinitions.organizationId, organizationId),
-          eq(customFieldDefinitions.entityType, "project")
-        )
+          eq(customFieldDefinitions.entityType, "project"),
+        ),
       );
 
     const customFieldsToSeed = projectFields.map((field, idx) => ({
@@ -147,12 +166,7 @@ export class InvoiceTemplatesController {
     const [updated] = await db
       .update(invoiceTemplates)
       .set(parsed.data)
-      .where(
-        and(
-          eq(invoiceTemplates.id, id),
-          eq(invoiceTemplates.organizationId, organizationId)
-        )
-      )
+      .where(and(eq(invoiceTemplates.id, id), eq(invoiceTemplates.organizationId, organizationId)))
       .returning();
 
     if (!updated) return c.json({ error: "Not found" }, 404);
@@ -168,12 +182,7 @@ export class InvoiceTemplatesController {
 
     const [deleted] = await db
       .delete(invoiceTemplates)
-      .where(
-        and(
-          eq(invoiceTemplates.id, id),
-          eq(invoiceTemplates.organizationId, organizationId)
-        )
-      )
+      .where(and(eq(invoiceTemplates.id, id), eq(invoiceTemplates.organizationId, organizationId)))
       .returning();
 
     if (!deleted) return c.json({ error: "Not found" }, 404);

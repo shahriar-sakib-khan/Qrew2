@@ -1,18 +1,18 @@
-import { Context } from "hono";
 import {
   db,
-  templateRows,
-  templateRowCharges,
-  templateSections,
-  invoiceTemplates,
-  encodeFormula,
   decodeFormula,
+  encodeFormula,
+  invoiceTemplates,
+  templateRowCharges,
+  templateRows,
+  templateSections,
 } from "@starter/db";
-import { buildRowIndex, toSnakeCase } from "../services/row-index.service";
-import { buildSectionIndex } from "../../sections/services/section-index.service";
-import { buildConstantIndex } from "../../metadata/services/constant-index.service";
-import { eq, and } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
+import { Context } from "hono";
 import { z } from "zod";
+import { buildConstantIndex } from "../../metadata/services/constant-index.service";
+import { buildSectionIndex } from "../../sections/services/section-index.service";
+import { buildRowIndex, toSnakeCase } from "../services/row-index.service";
 
 const rowChargeSchema = z.object({
   id: z.string().optional(),
@@ -30,7 +30,10 @@ const createRowSchema = z.object({
   rowToken: z
     .string()
     .min(1)
-    .regex(/^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$/, "rowToken must be UPPER_SNAKE_CASE with no leading, trailing, or consecutive underscores"),
+    .regex(
+      /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$/,
+      "rowToken must be UPPER_SNAKE_CASE with no leading, trailing, or consecutive underscores",
+    ),
   description: z.string().optional().nullable(),
   orderIndex: z.number().int().min(0).default(0),
   charges: z.array(rowChargeSchema).optional().default([]),
@@ -50,10 +53,7 @@ export async function createRow(c: Context) {
     .from(templateSections)
     .innerJoin(invoiceTemplates, eq(templateSections.templateId, invoiceTemplates.id))
     .where(
-      and(
-        eq(templateSections.id, sectionId),
-        eq(invoiceTemplates.organizationId, organizationId)
-      )
+      and(eq(templateSections.id, sectionId), eq(invoiceTemplates.organizationId, organizationId)),
     )
     .limit(1);
   if (secResult.length === 0) return c.json({ error: "Section not found" }, 404);
@@ -84,10 +84,7 @@ export async function createRow(c: Context) {
     .select({ sortOrder: templateRows.sortOrder })
     .from(templateRows)
     .where(eq(templateRows.sectionId, sectionId));
-  const maxSortOrder = existingSortOrders.reduce(
-    (max, r) => Math.max(max, r.sortOrder ?? 0),
-    -1
-  );
+  const maxSortOrder = existingSortOrders.reduce((max, r) => Math.max(max, r.sortOrder ?? 0), -1);
   const newSortOrder = maxSortOrder + 1;
 
   const result = await db.transaction(async (tx) => {
@@ -127,12 +124,14 @@ export async function createRow(c: Context) {
             tags: charge.tags ?? [],
             // Use explicit chargeToken if provided; fall back to label-derived token.
             chargeToken: charge.chargeToken ?? `${rowToken}_${toSnakeCase(charge.label)}`,
-            formula: encodeFormula(charge.formula, tokenToId, secTokenToId, tplTokenToId) ?? charge.formula,
+            formula:
+              encodeFormula(charge.formula, tokenToId, secTokenToId, tplTokenToId) ??
+              charge.formula,
             sortOrder: charge.sortOrder ?? i,
           })
           .returning()
-          .then((r) => r[0])
-      )
+          .then((r) => r[0]),
+      ),
     );
 
     return {

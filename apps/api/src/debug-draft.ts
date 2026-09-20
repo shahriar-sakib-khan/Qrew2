@@ -1,4 +1,4 @@
-import { db, invoiceDrafts, users, organizations, projects, invoiceTemplates } from "@starter/db";
+import { db, invoiceDrafts, invoiceTemplates, organizations, projects, users } from "@starter/db";
 import { eq } from "drizzle-orm";
 
 async function main() {
@@ -14,17 +14,20 @@ async function main() {
     }
 
     console.log("Trying to insert draft...");
-    const [created] = await db.insert(invoiceDrafts).values({
-      id: crypto.randomUUID(),
-      organizationId: org[0].id,
-      projectId: proj[0].id,
-      userId: user[0].id,
-      sourceTemplateId: tpl.length ? tpl[0].id : undefined,
-      draftHeaderValues: {},
-      draftSections: [],
-      lastAutoSavedAt: new Date()
-    }).returning();
-    
+    const [created] = await db
+      .insert(invoiceDrafts)
+      .values({
+        id: crypto.randomUUID(),
+        organizationId: org[0].id,
+        projectId: proj[0].id,
+        userId: user[0].id,
+        sourceTemplateId: tpl.length ? tpl[0].id : undefined,
+        draftHeaderValues: {},
+        draftSections: [],
+        lastAutoSavedAt: new Date(),
+      })
+      .returning();
+
     console.log("Inserted:", created.id);
   } catch (err) {
     console.error("DB Error:", err);

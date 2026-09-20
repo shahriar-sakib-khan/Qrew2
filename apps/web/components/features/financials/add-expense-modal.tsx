@@ -1,17 +1,29 @@
 "use client";
 
-import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Controller, useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { z } from "zod";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { apiUrl } from "@/lib/constants";
-import { toast } from "sonner";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { apiUrl } from "@/lib/constants";
 
 const schema = z.object({
   amount: z.coerce.number().positive("Amount must be positive"),
@@ -22,7 +34,15 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-export function AddExpenseModal({ isOpen, onClose, defaultProjectId }: { isOpen: boolean; onClose: () => void; defaultProjectId?: string }) {
+export function AddExpenseModal({
+  isOpen,
+  onClose,
+  defaultProjectId,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  defaultProjectId?: string;
+}) {
   const queryClient = useQueryClient();
 
   const { data: categoriesData } = useQuery({
@@ -48,7 +68,12 @@ export function AddExpenseModal({ isOpen, onClose, defaultProjectId }: { isOpen:
   const categories = Array.isArray(categoriesData) ? categoriesData : [];
   const projects = Array.isArray(projectsData) ? projectsData : [];
 
-  const { control, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<FormValues>({
     resolver: zodResolver(schema as any),
     defaultValues: {
       amount: undefined, // using undefined to avoid 0 showing up empty, but will fallback to 0 in UI
@@ -99,17 +124,24 @@ export function AddExpenseModal({ isOpen, onClose, defaultProjectId }: { isOpen:
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-2">
-          
           <div className="space-y-2">
             <Label>Amount *</Label>
             <Controller
               control={control}
               name="amount"
               render={({ field }) => (
-                <Input type="number" step="0.01" placeholder="0.00" {...field} value={field.value ?? ""} />
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  {...field}
+                  value={field.value ?? ""}
+                />
               )}
             />
-            {errors.amount && <p className="text-[0.8rem] font-medium text-destructive">{errors.amount.message}</p>}
+            {errors.amount && (
+              <p className="text-[0.8rem] font-medium text-destructive">{errors.amount.message}</p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -124,13 +156,19 @@ export function AddExpenseModal({ isOpen, onClose, defaultProjectId }: { isOpen:
                   </SelectTrigger>
                   <SelectContent>
                     {categories.map((c: any) => (
-                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               )}
             />
-            {errors.categoryId && <p className="text-[0.8rem] font-medium text-destructive">{errors.categoryId.message}</p>}
+            {errors.categoryId && (
+              <p className="text-[0.8rem] font-medium text-destructive">
+                {errors.categoryId.message}
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -146,7 +184,9 @@ export function AddExpenseModal({ isOpen, onClose, defaultProjectId }: { isOpen:
                   <SelectContent>
                     <SelectItem value="none">None</SelectItem>
                     {projects.map((p: any) => (
-                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -159,9 +199,7 @@ export function AddExpenseModal({ isOpen, onClose, defaultProjectId }: { isOpen:
             <Controller
               control={control}
               name="description"
-              render={({ field }) => (
-                <Textarea placeholder="Optional description..." {...field} />
-              )}
+              render={({ field }) => <Textarea placeholder="Optional description..." {...field} />}
             />
           </div>
 

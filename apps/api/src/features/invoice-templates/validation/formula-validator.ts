@@ -13,10 +13,10 @@ const VALID_CHAR_RE = /^[A-Z0-9_.+\-*/%\s()]+$/;
 export function validateFormulaStrict(
   formula: string | null | undefined,
   validTokens: Set<string>,
-  currentToken?: string
+  currentToken?: string,
 ): { valid: boolean; error?: string } {
   if (!formula || !formula.trim()) {
-    return { valid: false, error: 'Formula cannot be empty' };
+    return { valid: false, error: "Formula cannot be empty" };
   }
 
   const f = formula.trim();
@@ -37,6 +37,13 @@ export function validateFormulaStrict(
       return {
         valid: false,
         error: `Circular reference: a formula cannot reference its own token "${currentToken}"`,
+      };
+    }
+    const baseToken = `${currentToken}_BASE`;
+    if (tokensInFormula.includes(baseToken)) {
+      return {
+        valid: false,
+        error: `Circular reference: a formula cannot reference its own base "${baseToken}"`,
       };
     }
     const totalToken = `${currentToken}_TOTAL`;
@@ -62,11 +69,11 @@ export function validateFormulaStrict(
   }
 
   // 3. Basic syntax checks
-  if (/[+\-*/%]\s*$/.test(f)) {
-    return { valid: false, error: 'Formula ends with an operator' };
+  if (/(?:[+\-*/]|(?<!\d)%)\s*$/.test(f)) {
+    return { valid: false, error: "Formula ends with an operator" };
   }
   if (/^\s*[+*/%]/.test(f)) {
-    return { valid: false, error: 'Formula starts with an invalid operator' };
+    return { valid: false, error: "Formula starts with an invalid operator" };
   }
 
   return { valid: true };
@@ -79,7 +86,38 @@ export function validateFormulaStrict(
  */
 export function validateFormulaChars(
   formula: string | null | undefined,
-  currentToken?: string
+  currentToken?: string,
 ): { valid: boolean; error?: string } {
   return validateFormulaStrict(formula, new Set(), currentToken);
+}
+
+/**
+ * Strict validator for rate charge formulas.
+ * Enforces: <PARENT_TOKEN>_BASE * <RATE>%
+ * Desugared representations like: <PARENT_TOKEN>_BASE * (<RATE>/100) or <PARENT_TOKEN>_BASE * 0.XX are also accepted.
+ */
+export function validateRateChargeFormula(
+  formula: string | null | undefined,
+  parentRowToken: string,
+): { valid: boolean; error?: string } {
+  if (!formula || !formula.trim()) {
+    return { valid: false, error: "Rate charge formula cannot be empty" };
+  }
+
+  const f = formula.trim();
+  const baseToken = `${parentRowToken}_BASE`;
+
+  // Matches: BASE * 15% or BASE * 15.5% or BASE * .15% or BASE * (15/100) or BASE * 0.15
+  const percentPattern = new RegExp(`^${baseToken}\\s*\\*\\s*(\\d*\\.?\\d+)%$`);
+  const fractionPattern = new RegExp(`^${baseToken}\\s*\\*\\s*\\((\\d*\\.?\\d+)\\/100\\)$`);
+  const decimalPattern = new RegExp(`^${baseToken}\\s*\\*\\s*(\\d*\\.?\\d+)$`);
+
+  if (percentPattern.test(f) || fractionPattern.test(f) || decimalPattern.test(f)) {
+    return { valid: true };
+  }
+
+  return {
+    valid: false,
+    error: `Rate charge formula must strictly be "${baseToken} * <number>%" (e.g. "${baseToken} * 15%"). Complex formulas are not allowed in charges.`,
+  };
 }

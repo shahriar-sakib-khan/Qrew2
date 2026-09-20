@@ -1,25 +1,20 @@
 "use client";
 
+import { DragDropContext, Draggable, Droppable, DropResult } from "@hello-pangea/dnd";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiUrl } from "@/lib/constants";
-import { toast } from "sonner";
 import { useState } from "react";
-import {
-  DragDropContext,
-  Droppable,
-  Draggable,
-  DropResult,
-} from "@hello-pangea/dnd";
+import { toast } from "sonner";
+import { ConfirmDeleteModal } from "@/components/shared/confirm-delete-modal";
+import { apiUrl } from "@/lib/constants";
+import { TokenMap } from "@/lib/formula-evaluator";
 import { AddEditRowModal } from "../add-edit-row-modal";
 import { AddRowChargeModal } from "../add-row-charge-modal";
-import { TokenMap } from "@/lib/formula-evaluator";
 import { useBuilderContext } from "../builder-context";
-import { ConfirmDeleteModal } from "@/components/shared/confirm-delete-modal";
-import { SingleRow, SectionColor } from "./components/row-item";
+import { SectionColor, SingleRow } from "./components/row-item";
 
+export { MobileRowActions } from "./components/row-context-menu";
 export type { SectionColor } from "./components/row-item";
 export { TableRow } from "./components/table-row";
-export { MobileRowActions } from "./components/row-context-menu";
 
 export function TemplateRowList({
   templateId,
@@ -44,11 +39,14 @@ export function TemplateRowList({
   allSections: any[];
   zoomLevel?: number;
 }) {
-  const { apiBasePath, invalidateKey, mode } = useBuilderContext();
+  const { apiBasePath, invalidateKey, mode, selectedCell } = useBuilderContext();
+  const isFormulaMode = !!selectedCell;
   const queryClient = useQueryClient();
   const [editingRow, setEditingRow] = useState<any>(null);
   const [addingChargeForRow, setAddingChargeForRow] = useState<any>(null);
-  const [editingChargeForRow, setEditingChargeForRow] = useState<{row: any, charge: any} | null>(null);
+  const [editingChargeForRow, setEditingChargeForRow] = useState<{ row: any; charge: any } | null>(
+    null,
+  );
   const [rowToDelete, setRowToDelete] = useState<any>(null);
   const [chargeToDelete, setChargeToDelete] = useState<any>(null);
 
@@ -58,15 +56,12 @@ export function TemplateRowList({
 
   const reorderMutation = useMutation({
     mutationFn: async (orderedIds: string[]) => {
-      const res = await fetch(
-        `${apiBasePath}/sections/${sectionId}/rows/reorder`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ orderedIds }),
-        }
-      );
+      const res = await fetch(`${apiBasePath}/sections/${sectionId}/rows/reorder`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ orderedIds }),
+      });
       if (!res.ok) throw new Error("Failed to reorder");
       return res.json();
     },
@@ -78,7 +73,7 @@ export function TemplateRowList({
         return old.map((section: any) => {
           if (section.id !== sectionId) return section;
           const rowById: Record<string, any> = Object.fromEntries(
-            (section.rows ?? []).map((r: any) => [r.id, r])
+            (section.rows ?? []).map((r: any) => [r.id, r]),
           );
           const reorderedRows = orderedIds
             .map((id, i) => (rowById[id] ? { ...rowById[id], sortOrder: i } : null))
@@ -101,14 +96,18 @@ export function TemplateRowList({
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(
-        `${apiBasePath}/sections/${sectionId}/rows/${id}`,
-        { method: "DELETE", credentials: "include" }
-      );
+      const res = await fetch(`${apiBasePath}/sections/${sectionId}/rows/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
       if (!res.ok) throw new Error("Failed to delete row");
       return res.json();
     },
-    onSuccess: () => { toast.success("Row deleted"); invalidate(); setRowToDelete(null); },
+    onSuccess: () => {
+      toast.success("Row deleted");
+      invalidate();
+      setRowToDelete(null);
+    },
     onError: (err: any) => toast.error(err.message),
   });
 
@@ -119,12 +118,15 @@ export function TemplateRowList({
         {
           method: "DELETE",
           credentials: "include",
-        }
+        },
       );
       if (!res.ok) throw new Error("Failed to delete charge");
       return res.json();
     },
-    onSuccess: () => { toast.success("Charge deleted"); invalidate(); },
+    onSuccess: () => {
+      toast.success("Charge deleted");
+      invalidate();
+    },
     onError: (err: any) => toast.error(err.message),
   });
 
@@ -138,9 +140,7 @@ export function TemplateRowList({
     );
   }
 
-  const sortedRows = [...(rows || [])].sort(
-    (a: any, b: any) => a.sortOrder - b.sortOrder
-  );
+  const sortedRows = [...(rows || [])].sort((a: any, b: any) => a.sortOrder - b.sortOrder);
 
   if (sortedRows.length === 0) return null;
 
@@ -194,7 +194,12 @@ export function TemplateRowList({
             className="flex flex-col bg-background overflow-visible"
           >
             {sortedRows.map((row: any, idx: number) => (
-              <Draggable key={row.id} draggableId={row.id} index={idx}>
+              <Draggable
+                key={row.id}
+                draggableId={row.id}
+                index={idx}
+                isDragDisabled={isFormulaMode}
+              >
                 {(provided) => (
                   <div
                     ref={provided.innerRef}
@@ -237,7 +242,10 @@ export function TemplateRowList({
           sectionId={sectionId}
           sectionToken={sectionToken}
           editRow={editingRow}
-          onSuccess={() => { invalidate(); setEditingRow(null); }}
+          onSuccess={() => {
+            invalidate();
+            setEditingRow(null);
+          }}
         />
       )}
 
@@ -254,10 +262,14 @@ export function TemplateRowList({
           rowToken={addingChargeForRow?.rowToken || editingChargeForRow?.row.rowToken}
           existingCharges={addingChargeForRow?.charges || editingChargeForRow?.row.charges || []}
           editCharge={editingChargeForRow?.charge}
-          onSuccess={() => { invalidate(); setAddingChargeForRow(null); setEditingChargeForRow(null); }}
+          onSuccess={() => {
+            invalidate();
+            setAddingChargeForRow(null);
+            setEditingChargeForRow(null);
+          }}
         />
       )}
-      
+
       <ConfirmDeleteModal
         isOpen={!!rowToDelete}
         onClose={() => setRowToDelete(null)}
@@ -268,7 +280,13 @@ export function TemplateRowList({
       <ConfirmDeleteModal
         isOpen={!!chargeToDelete}
         onClose={() => setChargeToDelete(null)}
-        onConfirm={() => chargeToDelete && deleteChargeMutation.mutate({ rowId: chargeToDelete.rowId, chargeId: chargeToDelete.charge.id })}
+        onConfirm={() =>
+          chargeToDelete &&
+          deleteChargeMutation.mutate({
+            rowId: chargeToDelete.rowId,
+            chargeId: chargeToDelete.charge.id,
+          })
+        }
         entityName={chargeToDelete ? `Charge: ${chargeToDelete.charge.chargeToken}` : "this charge"}
         isDeleting={deleteChargeMutation.isPending}
       />

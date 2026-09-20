@@ -16,7 +16,7 @@ export const useAppStore = create<AppState>()(
     {
       name: "Qrew-App-Store",
       // Only enable devtools in development to prevent memory overhead in production
-      enabled: process.env.NODE_ENV === "development"
-    }
-  )
+      enabled: process.env.NODE_ENV === "development",
+    },
+  ),
 );

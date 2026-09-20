@@ -69,4 +69,15 @@ When implementing new features, tables, or data fields across this platform, you
   4. Two tokens or numbers are placed adjacent without an operator between them.
 - **Backend Rejection (`validateFormulaChars`)**: Returns `422 Unprocessable Entity` if formula syntax is invalid, references undefined tokens, or references the cell's own token (circular reference).
 
+## 9. Token Pool Sidebar & Legend UI Constraints
+- **Default Closed Row Dropdowns**: Row token dropdowns in the Token Pool must be collapsed (closed) by default unless they have one or more charge line items (`row.charges && row.charges.length > 0`). Only rows with charges start open.
+- **Unified Smooth Background**: Section items in the Token Pool must match the smooth, seamless background of the sidebar without using contrasting block card backgrounds (`bg-card`).
+- **Row Tokens Info Placement**: The info `(i)` button for Row Tokens must be positioned directly beside the `Row Tokens ({count})` label inside the Row Tokens tab pill itself.
+## 10. Row Formula Badge Hover Expansion (`table-row.tsx`)
+- **No Popovers or Action Badges**: Formula badges beside table rows must not render external popover cards or "Click to edit" overlays on hover.
+- **Leftward Overlap Expansion**: When hovered, if a formula is truncated in its allocated space (`max-w-[12rem]`), the badge expands **towards the left** (`absolute right-0 top-1`), overlaying table cells (USD2, USD1, label).
+- **Multiline Downward Overflow**: If the formula exceeds the expanded max width (`max-w-xl`), it wraps to multiple lines and extends downward over the next row with `z-50`, shadow elevation, and backdrop blur. Non-truncated formulas do not expand into the table on hover.
+
+
+
 

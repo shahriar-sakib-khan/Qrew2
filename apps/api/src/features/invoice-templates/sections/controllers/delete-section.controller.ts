@@ -1,6 +1,6 @@
+import { db, invoiceTemplates, templateSections } from "@starter/db";
+import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
-import { db, templateSections, invoiceTemplates } from "@starter/db";
-import { eq, and } from "drizzle-orm";
 
 export async function deleteSection(c: Context) {
   const sectionId = c.req.param("sectionId") as string;
@@ -12,10 +12,7 @@ export async function deleteSection(c: Context) {
     .from(templateSections)
     .innerJoin(invoiceTemplates, eq(templateSections.templateId, invoiceTemplates.id))
     .where(
-      and(
-        eq(templateSections.id, sectionId),
-        eq(invoiceTemplates.organizationId, organizationId)
-      )
+      and(eq(templateSections.id, sectionId), eq(invoiceTemplates.organizationId, organizationId)),
     )
     .limit(1);
 

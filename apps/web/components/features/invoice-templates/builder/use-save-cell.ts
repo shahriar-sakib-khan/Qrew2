@@ -2,7 +2,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { useBuilderContext, type SelectedCell } from "./builder-context";
+import { type SelectedCell, useBuilderContext } from "./builder-context";
 import { preprocessForSave } from "./formula-bar-utils";
 
 export function useSaveCellMutation() {
@@ -10,13 +10,7 @@ export function useSaveCellMutation() {
   const { setSelectedCell, apiBasePath, invalidateKey } = useBuilderContext();
 
   return useMutation({
-    mutationFn: async ({
-      cell,
-      rawInput,
-    }: {
-      cell: SelectedCell;
-      rawInput: string;
-    }) => {
+    mutationFn: async ({ cell, rawInput }: { cell: SelectedCell; rawInput: string }) => {
       const trimmed = rawInput.trim();
 
       // A formula contains letters (tokens) or the // or % operators
@@ -37,7 +31,7 @@ export function useSaveCellMutation() {
             headers: { "Content-Type": "application/json" },
             credentials: "include",
             body: JSON.stringify({ formula: processedFormula }),
-          }
+          },
         );
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
@@ -55,7 +49,7 @@ export function useSaveCellMutation() {
             headers: { "Content-Type": "application/json" },
             credentials: "include",
             body: JSON.stringify({ formula: processedFormula }),
-          }
+          },
         );
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
@@ -71,15 +65,12 @@ export function useSaveCellMutation() {
         initialValue: isFormula ? null : parseFloat(trimmed) || null,
       };
 
-      const res = await fetch(
-        `${apiBasePath}/sections/${cell.sectionId}/rows/${cell.rowId}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify(payload),
-        }
-      );
+      const res = await fetch(`${apiBasePath}/sections/${cell.sectionId}/rows/${cell.rowId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || "Failed to save");

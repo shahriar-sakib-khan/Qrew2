@@ -1,18 +1,31 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { z } from "zod";
-import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2, ShieldAlert } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { authClient, useSession } from "@/lib/auth-client";
-import { PasswordInput } from "@/components/ui/password-input";
-import { Field, FieldLabel, FieldError } from "@/components/ui/field";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
-import { CardFooter, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Separator } from "@/components/ui/separator";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { authClient, useSession } from "@/lib/auth-client";
 
 export function PasswordUpdateForm({ theme = "default" }: { theme?: "default" | "destructive" }) {
   const [hasPassword, setHasPassword] = useState<boolean | null>(null);
@@ -43,8 +56,8 @@ export function PasswordUpdateForm({ theme = "default" }: { theme?: "default" | 
   const executePasswordReset = async () => {
     setShowResetModal(false);
     setIsResetting(true);
-    
-    const email = session?.user?.email; 
+
+    const email = session?.user?.email;
 
     if (!email) {
       toast.error("Could not determine user email.");
@@ -78,14 +91,18 @@ export function PasswordUpdateForm({ theme = "default" }: { theme?: "default" | 
   }, []);
 
   const passwordSchema = useMemo(() => {
-    return z.object({
-      currentPassword: hasPassword ? z.string().min(1, "Current password is required.") : z.string().optional(),
-      newPassword: z.string().min(8, "Password must be at least 8 characters."),
-      confirmPassword: z.string(),
-    }).refine((data) => data.newPassword === data.confirmPassword, {
-      message: "Passwords do not match.",
-      path: ["confirmPassword"],
-    });
+    return z
+      .object({
+        currentPassword: hasPassword
+          ? z.string().min(1, "Current password is required.")
+          : z.string().optional(),
+        newPassword: z.string().min(8, "Password must be at least 8 characters."),
+        confirmPassword: z.string(),
+      })
+      .refine((data) => data.newPassword === data.confirmPassword, {
+        message: "Passwords do not match.",
+        path: ["confirmPassword"],
+      });
   }, [hasPassword]);
 
   type PasswordValues = z.infer<typeof passwordSchema>;
@@ -107,28 +124,33 @@ export function PasswordUpdateForm({ theme = "default" }: { theme?: "default" | 
       });
       error = res.error;
     } else {
-      // @ts-expect-error - Fallback for OAuth
-      const res = await (authClient.setPassword ? authClient.setPassword({
-        newPassword: data.newPassword,
-      }) : authClient.changePassword({
-        newPassword: data.newPassword,
-        currentPassword: "",
-      }));
+      const clientAny = authClient as any;
+      const res = await (clientAny.setPassword
+        ? clientAny.setPassword({
+            newPassword: data.newPassword,
+          })
+        : authClient.changePassword({
+            newPassword: data.newPassword,
+            currentPassword: "",
+          }));
       error = res.error;
     }
 
     if (error) {
       toast.error(error.message || "Failed to update password.", { id: toastId });
     } else {
-      toast.success(hasPassword ? "Password changed successfully." : "Password set successfully.", { id: toastId });
+      toast.success(hasPassword ? "Password changed successfully." : "Password set successfully.", {
+        id: toastId,
+      });
       setHasPassword(true);
       passwordForm.reset({ currentPassword: "", newPassword: "", confirmPassword: "" });
     }
   };
 
-  const focusClass = theme === "destructive"
-    ? "focus-visible:ring-destructive border-destructive"
-    : "focus-visible:ring-emerald-500 border-emerald-500";
+  const focusClass =
+    theme === "destructive"
+      ? "focus-visible:ring-destructive border-destructive"
+      : "focus-visible:ring-primary border-primary";
 
   const isLoading = hasPassword === null;
   const isSubmitting = passwordForm.formState.isSubmitting;
@@ -147,13 +169,18 @@ export function PasswordUpdateForm({ theme = "default" }: { theme?: "default" | 
 
       <CardHeader className="px-4 sm:px-6 pt-5 pb-0">
         <CardTitle className="font-medium text-lg">Password</CardTitle>
-        <CardDescription>Update your password or set one if you signed up with a social provider.</CardDescription>
+        <CardDescription>
+          Update your password or set one if you signed up with a social provider.
+        </CardDescription>
       </CardHeader>
-      <form id="password-form" onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="flex flex-col w-full min-w-0">
+      <form
+        id="password-form"
+        onSubmit={passwordForm.handleSubmit(onPasswordSubmit)}
+        className="flex flex-col w-full min-w-0"
+      >
         <CardContent className="pt-4 pb-6 w-full min-w-0">
           {/* Swapped space-y-6 for gap-4 to tighten the vertical rhythm */}
           <div className="flex flex-col gap-4 w-full min-w-0 max-w-md">
-
             {/*
               By checking `!== false`, we render this field during the `null` loading state.
               This ensures the form takes up its maximum height initially, preventing a vertical jump
@@ -175,7 +202,9 @@ export function PasswordUpdateForm({ theme = "default" }: { theme?: "default" | 
                           className={`text-xs font-medium hover:underline disabled:opacity-50 disabled:no-underline focus-visible:outline-none focus-visible:ring-1 rounded ${theme === "destructive" ? "text-destructive focus-visible:ring-destructive" : "text-primary focus-visible:ring-primary"}`}
                         >
                           {isResetting ? (
-                            <span className="flex items-center"><Loader2 className="mr-2 h-3 w-3 animate-spin" /> Sending...</span>
+                            <span className="flex items-center">
+                              <Loader2 className="mr-2 h-3 w-3 animate-spin" /> Sending...
+                            </span>
                           ) : resetCooldown > 0 ? (
                             `Wait ${resetCooldown}s`
                           ) : (
@@ -201,9 +230,10 @@ export function PasswordUpdateForm({ theme = "default" }: { theme?: "default" | 
             )}
 
             {hasPassword === false && (
-               <div className="p-3 mb-2 rounded-md bg-muted/50 border border-border text-sm text-muted-foreground leading-relaxed">
-                 You signed in using a social account. Set a password here if you also want to log in using your email.
-               </div>
+              <div className="p-3 mb-2 rounded-md bg-muted/50 border border-border text-sm text-muted-foreground leading-relaxed">
+                You signed in using a social account. Set a password here if you also want to log in
+                using your email.
+              </div>
             )}
 
             <Controller
@@ -211,7 +241,9 @@ export function PasswordUpdateForm({ theme = "default" }: { theme?: "default" | 
               control={passwordForm.control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor={field.name} className="mb-1">New Password</FieldLabel>
+                  <FieldLabel htmlFor={field.name} className="mb-1">
+                    New Password
+                  </FieldLabel>
                   <PasswordInput
                     {...field}
                     id={field.name}
@@ -230,7 +262,9 @@ export function PasswordUpdateForm({ theme = "default" }: { theme?: "default" | 
               control={passwordForm.control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor={field.name} className="mb-1">Confirm New Password</FieldLabel>
+                  <FieldLabel htmlFor={field.name} className="mb-1">
+                    Confirm New Password
+                  </FieldLabel>
                   <PasswordInput
                     {...field}
                     id={field.name}
@@ -266,7 +300,8 @@ export function PasswordUpdateForm({ theme = "default" }: { theme?: "default" | 
               <ShieldAlert className="h-5 w-5 text-primary" /> Confirm Action
             </DialogTitle>
             <DialogDescription>
-              Are you sure you want to request a password reset? You have used {resetAttempts} of 5 attempts this minute.
+              Are you sure you want to request a password reset? You have used {resetAttempts} of 5
+              attempts this minute.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="mt-4">

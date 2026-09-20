@@ -1,16 +1,14 @@
 "use client";
 
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { format } from "date-fns";
+import { Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -18,11 +16,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { toast } from "sonner";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Textarea } from "@/components/ui/textarea";
 import { apiUrl } from "@/lib/constants";
-import { Plus, Trash2 } from "lucide-react";
-import { format } from "date-fns";
 
 export function CreateInvoiceModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const queryClient = useQueryClient();
@@ -34,15 +29,15 @@ export function CreateInvoiceModal({ isOpen, onClose }: { isOpen: boolean; onClo
   const [notes, setNotes] = useState<string>("");
   const [taxRate, setTaxRate] = useState<number>(0);
 
-  const [lineItems, setLineItems] = useState<{
-    id: string;
-    description: string;
-    quantity: number;
-    unitPrice: number;
-    expenseId?: string;
-  }[]>([
-    { id: "1", description: "Service Fee", quantity: 1, unitPrice: 0 }
-  ]);
+  const [lineItems, setLineItems] = useState<
+    {
+      id: string;
+      description: string;
+      quantity: number;
+      unitPrice: number;
+      expenseId?: string;
+    }[]
+  >([{ id: "1", description: "Service Fee", quantity: 1, unitPrice: 0 }]);
 
   const { data: projectsData } = useQuery({
     queryKey: ["projects"],
@@ -127,7 +122,7 @@ export function CreateInvoiceModal({ isOpen, onClose }: { isOpen: boolean; onClo
   };
 
   const updateLineItem = (id: string, field: string, value: any) => {
-    setLineItems((prev) => prev.map((li) => li.id === id ? { ...li, [field]: value } : li));
+    setLineItems((prev) => prev.map((li) => (li.id === id ? { ...li, [field]: value } : li)));
   };
 
   const removeLineItem = (id: string) => {
@@ -135,10 +130,13 @@ export function CreateInvoiceModal({ isOpen, onClose }: { isOpen: boolean; onClo
   };
 
   const addLineItem = () => {
-    setLineItems((prev) => [...prev, { id: Math.random().toString(), description: "", quantity: 1, unitPrice: 0 }]);
+    setLineItems((prev) => [
+      ...prev,
+      { id: Math.random().toString(), description: "", quantity: 1, unitPrice: 0 },
+    ]);
   };
 
-  const subtotal = lineItems.reduce((acc, li) => acc + (li.quantity * li.unitPrice), 0);
+  const subtotal = lineItems.reduce((acc, li) => acc + li.quantity * li.unitPrice, 0);
   const taxAmount = subtotal * (taxRate / 100);
   const totalAmount = subtotal + taxAmount;
 
@@ -148,7 +146,7 @@ export function CreateInvoiceModal({ isOpen, onClose }: { isOpen: boolean; onClo
       toast.error("Invoice number is required");
       return;
     }
-    
+
     createInvoice({
       clientId: clientId || null,
       projectId: projectId || null,
@@ -180,17 +178,26 @@ export function CreateInvoiceModal({ isOpen, onClose }: { isOpen: boolean; onClo
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Invoice Number</Label>
-              <Input value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} required placeholder="INV-2023-001" />
+              <Input
+                value={invoiceNumber}
+                onChange={(e) => setInvoiceNumber(e.target.value)}
+                required
+                placeholder="INV-2023-001"
+              />
             </div>
 
             <div className="space-y-2">
               <Label>Client (Optional)</Label>
               <Select value={clientId} onValueChange={setClientId}>
-                <SelectTrigger><SelectValue placeholder="Select a client" /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a client" />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">None</SelectItem>
                   {clients?.map((c: any) => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -199,16 +206,26 @@ export function CreateInvoiceModal({ isOpen, onClose }: { isOpen: boolean; onClo
             <div className="space-y-2">
               <Label>File / Project (Optional)</Label>
               <Select value={projectId} onValueChange={setProjectId}>
-                <SelectTrigger><SelectValue placeholder="Select a file" /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a file" />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">None</SelectItem>
                   {projects?.map((p: any) => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               {projectId && projectId !== "none" && (
-                <Button type="button" variant="link" size="sm" className="px-0" onClick={handleImportExpenses}>
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  className="px-0"
+                  onClick={handleImportExpenses}
+                >
                   Import Billable Expenses
                 </Button>
               )}
@@ -226,7 +243,13 @@ export function CreateInvoiceModal({ isOpen, onClose }: { isOpen: boolean; onClo
 
             <div className="space-y-2">
               <Label>Tax Rate (%)</Label>
-              <Input type="number" min="0" step="0.1" value={taxRate} onChange={(e) => setTaxRate(Number(e.target.value))} />
+              <Input
+                type="number"
+                min="0"
+                step="0.1"
+                value={taxRate}
+                onChange={(e) => setTaxRate(Number(e.target.value))}
+              />
             </div>
           </div>
 
@@ -243,15 +266,33 @@ export function CreateInvoiceModal({ isOpen, onClose }: { isOpen: boolean; onClo
                 <div key={li.id} className="flex gap-4 items-end">
                   <div className="flex-1 space-y-2">
                     <Label className="text-xs">Description</Label>
-                    <Input value={li.description} onChange={(e) => updateLineItem(li.id, "description", e.target.value)} required />
+                    <Input
+                      value={li.description}
+                      onChange={(e) => updateLineItem(li.id, "description", e.target.value)}
+                      required
+                    />
                   </div>
                   <div className="w-24 space-y-2">
                     <Label className="text-xs">Qty</Label>
-                    <Input type="number" min="1" step="0.1" value={li.quantity} onChange={(e) => updateLineItem(li.id, "quantity", Number(e.target.value))} required />
+                    <Input
+                      type="number"
+                      min="1"
+                      step="0.1"
+                      value={li.quantity}
+                      onChange={(e) => updateLineItem(li.id, "quantity", Number(e.target.value))}
+                      required
+                    />
                   </div>
                   <div className="w-32 space-y-2">
                     <Label className="text-xs">Unit Price</Label>
-                    <Input type="number" min="0" step="0.01" value={li.unitPrice} onChange={(e) => updateLineItem(li.id, "unitPrice", Number(e.target.value))} required />
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={li.unitPrice}
+                      onChange={(e) => updateLineItem(li.id, "unitPrice", Number(e.target.value))}
+                      required
+                    />
                   </div>
                   <div className="w-32 space-y-2">
                     <Label className="text-xs">Amount</Label>
@@ -259,7 +300,13 @@ export function CreateInvoiceModal({ isOpen, onClose }: { isOpen: boolean; onClo
                       ${(li.quantity * li.unitPrice).toFixed(2)}
                     </div>
                   </div>
-                  <Button type="button" variant="ghost" size="icon" className="text-red-500 mb-0.5" onClick={() => removeLineItem(li.id)}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="text-red-500 mb-0.5"
+                    onClick={() => removeLineItem(li.id)}
+                  >
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
@@ -289,11 +336,17 @@ export function CreateInvoiceModal({ isOpen, onClose }: { isOpen: boolean; onClo
 
           <div className="space-y-2">
             <Label>Notes</Label>
-            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Payment terms, thank you message, etc." />
+            <Textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Payment terms, thank you message, etc."
+            />
           </div>
 
           <div className="flex justify-end gap-2 pt-4">
-            <Button type="button" variant="outline" onClick={onClose} disabled={isPending}>Cancel</Button>
+            <Button type="button" variant="outline" onClick={onClose} disabled={isPending}>
+              Cancel
+            </Button>
             <Button type="submit" disabled={isPending}>
               {isPending ? "Creating..." : "Save Invoice"}
             </Button>

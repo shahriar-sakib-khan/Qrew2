@@ -2,8 +2,8 @@
 
 import { format } from "date-fns";
 import { Lock } from "lucide-react";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import Link from "next/link";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface ProjectDataDisplayProps {
   project: any;
@@ -11,12 +11,7 @@ interface ProjectDataDisplayProps {
   status: any | null; // The currently selected status from the graph
 }
 
-export function ProjectDataDisplay({ 
-  project, 
-  customFields, 
-  status, 
-}: ProjectDataDisplayProps) {
-  
+export function ProjectDataDisplay({ project, customFields, status }: ProjectDataDisplayProps) {
   const getStatusFieldIds = (statusNode: any): Set<string> | null => {
     if (!statusNode) return null;
     const mappings: any[] = statusNode.statusFields || [];
@@ -26,7 +21,8 @@ export function ProjectDataDisplay({
 
   const renderFieldValue = (field: any) => {
     const val = project.customFields?.[field.fieldKey];
-    if (val === undefined || val === null || val === "") return <span className="text-muted-foreground italic">Not set</span>;
+    if (val === undefined || val === null || val === "")
+      return <span className="text-muted-foreground italic">Not set</span>;
     if (field.fieldType === "date") {
       try {
         return format(new Date(val), "MMM d, yyyy");
@@ -41,15 +37,15 @@ export function ProjectDataDisplay({
   };
 
   const statusFieldIds = getStatusFieldIds(status);
-  const formattedFileNo = project.fileSequenceNumber && project.createdAt 
-    ? `FILE-${format(new Date(project.createdAt), "MMyy")}${project.fileSequenceNumber.toString().padStart(2, '0')}` 
-    : 'Not assigned';
+  const formattedFileNo =
+    project.fileSequenceNumber && project.createdAt
+      ? `FILE-${format(new Date(project.createdAt), "MMyy")}${project.fileSequenceNumber.toString().padStart(2, "0")}`
+      : "Not assigned";
 
   return (
     <div className="space-y-4">
       {/* System Fields styled like custom fields */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        
         {/* File No */}
         <div className="border-b border-muted/50 pb-3 flex flex-col justify-center">
           <span className="text-muted-foreground text-xs font-semibold uppercase tracking-wider mb-1">
@@ -71,7 +67,7 @@ export function ProjectDataDisplay({
           <span className="text-muted-foreground text-xs font-semibold uppercase tracking-wider mb-1">
             Client
           </span>
-          <Link 
+          <Link
             href={`/clients/${project.clientId}`}
             className="text-sm font-medium text-primary hover:underline underline-offset-4"
           >
@@ -81,17 +77,20 @@ export function ProjectDataDisplay({
 
         {/* Custom Fields */}
         <TooltipProvider delayDuration={100}>
-          {customFields?.map(field => {
+          {customFields?.map((field) => {
             const isLockedInStage = statusFieldIds !== null && !statusFieldIds.has(field.id);
-            // Hide entirely if it's locked to keep the UI clean, or show as locked? 
-            // The previous design showed it as locked/dimmed. We will keep that for context, 
+            // Hide entirely if it's locked to keep the UI clean, or show as locked?
+            // The previous design showed it as locked/dimmed. We will keep that for context,
             // but the user said "if no custom fields are given then no message should show".
-            
+
             // Let's only render fields that are mapped to this stage, OR if no mapping exists, show all.
             if (isLockedInStage) return null;
 
             return (
-              <div key={field.id} className="border-b border-muted/50 pb-3 flex flex-col justify-center">
+              <div
+                key={field.id}
+                className="border-b border-muted/50 pb-3 flex flex-col justify-center"
+              >
                 <span className="text-muted-foreground text-xs font-semibold uppercase tracking-wider mb-1 flex items-center gap-1.5">
                   {field.fieldName}
                 </span>
@@ -100,7 +99,6 @@ export function ProjectDataDisplay({
             );
           })}
         </TooltipProvider>
-
       </div>
     </div>
   );

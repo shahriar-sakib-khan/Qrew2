@@ -7,12 +7,7 @@ interface QrewLogoProps {
 
 export const QrewLogo: FC<QrewLogoProps> = ({ className }) => {
   return (
-    <svg
-      viewBox="0 0 100 100"
-      className={className}
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-    >
+    <svg viewBox="0 0 100 100" className={className} xmlns="http://www.w3.org/2000/svg" fill="none">
       {/* 1. Main Bottom Green Ribbon */}
       <polygon points="5,75 5,55 25,55 25,75" fill="#56D9A3" />
 

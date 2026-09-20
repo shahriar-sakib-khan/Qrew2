@@ -1,14 +1,12 @@
 "use client";
 
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Plus, Receipt, Loader2 } from "lucide-react";
 import { format } from "date-fns";
+import { Loader2, Plus, Receipt } from "lucide-react";
+import { useState } from "react";
+import { Can } from "@/components/features/auth/can";
+import { AddExpenseModal } from "@/components/features/financials/add-expense-modal";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -17,9 +15,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Can } from "@/components/features/auth/can";
-import { useState } from "react";
-import { AddExpenseModal } from "@/components/features/financials/add-expense-modal";
 
 interface ExpenseDetailsModalProps {
   isOpen: boolean;
@@ -29,7 +24,13 @@ interface ExpenseDetailsModalProps {
   loadingExpenses: boolean;
 }
 
-export function ExpenseDetailsModal({ isOpen, onClose, project, expenses, loadingExpenses }: ExpenseDetailsModalProps) {
+export function ExpenseDetailsModal({
+  isOpen,
+  onClose,
+  project,
+  expenses,
+  loadingExpenses,
+}: ExpenseDetailsModalProps) {
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
 
   return (
@@ -54,7 +55,9 @@ export function ExpenseDetailsModal({ isOpen, onClose, project, expenses, loadin
             }
           >
             <div className="flex justify-between items-center mt-2 mb-4">
-              <h3 className="text-sm font-semibold text-muted-foreground">Expense History for {project?.name}</h3>
+              <h3 className="text-sm font-semibold text-muted-foreground">
+                Expense History for {project?.name}
+              </h3>
               <Button size="sm" onClick={() => setIsAddExpenseOpen(true)} className="gap-1.5">
                 <Plus className="w-4 h-4" />
                 Add Expense
@@ -86,10 +89,16 @@ export function ExpenseDetailsModal({ isOpen, onClose, project, expenses, loadin
                   <TableBody>
                     {expenses.map((ex: any) => (
                       <TableRow key={ex.id}>
-                        <TableCell className="text-sm">{format(new Date(ex.createdAt), "MMM d, yyyy")}</TableCell>
+                        <TableCell className="text-sm">
+                          {format(new Date(ex.createdAt), "MMM d, yyyy")}
+                        </TableCell>
                         <TableCell className="text-sm">{ex.description || "—"}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{ex.category?.name || "—"}</TableCell>
-                        <TableCell className="text-right font-medium text-sm">${Number(ex.amount).toFixed(2)}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {ex.category?.name || "—"}
+                        </TableCell>
+                        <TableCell className="text-right font-medium text-sm">
+                          ${Number(ex.amount).toFixed(2)}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

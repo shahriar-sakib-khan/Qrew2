@@ -1,7 +1,7 @@
-import { Hono } from 'hono'
-import { auth } from '../../infra/lib/auth'
+import { Hono } from "hono";
+import { auth } from "../../infra/lib/auth";
 
-const authRouter = new Hono()
+const authRouter = new Hono();
 
 /**
  * Auth route handler.
@@ -21,8 +21,8 @@ const authRouter = new Hono()
  * after sign-in (e.g. update lastLoginAt), use Better Auth's
  * hooks in lib/auth.ts instead.
  */
-authRouter.on(['GET', 'POST'], '/*', (c) => {
-  return auth.handler(c.req.raw)
-})
+authRouter.on(["GET", "POST"], "/*", (c) => {
+  return auth.handler(c.req.raw);
+});
 
-export { authRouter }
+export { authRouter };

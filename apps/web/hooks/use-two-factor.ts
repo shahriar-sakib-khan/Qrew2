@@ -1,4 +1,4 @@
-import { useState, useEffect, SubmitEvent } from "react";
+import { SubmitEvent, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { authClient } from "@/lib/auth-client";
 
@@ -55,10 +55,10 @@ export function useTwoFactor() {
 
     try {
       // 1. Cleanly verify the password against our custom endpoint
-      const res = await fetch('/api/users/verify-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: currentPassword })
+      const res = await fetch("/api/users/verify-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: currentPassword }),
       });
 
       setIsLoading(false);
@@ -70,7 +70,6 @@ export function useTwoFactor() {
 
       // 2. Password is cryptographically verified. Proceed to method selection.
       setStep("method");
-
     } catch (error) {
       setIsLoading(false);
       toast.error("Verification failed due to a network error.");
@@ -80,9 +79,10 @@ export function useTwoFactor() {
   const handleSelectMethod = async (method: "authenticator" | "email") => {
     setIsLoading(true);
 
-    const payload = method === "authenticator"
-      ? { password: currentPassword }
-      : { password: currentPassword, provider: "email" };
+    const payload =
+      method === "authenticator"
+        ? { password: currentPassword }
+        : { password: currentPassword, provider: "email" };
 
     const { data, error } = await authClient.twoFactor.enable(payload);
 
@@ -166,6 +166,6 @@ export function useTwoFactor() {
       verifyAndEnable,
       extractSecretFromURI,
       copyToClipboard,
-    }
+    },
   };
 }

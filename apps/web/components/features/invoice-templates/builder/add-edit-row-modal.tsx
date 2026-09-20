@@ -1,20 +1,20 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { apiUrl } from "@/lib/constants";
+import { AlertCircle, Loader2, Plus, Trash2, Zap } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Loader2, Plus, Trash2, Zap, AlertCircle } from "lucide-react";
+import { apiUrl } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { useBuilderContext } from "./builder-context";
 
@@ -42,7 +42,8 @@ function validateToken(token: string): string | null {
   if (token.startsWith("_")) return "Token cannot start with an underscore";
   if (token.endsWith("_")) return "Token cannot end with an underscore";
   if (/__/.test(token)) return "Consecutive underscores are not allowed";
-  if (!/^[A-Z0-9_]+$/.test(token)) return "Only letters A–Z, digits 0–9, and underscore are allowed";
+  if (!/^[A-Z0-9_]+$/.test(token))
+    return "Only letters A–Z, digits 0–9, and underscore are allowed";
   return null;
 }
 
@@ -124,11 +125,15 @@ export function AddEditRowModal({
     setTokenError("");
 
     const err = validateToken(rowToken);
-    if (err) { setTokenError(err); return; }
+    if (err) {
+      setTokenError(err);
+      return;
+    }
 
     const formatTokenToLabel = (token: string) => {
-      return token.split("_")
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      return token
+        .split("_")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
         .join(" ");
     };
 
@@ -156,7 +161,7 @@ export function AddEditRowModal({
       const input = e.currentTarget;
       const pos = input.selectionStart ?? input.value.length;
       const before = input.value.slice(0, pos);
-      const after  = input.value.slice(input.selectionEnd ?? pos);
+      const after = input.value.slice(input.selectionEnd ?? pos);
       // Only insert underscore if the previous char isn't already one and the field isn't empty
       if (before && !before.endsWith("_")) {
         setRowToken(processTokenInput(before + "_" + after));
@@ -177,14 +182,14 @@ export function AddEditRowModal({
           <DialogTitle>{isEdit ? "Edit Token" : "Add Row"}</DialogTitle>
           {!isEdit && (
             <p className="text-xs text-muted-foreground/70 mt-0.5">
-              Enter the row token and press <kbd className="px-1 py-0.5 bg-muted rounded text-[10px]">Enter</kbd>.
-              The label is filled in directly on the table after creation.
+              Enter the row token and press{" "}
+              <kbd className="px-1 py-0.5 bg-muted rounded text-[10px]">Enter</kbd>. The label is
+              filled in directly on the table after creation.
             </p>
           )}
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-
           {/* ── Token field (always shown) ── */}
           <div className="space-y-1.5">
             <Label htmlFor="rowToken">
@@ -206,7 +211,7 @@ export function AddEditRowModal({
               spellCheck={false}
               className={cn(
                 "font-mono tracking-wide",
-                tokenError && "border-destructive focus-visible:ring-destructive"
+                tokenError && "border-destructive focus-visible:ring-destructive",
               )}
               readOnly={mode === "draft"}
               disabled={mode === "draft"}
@@ -219,7 +224,8 @@ export function AddEditRowModal({
               </p>
             ) : rowToken ? (
               <p className="text-[11px] text-muted-foreground/50">
-                Use <code className="font-mono bg-muted/50 px-1 rounded">{rowToken}_TOTAL</code> to reference this row's total in other formulas.
+                Use <code className="font-mono bg-muted/50 px-1 rounded">{rowToken}_TOTAL</code> to
+                reference this row's total in other formulas.
               </p>
             ) : (
               <p className="text-[11px] text-muted-foreground/40">
@@ -231,8 +237,8 @@ export function AddEditRowModal({
           {/* ── Create mode hint ── */}
           {!isEdit && (
             <p className="text-xs text-muted-foreground/50 bg-muted/20 rounded p-2">
-              💡 After creating the row, click its label cell to type a label inline,
-              and click the value cell to enter a formula. Charges can be added via the edit button.
+              💡 After creating the row, click its label cell to type a label inline, and click the
+              value cell to enter a formula. Charges can be added via the edit button.
             </p>
           )}
 

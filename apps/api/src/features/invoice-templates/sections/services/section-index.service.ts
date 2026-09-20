@@ -1,5 +1,5 @@
 import { db, templateSections } from "@starter/db";
-import { eq, asc } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 
 /** Convert zero-based index to number string: 0→1, 1→2 */
 export function indexToNumberStr(index: number): string {

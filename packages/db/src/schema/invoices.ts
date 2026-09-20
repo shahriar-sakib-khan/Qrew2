@@ -1,10 +1,20 @@
-import { pgTable, text, timestamp, boolean, integer, index, unique, numeric, jsonb } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
+import {
+  boolean,
+  index,
+  integer,
+  jsonb,
+  numeric,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+} from "drizzle-orm/pg-core";
 import { organizations, users } from "./auth";
-import { projects } from "./projects";
 import { clients } from "./clients";
 import { documentTypeEnum, invoiceStatusEnum } from "./invoice-enums";
 import { invoiceTemplates } from "./invoice-templates";
-import { relations } from "drizzle-orm";
+import { projects } from "./projects";
 
 export const invoices = pgTable(
   "invoices",
@@ -21,8 +31,9 @@ export const invoices = pgTable(
       .references(() => clients.id, { onDelete: "restrict" }),
     documentNumber: text("document_number").notNull(),
     status: invoiceStatusEnum("status").default("draft").notNull(),
-    sourceTemplateId: text("source_template_id")
-      .references(() => invoiceTemplates.id, { onDelete: "set null" }),
+    sourceTemplateId: text("source_template_id").references(() => invoiceTemplates.id, {
+      onDelete: "set null",
+    }),
     sourceTemplateVersion: integer("source_template_version"),
     generatedByUserId: text("generated_by_user_id")
       .notNull()
@@ -54,7 +65,7 @@ export const invoices = pgTable(
     index("invoices_org_status_idx").on(table.organizationId, table.status),
     index("invoices_org_project_idx").on(table.organizationId, table.projectId),
     index("invoices_org_created_idx").on(table.organizationId, table.createdAt),
-  ]
+  ],
 );
 
 export const invoiceLineItems = pgTable(
@@ -104,7 +115,7 @@ export const invoiceLineItems = pgTable(
   },
   (table) => [
     index("invoice_line_items_invoice_order_idx").on(table.invoiceId, table.displayOrder),
-  ]
+  ],
 );
 
 export const invoicesRelations = relations(invoices, ({ one, many }) => ({

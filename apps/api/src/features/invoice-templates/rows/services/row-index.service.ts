@@ -1,6 +1,6 @@
+import type { RowIdToTokenMap, RowTokenToIdMap } from "@starter/db";
 import { db, templateRows } from "@starter/db";
 import { eq } from "drizzle-orm";
-import type { RowTokenToIdMap, RowIdToTokenMap } from "@starter/db";
 
 /** Build token↔id lookup maps for all rows in a template. */
 export async function buildRowIndex(templateId: string): Promise<{

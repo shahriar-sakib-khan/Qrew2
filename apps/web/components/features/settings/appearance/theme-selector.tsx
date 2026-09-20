@@ -1,10 +1,10 @@
 "use client";
 
-import { useTheme } from "next-themes";
 import { Monitor, Moon, Sun } from "lucide-react";
+import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
+import { authClient, useSession } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
-import { useSession, authClient } from "@/lib/auth-client";
 
 export function ThemeSelector() {
   const [mounted, setMounted] = useState(false);
@@ -27,7 +27,7 @@ export function ThemeSelector() {
       }
 
       if (attempt < maxRetries) {
-        await new Promise((resolve) => setTimeout(resolve, 1000 * Math.pow(2, attempt - 1)));
+        await new Promise((resolve) => setTimeout(resolve, 1000 * 2 ** (attempt - 1)));
       }
     }
     console.error("Theme sync permanently failed after multiple attempts.");
@@ -65,7 +65,7 @@ export function ThemeSelector() {
               "relative flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2 rounded-lg px-2 sm:px-4 py-2.5 sm:py-2 text-xs sm:text-sm font-medium transition-colors duration-200",
               isActive
                 ? "bg-background text-foreground shadow-sm border border-border/50"
-                : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
             )}
           >
             <option.icon className="h-4 w-4 shrink-0" />

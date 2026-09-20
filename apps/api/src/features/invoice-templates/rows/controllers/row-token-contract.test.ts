@@ -7,10 +7,17 @@
  * Auth cases  : 401 for every endpoint
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  makeCtx, makeRow, makeRowCharge, makeSelectChain,
-  ORG_ID, TEMPLATE_ID, SECTION_ID, ROW_ID, CHARGE_ID,
+  CHARGE_ID,
+  makeCtx,
+  makeRow,
+  makeRowCharge,
+  makeSelectChain,
+  ORG_ID,
+  ROW_ID,
+  SECTION_ID,
+  TEMPLATE_ID,
 } from "../../invoice-templates.fixtures";
 
 // ─── hoisted chain builder used inside the vi.mock factory ────────────────────
@@ -56,14 +63,32 @@ vi.mock("@starter/db", () => {
 
   return {
     db: dbObj,
-    eq, and, asc,
+    eq,
+    and,
+    asc,
     encodeFormula: vi.fn((f: any) => f),
     decodeFormula: vi.fn((f: any) => f),
     templateSections: { id: "sec-id", templateId: "sec-templateId" },
     invoiceTemplates: { id: "tpl-id", organizationId: "tpl-orgId" },
-    templateRows: { id: "row-id", templateId: "row-templateId", sectionId: "row-sectionId", rowToken: "rowToken", sortOrder: "sortOrder" },
-    templateRowCharges: { id: "ch-id", rowId: "ch-rowId", sortOrder: "sortOrder", chargeToken: "ch-chargeToken" },
-    templateSectionCharges: { id: "sc-id", templateId: "sc-templateId", sectionId: "sc-sectionId", sortOrder: "sc-sortOrder" },
+    templateRows: {
+      id: "row-id",
+      templateId: "row-templateId",
+      sectionId: "row-sectionId",
+      rowToken: "rowToken",
+      sortOrder: "sortOrder",
+    },
+    templateRowCharges: {
+      id: "ch-id",
+      rowId: "ch-rowId",
+      sortOrder: "sortOrder",
+      chargeToken: "ch-chargeToken",
+    },
+    templateSectionCharges: {
+      id: "sc-id",
+      templateId: "sc-templateId",
+      sectionId: "sc-sectionId",
+      sortOrder: "sc-sortOrder",
+    },
     templateConstants: { id: "c-id", templateId: "c-templateId", token: "c-token" },
   };
 });
@@ -75,10 +100,17 @@ import { db } from "@starter/db";
 /** Queue up all 4 selects for section-ownership flow (section check + 3 index builders) */
 function mockSectionOwned(templateId = TEMPLATE_ID) {
   (db.select as any)
-    .mockReturnValueOnce(hoistedChain([{ section: { id: SECTION_ID, templateId, sectionToken: "SECTION_A" }, templateOrgId: ORG_ID }]))
-    .mockReturnValueOnce(hoistedChain([]))   // buildRowIndex
-    .mockReturnValueOnce(hoistedChain([]))   // buildSectionIndex
-    .mockReturnValueOnce(hoistedChain([]));  // buildConstantIndex
+    .mockReturnValueOnce(
+      hoistedChain([
+        {
+          section: { id: SECTION_ID, templateId, sectionToken: "SECTION_A" },
+          templateOrgId: ORG_ID,
+        },
+      ]),
+    )
+    .mockReturnValueOnce(hoistedChain([])) // buildRowIndex
+    .mockReturnValueOnce(hoistedChain([])) // buildSectionIndex
+    .mockReturnValueOnce(hoistedChain([])); // buildConstantIndex
 }
 
 function mockSectionNotFound() {
@@ -89,9 +121,9 @@ function mockSectionNotFound() {
 function mockRowOwned(row = makeRow()) {
   (db.select as any)
     .mockReturnValueOnce(hoistedChain([{ row, orgId: ORG_ID }]))
-    .mockReturnValueOnce(hoistedChain([]))   // buildRowIndex (collision check)
-    .mockReturnValueOnce(hoistedChain([]))   // buildSectionIndex
-    .mockReturnValueOnce(hoistedChain([]));  // buildConstantIndex
+    .mockReturnValueOnce(hoistedChain([])) // buildRowIndex (collision check)
+    .mockReturnValueOnce(hoistedChain([])) // buildSectionIndex
+    .mockReturnValueOnce(hoistedChain([])); // buildConstantIndex
 }
 
 function mockRowNotFound() {
@@ -121,32 +153,38 @@ function mockTransaction(result: any) {
 
 // ─── TESTS ────────────────────────────────────────────────────────────────────
 
-
 describe("TemplateRowsController - Token contract", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     (db.transaction as any).mockImplementation(async (fn: any) => fn(db));
   });
 
-describe("Token contract", () => {
-  it("chargeToken derives from rowToken + UPPER_SNAKE(label)", () => {
-    const rowToken = "PORT_DUES";
-    const label = "Base Rate";
-    const derived = `${rowToken}_${label.toUpperCase().replace(/\s+/g, "_").replace(/[^A-Z0-9_]/g, "")}`;
-    expect(derived).toBe("PORT_DUES_BASE_RATE");
-  });
+  describe("Token contract", () => {
+    it("chargeToken derives from rowToken + UPPER_SNAKE(label)", () => {
+      const rowToken = "PORT_DUES";
+      const label = "Base Rate";
+      const derived = `${rowToken}_${label
+        .toUpperCase()
+        .replace(/\s+/g, "_")
+        .replace(/[^A-Z0-9_]/g, "")}`;
+      expect(derived).toBe("PORT_DUES_BASE_RATE");
+    });
 
-  it("chargeToken normalizes special characters from label", () => {
-    const label = "Cost (USD)";
-    const suffix = label.toUpperCase().replace(/\s+/g, "_").replace(/[^A-Z0-9_]/g, "").replace(/_+/g, "_").replace(/^_|_$/, "");
-    expect(suffix).toBe("COST_USD");
-  });
+    it("chargeToken normalizes special characters from label", () => {
+      const label = "Cost (USD)";
+      const suffix = label
+        .toUpperCase()
+        .replace(/\s+/g, "_")
+        .replace(/[^A-Z0-9_]/g, "")
+        .replace(/_+/g, "_")
+        .replace(/^_|_$/, "");
+      expect(suffix).toBe("COST_USD");
+    });
 
-  it("rowToken regex rejects lowercase", () => {
-    const regex = /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$/;
-    expect(regex.test("port_dues")).toBe(false);
-    expect(regex.test("PORT_DUES")).toBe(true);
+    it("rowToken regex rejects lowercase", () => {
+      const regex = /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$/;
+      expect(regex.test("port_dues")).toBe(false);
+      expect(regex.test("PORT_DUES")).toBe(true);
+    });
   });
-});
-
 });

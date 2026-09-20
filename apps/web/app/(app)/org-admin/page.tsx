@@ -10,16 +10,30 @@ export default function OrgAdminPage() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {[
-          { title: "Staff Management", description: "Provision accounts and manage team access.", href: "/org-admin/staff" },
-          { title: "Roles & Permissions", description: "Create custom roles and assign granular permissions.", href: "/org-admin/roles" },
-          { title: "Billing & Plans", description: "Manage subscription, invoices, and payment methods.", href: "/org-admin/billing" },
+          {
+            title: "Staff Management",
+            description: "Provision accounts and manage team access.",
+            href: "/org-admin/staff",
+          },
+          {
+            title: "Roles & Permissions",
+            description: "Create custom roles and assign granular permissions.",
+            href: "/org-admin/roles",
+          },
+          {
+            title: "Billing & Plans",
+            description: "Manage subscription, invoices, and payment methods.",
+            href: "/org-admin/billing",
+          },
         ].map((card) => (
           <a
             key={card.href}
             href={card.href}
             className="group flex flex-col gap-2 rounded-lg border border-border/50 bg-card/30 p-5 transition-colors hover:bg-muted/50 hover:border-border"
           >
-            <h3 className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors">{card.title}</h3>
+            <h3 className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
+              {card.title}
+            </h3>
             <p className="text-xs text-muted-foreground">{card.description}</p>
           </a>
         ))}

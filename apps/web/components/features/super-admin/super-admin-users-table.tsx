@@ -1,34 +1,12 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import {
-  MoreHorizontal,
-  Search,
-  Loader2,
-  ShieldAlert,
-  ArrowUpCircle
-} from "lucide-react";
-
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowUpCircle, Loader2, MoreHorizontal, Search, ShieldAlert } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -37,13 +15,31 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { apiUrl } from "@/lib/constants";
-import { toast } from "sonner";
-import { useSession } from "@/lib/auth-client";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  FilterableTableCell,
+  FilterableTableHeader,
+} from "@/components/ui/table-filter-components";
 import { useTableCellFilter } from "@/hooks/use-table-cell-filter";
-import { FilterableTableHeader, FilterableTableCell } from "@/components/ui/table-filter-components";
+import { useSession } from "@/lib/auth-client";
+import { apiUrl } from "@/lib/constants";
 
 interface UserRecord {
   id: string;
@@ -62,13 +58,8 @@ export function SuperAdminUsersTable() {
   const { data: session } = useSession();
   const currentUserRole = (session?.user as any)?.role ?? "user";
 
-  const {
-    filters,
-    toggleFilter,
-    clearColumnFilter,
-    filterRows,
-    isColumnFiltered,
-  } = useTableCellFilter();
+  const { filters, toggleFilter, clearColumnFilter, filterRows, isColumnFiltered } =
+    useTableCellFilter();
 
   const page = Number(searchParams.get("page") || "1");
   const search = searchParams.get("search") || "";
@@ -161,19 +152,38 @@ export function SuperAdminUsersTable() {
   const getRoleBadge = (role: string) => {
     switch (role) {
       case "super_admin":
-        return <Badge className="bg-destructive/10 text-destructive hover:bg-destructive/10 uppercase text-[10px]" variant="outline">Super Admin</Badge>;
+        return (
+          <Badge
+            className="bg-destructive/10 text-destructive hover:bg-destructive/10 uppercase text-[10px]"
+            variant="outline"
+          >
+            Super Admin
+          </Badge>
+        );
       case "admin":
-        return <Badge className="bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500/10 uppercase text-[10px]" variant="outline">Admin</Badge>;
+        return (
+          <Badge
+            className="bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500/10 uppercase text-[10px]"
+            variant="outline"
+          >
+            Admin
+          </Badge>
+        );
       default:
-        return <Badge className="bg-muted text-muted-foreground uppercase text-[10px]" variant="outline">User</Badge>;
+        return (
+          <Badge className="bg-muted text-muted-foreground uppercase text-[10px]" variant="outline">
+            User
+          </Badge>
+        );
     }
   };
 
   const extractors = useMemo(() => {
     return {
-      'name': (u: UserRecord) => u.name,
-      'email': (u: UserRecord) => u.email,
-      'role': (u: UserRecord) => u.role === "super_admin" ? "Super Admin" : u.role === "admin" ? "Admin" : "User",
+      name: (u: UserRecord) => u.name,
+      email: (u: UserRecord) => u.email,
+      role: (u: UserRecord) =>
+        u.role === "super_admin" ? "Super Admin" : u.role === "admin" ? "Admin" : "User",
     };
   }, []);
 
@@ -228,13 +238,17 @@ export function SuperAdminUsersTable() {
                 onClear={() => clearColumnFilter("role")}
                 className="w-[140px]"
               />
-              <TableCell className="w-[80px] text-right font-medium text-muted-foreground">Actions</TableCell>
+              <TableCell className="w-[80px] text-right font-medium text-muted-foreground">
+                Actions
+              </TableCell>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading && usersList.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="h-48 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></TableCell>
+                <TableCell colSpan={4} className="h-48 text-center">
+                  <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                </TableCell>
               </TableRow>
             ) : displayUsers.length === 0 ? (
               <TableRow>
@@ -263,7 +277,13 @@ export function SuperAdminUsersTable() {
                   </FilterableTableCell>
                   <FilterableTableCell
                     columnKey="role"
-                    value={user.role === "super_admin" ? "Super Admin" : user.role === "admin" ? "Admin" : "User"}
+                    value={
+                      user.role === "super_admin"
+                        ? "Super Admin"
+                        : user.role === "admin"
+                          ? "Admin"
+                          : "User"
+                    }
                     isFiltered={isColumnFiltered("role")}
                     onToggleFilter={toggleFilter}
                   >
@@ -280,8 +300,10 @@ export function SuperAdminUsersTable() {
                       <DropdownMenuContent align="end" className="w-48 z-[100]">
                         <DropdownMenuLabel>Role Actions</DropdownMenuLabel>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem 
-                          disabled={user.role === "super_admin" || (user.id === (session?.user as any)?.id)}
+                        <DropdownMenuItem
+                          disabled={
+                            user.role === "super_admin" || user.id === (session?.user as any)?.id
+                          }
                           onClick={() => {
                             setSelectedUser(user);
                             setNewRole(user.role === "admin" ? "super_admin" : "admin");
@@ -308,10 +330,20 @@ export function SuperAdminUsersTable() {
             Page {page} of {totalPages}
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => handlePageChange(page - 1)} disabled={page <= 1 || isLoading}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(page - 1)}
+              disabled={page <= 1 || isLoading}
+            >
               Previous
             </Button>
-            <Button variant="outline" size="sm" onClick={() => handlePageChange(page + 1)} disabled={page >= totalPages || isLoading}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(page + 1)}
+              disabled={page >= totalPages || isLoading}
+            >
               Next
             </Button>
           </div>
@@ -327,7 +359,8 @@ export function SuperAdminUsersTable() {
               Elevate Global Role
             </DialogTitle>
             <DialogDescription>
-              Granting global administrative powers to <strong className="text-foreground">{selectedUser?.email}</strong>.
+              Granting global administrative powers to{" "}
+              <strong className="text-foreground">{selectedUser?.email}</strong>.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -354,13 +387,19 @@ export function SuperAdminUsersTable() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setElevateModalOpen(false)}>Cancel</Button>
-            <Button 
-              onClick={() => elevateMutation.mutate()} 
+            <Button variant="outline" onClick={() => setElevateModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => elevateMutation.mutate()}
               disabled={elevateMutation.isPending || reason.length < 10}
               className="bg-indigo-500 hover:bg-indigo-600 text-white"
             >
-              {elevateMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Confirm Elevation"}
+              {elevateMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                "Confirm Elevation"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

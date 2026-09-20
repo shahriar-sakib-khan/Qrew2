@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, decimal, pgEnum } from "drizzle-orm/pg-core";
+import { decimal, pgEnum, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 import { organizations, users } from "./auth";
 import { projects } from "./projects";
 
@@ -17,15 +17,16 @@ export const requisitions = pgTable("requisitions", {
   requestedById: text("requested_by_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  projectId: text("project_id")
-    .references(() => projects.id, { onDelete: "set null" }), // Optional project link
+  projectId: text("project_id").references(() => projects.id, { onDelete: "set null" }), // Optional project link
   amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
   purpose: text("purpose").notNull(),
   status: requisitionStatusEnum("status").default("pending").notNull(),
-  actionedById: text("actioned_by_id")
-    .references(() => users.id, { onDelete: "set null" }),
-  createdAt: timestamp("created_at", { mode: 'date' }).defaultNow().notNull(),
-  updatedAt: timestamp("updated_at", { mode: 'date' }).defaultNow().notNull().$onUpdate(() => new Date()),
+  actionedById: text("actioned_by_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date" })
+    .defaultNow()
+    .notNull()
+    .$onUpdate(() => new Date()),
 });
 
 export type Requisition = typeof requisitions.$inferSelect;

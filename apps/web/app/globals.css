@@ -5,6 +5,11 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  /* LAYER 1: TAILWIND PALETTE GATING */
+  /* This clears out all default primitive colors (e.g., zinc-400, emerald-500) */
+  /* Enforcing that ONLY semantic tokens are available to developers. */
+  --color-*: initial;
+
   --font-heading: var(--font-sans);
   --font-sans: var(--font-sans);
 
@@ -63,8 +68,8 @@
     --destructive-foreground: oklch(0.98 0.005 240);
 
     /* Crisp Edges */
-    --border: oklch(0.90 0.005 250);
-    --input: oklch(0.90 0.005 250);
+    --border: oklch(0.9 0.005 250);
+    --input: oklch(0.9 0.005 250);
     --ring: oklch(0.527 0.154 150.069);
 
     --radius: 0.5rem;
@@ -107,7 +112,8 @@
   body {
     @apply bg-background text-foreground antialiased;
   }
-  button:not(:disabled), [role="button"]:not(:disabled) {
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
     cursor: pointer;
   }
 
@@ -143,7 +149,8 @@
 /* Lock the document root — the AppShell manages all scrolling via Radix ScrollArea.
    Without this, the <html> element (overflow: visible by default) produces a
    native scrollbar during React re-renders that causes a ~15px width shrink. */
-html, body {
+html,
+body {
   overflow: hidden;
   height: 100%;
 }
@@ -159,11 +166,31 @@ html, body {
   display: none !important;
 }
 
+/* Utility to completely hide scrollbars across all browsers while retaining scroll functionality */
+.no-scrollbar {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
 @keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-8px); }
-  50% { transform: translateX(8px); }
-  75% { transform: translateX(-8px); }
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-8px);
+  }
+  50% {
+    transform: translateX(8px);
+  }
+  75% {
+    transform: translateX(-8px);
+  }
 }
 
 .animate-shake {
@@ -176,7 +203,14 @@ html, body {
     We target specific structural background and text properties.
     We avoid transitioning 'all' because it causes lag on layout shifts.
   */
-  html, body, .bg-card, .bg-background, .bg-popover, .bg-muted, .text-foreground, .text-muted-foreground {
+  html,
+  body,
+  .bg-card,
+  .bg-background,
+  .bg-popover,
+  .bg-muted,
+  .text-foreground,
+  .text-muted-foreground {
     transition-property: color, background-color, border-color, fill, stroke;
     transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
     transition-duration: 10ms;

@@ -1,12 +1,20 @@
-import { Hono } from 'hono';
-import { ClientsController } from './clients.controller';
-import { requireOrgPermission } from '../../infra/middleware/require-permission';
+import { Hono } from "hono";
+import { requireOrgPermission } from "../../infra/middleware/require-permission";
+import { ClientsController } from "./clients.controller";
 
 export const clientsRouter = new Hono();
 
-clientsRouter.get('/', requireOrgPermission('client:view'), ClientsController.listClients);
-clientsRouter.post('/', requireOrgPermission('client:create'), ClientsController.createClient);
-clientsRouter.put('/:id', requireOrgPermission('client:edit'), ClientsController.updateClient);
-clientsRouter.delete('/:id', requireOrgPermission('client:delete'), ClientsController.deleteClient);
-clientsRouter.patch('/:id/archive', requireOrgPermission('client:archive'), ClientsController.archiveClient);
-clientsRouter.patch('/:id/unarchive', requireOrgPermission('client:restore'), ClientsController.unarchiveClient);
+clientsRouter.get("/", requireOrgPermission("client:view"), ClientsController.listClients);
+clientsRouter.post("/", requireOrgPermission("client:create"), ClientsController.createClient);
+clientsRouter.put("/:id", requireOrgPermission("client:edit"), ClientsController.updateClient);
+clientsRouter.delete("/:id", requireOrgPermission("client:delete"), ClientsController.deleteClient);
+clientsRouter.patch(
+  "/:id/archive",
+  requireOrgPermission("client:archive"),
+  ClientsController.archiveClient,
+);
+clientsRouter.patch(
+  "/:id/unarchive",
+  requireOrgPermission("client:restore"),
+  ClientsController.unarchiveClient,
+);

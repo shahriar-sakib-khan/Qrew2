@@ -1,21 +1,28 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { Lock, MoreVertical, Pencil, Plus, Shield, Trash2, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { Plus, Shield, Users, MoreVertical, Pencil, Trash2, Lock } from "lucide-react";
+import { toast } from "sonner";
 import { Can } from "@/components/features/auth/can";
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { toast } from "sonner";
+import { Skeleton } from "@/components/ui/skeleton";
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
+const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
 export default function RolesPage() {
   const router = useRouter();
@@ -90,7 +97,8 @@ export default function RolesPage() {
             </div>
             <h3 className="text-lg font-semibold">No roles defined yet</h3>
             <p className="text-sm text-muted-foreground mt-1 max-w-sm">
-              Create your first custom role to start assigning granular permissions to office members.
+              Create your first custom role to start assigning granular permissions to office
+              members.
             </p>
             <Can I="role:manage">
               <Button className="mt-6" onClick={() => router.push("/org-admin/roles/new")}>
@@ -101,60 +109,78 @@ export default function RolesPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {roles.map((role: { id: string, name: string, description?: string, isSystem: boolean, permissionCount: number, memberCount: number }) => (
-              <Card key={role.id} className="group relative transition-colors hover:ring-foreground/20">
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-2">
-                      <CardTitle>{role.name}</CardTitle>
-                      {role.isSystem && (
-                        <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded">
-                          <Lock className="h-3 w-3" />
-                          System
-                        </span>
+            {roles.map(
+              (role: {
+                id: string;
+                name: string;
+                description?: string;
+                isSystem: boolean;
+                permissionCount: number;
+                memberCount: number;
+              }) => (
+                <Card
+                  key={role.id}
+                  className="group relative transition-colors hover:ring-foreground/20"
+                >
+                  <CardHeader>
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-2">
+                        <CardTitle>{role.name}</CardTitle>
+                        {role.isSystem && (
+                          <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-accent-foreground bg-accent/10 px-1.5 py-0.5 rounded">
+                            <Lock className="h-3 w-3" />
+                            System
+                          </span>
+                        )}
+                      </div>
+                      {!role.isSystem && (
+                        <Can I="role:manage">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => router.push(`/org-admin/roles/${role.id}`)}
+                              >
+                                <Pencil className="mr-2 h-4 w-4" />
+                                Edit Role
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleDelete(role.id, role.name)}
+                                className="text-destructive focus:text-destructive"
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete Role
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </Can>
                       )}
                     </div>
-                    {!role.isSystem && (
-                      <Can I="role:manage">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => router.push(`/org-admin/roles/${role.id}`)}>
-                              <Pencil className="mr-2 h-4 w-4" />
-                              Edit Role
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => handleDelete(role.id, role.name)}
-                              className="text-destructive focus:text-destructive"
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Delete Role
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </Can>
-                    )}
-                  </div>
-                  <CardDescription className="line-clamp-2">
-                    {role.description || "No description provided."}
-                  </CardDescription>
-                </CardHeader>
-                <CardFooter className="gap-4 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1.5">
-                    <Shield className="h-3.5 w-3.5" />
-                    {role.permissionCount} permission{role.permissionCount !== 1 ? "s" : ""}
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <Users className="h-3.5 w-3.5" />
-                    {role.memberCount} member{role.memberCount !== 1 ? "s" : ""}
-                  </span>
-                </CardFooter>
-              </Card>
-            ))}
+                    <CardDescription className="line-clamp-2">
+                      {role.description || "No description provided."}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardFooter className="gap-4 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1.5">
+                      <Shield className="h-3.5 w-3.5" />
+                      {role.permissionCount} permission{role.permissionCount !== 1 ? "s" : ""}
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <Users className="h-3.5 w-3.5" />
+                      {role.memberCount} member{role.memberCount !== 1 ? "s" : ""}
+                    </span>
+                  </CardFooter>
+                </Card>
+              ),
+            )}
           </div>
         )}
       </div>

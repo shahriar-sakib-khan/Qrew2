@@ -1,7 +1,18 @@
 "use client";
 
+import {
+  CheckCircle2,
+  Flag,
+  Link2,
+  Minus,
+  Pencil,
+  Plus,
+  Shield,
+  Trash2,
+  X,
+  XCircle,
+} from "lucide-react";
 import { useState } from "react";
-import { Plus, Trash2, Flag, CheckCircle2, XCircle, Shield, Link2, X, Minus, Pencil } from "lucide-react";
 
 // --- Constants ---------------------------------------------------------------
 
@@ -60,7 +71,7 @@ function computeLayout(statuses: Status[]): LayoutNode[] {
     (s.transitions ?? []).forEach((t) => {
       if (adj[s.id] && ids.includes(t.toStatusId) && t.toStatusId !== s.id)
         adj[s.id].push(t.toStatusId);
-    })
+    }),
   );
 
   // -- Layer Assignment: Longest-Path from roots (stable under edge changes) -
@@ -100,15 +111,18 @@ function computeLayout(statuses: Status[]): LayoutNode[] {
     });
   }
   let nextFree = Math.max(0, ...Object.values(layer)) + 1;
-  ids.forEach((id) => { if (layer[id] === undefined) layer[id] = nextFree++; });
+  ids.forEach((id) => {
+    if (layer[id] === undefined) layer[id] = nextFree++;
+  });
 
   // -- For bounding-box layout, only use forward edges ----------------------
   const fwdAdj: Record<string, string[]> = {};
   ids.forEach((id) => {
     fwdAdj[id] = (adj[id] ?? []).filter((nxt) => layer[nxt] > layer[id]);
-    fwdAdj[id].sort((a, b) =>
-      new Date(statusMap[a].createdAt || 0).getTime() -
-      new Date(statusMap[b].createdAt || 0).getTime()
+    fwdAdj[id].sort(
+      (a, b) =>
+        new Date(statusMap[a].createdAt || 0).getTime() -
+        new Date(statusMap[b].createdAt || 0).getTime(),
     );
   });
 
@@ -124,13 +138,14 @@ function computeLayout(statuses: Status[]): LayoutNode[] {
   starts.forEach((id) => treeVisited.add(id));
   const treeQueue = [...starts];
   let treeHead = 0;
-  while(treeHead < treeQueue.length) {
+  while (treeHead < treeQueue.length) {
     const cur = treeQueue[treeHead++];
     // Sort forward children by createdAt before spanning-tree traversal
     // so the spanning tree structure never changes when new edges are added.
-    const sortedFwd = [...(fwdAdj[cur] ?? [])].sort((a, b) =>
-      new Date(statusMap[a].createdAt || 0).getTime() -
-      new Date(statusMap[b].createdAt || 0).getTime()
+    const sortedFwd = [...(fwdAdj[cur] ?? [])].sort(
+      (a, b) =>
+        new Date(statusMap[a].createdAt || 0).getTime() -
+        new Date(statusMap[b].createdAt || 0).getTime(),
     );
     sortedFwd.forEach((nxt) => {
       if (!treeVisited.has(nxt)) {
@@ -147,7 +162,7 @@ function computeLayout(statuses: Status[]): LayoutNode[] {
 
   // Process in reverse tree order (leaves first, roots last)
   const revOrder = [...treeQueue].reverse();
-  ids.filter(id => !revOrder.includes(id)).forEach(id => revOrder.push(id));
+  ids.filter((id) => !revOrder.includes(id)).forEach((id) => revOrder.push(id));
 
   revOrder.forEach((id) => {
     const children = treeAdj[id] ?? [];
@@ -156,7 +171,8 @@ function computeLayout(statuses: Status[]): LayoutNode[] {
       return;
     }
 
-    let minF = 0, maxF = 0;
+    let minF = 0,
+      maxF = 0;
     // Sentinel: -1/+1 means "nothing placed yet" so first child at offset 0
     // stays on the parent track rather than being pushed off by 1.
     let maxPositive = -1;
@@ -199,9 +215,10 @@ function computeLayout(statuses: Status[]): LayoutNode[] {
   let rootMinNegative = 0;
 
   starts
-    .sort((a, b) =>
-      new Date(statusMap[a].createdAt || 0).getTime() -
-      new Date(statusMap[b].createdAt || 0).getTime()
+    .sort(
+      (a, b) =>
+        new Date(statusMap[a].createdAt || 0).getTime() -
+        new Date(statusMap[b].createdAt || 0).getTime(),
     )
     .forEach((id, i) => {
       if (i === 0) {
@@ -259,12 +276,12 @@ function computeLayout(statuses: Status[]): LayoutNode[] {
         maxPositive = parentTrack + offset + cf.max;
         minNegative = parentTrack + offset + cf.min;
       } else if (desiredOffset >= 0) {
-        const needed = (maxPositive - parentTrack) - cf.min + 1;
+        const needed = maxPositive - parentTrack - cf.min + 1;
         offset = Math.max(desiredOffset, needed);
         maxPositive = parentTrack + offset + cf.max;
         minNegative = Math.min(minNegative, parentTrack + offset + cf.min);
       } else {
-        const needed = (minNegative - parentTrack) - cf.max - 1;
+        const needed = minNegative - parentTrack - cf.max - 1;
         offset = Math.min(desiredOffset, needed);
         minNegative = parentTrack + offset + cf.min;
         maxPositive = Math.max(maxPositive, parentTrack + offset + cf.max);
@@ -276,7 +293,7 @@ function computeLayout(statuses: Status[]): LayoutNode[] {
   }
 
   // Any remaining unplaced nodes
-  let fallback = (Math.max(0, ...Object.values(trackMap)) + 1);
+  let fallback = Math.max(0, ...Object.values(trackMap)) + 1;
   ids.forEach((id) => {
     if (trackMap[id] === undefined) {
       trackMap[id] = fallback++;
@@ -296,15 +313,15 @@ function computeLayout(statuses: Status[]): LayoutNode[] {
     };
   });
 
-  const allRows = nodes.map(n => n.row);
+  const allRows = nodes.map((n) => n.row);
   const minRow = allRows.length > 0 ? Math.min(0, ...allRows) : 0;
   const maxRow = allRows.length > 0 ? Math.max(0, ...allRows) : 0;
-  
+
   const totalH = (maxRow - minRow) * 136 + 56;
   const canvasMinH = 400;
   const verticalOffset = totalH < canvasMinH ? (canvasMinH - totalH) / 2 : PAD;
 
-  nodes.forEach(n => {
+  nodes.forEach((n) => {
     n.cx = PAD + NODE_R + n.col * 206;
     n.cy = (n.row - minRow) * 136 + verticalOffset + NODE_R;
   });
@@ -318,7 +335,7 @@ function computeLayout(statuses: Status[]): LayoutNode[] {
 function edgePath(
   from: LayoutNode,
   to: LayoutNode,
-  isBidirectional: boolean
+  isBidirectional: boolean,
 ): { d: string; mx: number; my: number } {
   const { cx: x1, cy: y1 } = from;
   const { cx: x2, cy: y2 } = to;
@@ -328,12 +345,14 @@ function edgePath(
     const top = y1 - NODE_R - 24;
     return {
       d: `M${x1 - 10},${y1 - NODE_R} C${x1 - 55},${top - 22} ${x1 + 55},${top - 22} ${x1 + 10},${y1 - NODE_R}`,
-      mx: x1, my: top - 32,
+      mx: x1,
+      my: top - 32,
     };
   }
 
   const isSameCol = from.col === to.col;
-  const isMultiRow = Math.abs(from.row - to.row) > 1 || (isSameCol && Math.abs(from.row - to.row) >= 1);
+  const isMultiRow =
+    Math.abs(from.row - to.row) > 1 || (isSameCol && Math.abs(from.row - to.row) >= 1);
   const isBackwards = to.col < from.col;
 
   let cp1x = x1 + 100;
@@ -360,12 +379,12 @@ function edgePath(
 
   // Precise boundary points
   const d1 = Math.hypot(cp1x - x1, cp1y - y1) || 1;
-  const startX = x1 + (NODE_R * (cp1x - x1) / d1);
-  const startY = y1 + (NODE_R * (cp1y - y1) / d1);
+  const startX = x1 + (NODE_R * (cp1x - x1)) / d1;
+  const startY = y1 + (NODE_R * (cp1y - y1)) / d1;
 
   const d2 = Math.hypot(x2 - cp2x, y2 - cp2y) || 1;
-  const endX = x2 - (NODE_R * (x2 - cp2x) / d2);
-  const endY = y2 - (NODE_R * (y2 - cp2y) / d2);
+  const endX = x2 - (NODE_R * (x2 - cp2x)) / d2;
+  const endY = y2 - (NODE_R * (y2 - cp2y)) / d2;
 
   return { d: `M ${startX},${startY} C ${cp1x},${cp1y} ${cp2x},${cp2y} ${endX},${endY}`, mx, my };
 }
@@ -373,11 +392,13 @@ function edgePath(
 // --- Node Styling -------------------------------------------------------------
 
 function nodeStyle(s: Status) {
-  if (s.isInitial) return { ring: "#6366f1", dot: "#6366f1", glow: "rgba(99,102,241,0.18)", label: "#818cf8" };
-  const isDynamicTerminal = !s.isInitial && (s.transitions?.length === 0);
+  if (s.isInitial)
+    return { ring: "#6366f1", dot: "#6366f1", glow: "rgba(99,102,241,0.18)", label: "#818cf8" };
+  const isDynamicTerminal = !s.isInitial && s.transitions?.length === 0;
   if (isDynamicTerminal) {
     const neg = s.name.toLowerCase().match(/reject|cancel|fail|lost|declin|abort/);
-    if (neg) return { ring: "#f43f5e", dot: "#f43f5e", glow: "rgba(244,63,94,0.18)", label: "#fb7185" };
+    if (neg)
+      return { ring: "#f43f5e", dot: "#f43f5e", glow: "rgba(244,63,94,0.18)", label: "#fb7185" };
     return { ring: "#10b981", dot: "#10b981", glow: "rgba(16,185,129,0.18)", label: "#34d399" };
   }
   const base = s.color && s.color !== "#94a3b8" ? s.color : "#64748b";
@@ -428,10 +449,10 @@ function WorkflowNodeCircle({
 
   // Short label to show inside the circle (up to 4 chars)
   const shortLabel = s.name.length <= 4 ? s.name : s.name.slice(0, 3) + "…";
-  
-  const isDynamicTerminal = !s.isInitial && (s.transitions?.length === 0);
-  const isNegTerminal = isDynamicTerminal &&
-    s.name.toLowerCase().match(/reject|cancel|fail|lost|declin|abort|close/);
+
+  const isDynamicTerminal = !s.isInitial && s.transitions?.length === 0;
+  const isNegTerminal =
+    isDynamicTerminal && s.name.toLowerCase().match(/reject|cancel|fail|lost|declin|abort|close/);
 
   return (
     <div
@@ -439,7 +460,6 @@ function WorkflowNodeCircle({
       onPointerMove={onDragMove}
       onPointerUp={onDragEnd}
       onPointerCancel={onDragEnd}
-
       style={{
         position: "absolute",
         left: node.cx - NODE_R,
@@ -483,7 +503,10 @@ function WorkflowNodeCircle({
 
         {!connectMode && (
           <button
-            onClick={(e) => { e.stopPropagation(); onClick(); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onClick();
+            }}
             className="absolute -top-2 -left-2 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 bg-background border border-slate-400 text-slate-500 rounded-full shadow-sm hover:bg-slate-50 hover:text-slate-800"
             title="Configure stage"
           >
@@ -493,7 +516,10 @@ function WorkflowNodeCircle({
 
         {!s.isSystem && !connectMode && (
           <button
-            onClick={(e) => { e.stopPropagation(); onDelete(); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
             className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 bg-background border border-red-400 text-red-500 rounded-full shadow-sm hover:bg-red-50"
             title="Delete stage"
           >
@@ -502,7 +528,10 @@ function WorkflowNodeCircle({
         )}
         {!connectMode && !isDynamicTerminal && (
           <button
-            onClick={(e) => { e.stopPropagation(); onBranch(); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onBranch();
+            }}
             className="absolute -bottom-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 bg-background border border-indigo-400 text-indigo-500 rounded-full shadow-sm hover:bg-indigo-50"
             title="Add a branch from this stage"
           >
@@ -516,13 +545,18 @@ function WorkflowNodeCircle({
         className="absolute w-max max-w-[120px] text-center pointer-events-none"
         style={{ top: NODE_D + 8, left: "50%", transform: "translateX(-50%)" }}
       >
-        <span className="text-[11px] font-semibold leading-tight block truncate" style={{ color: style.label }}>
+        <span
+          className="text-[11px] font-semibold leading-tight block truncate"
+          style={{ color: style.label }}
+        >
           {s.name}
         </span>
         <div className="flex items-center justify-center gap-1 mt-0.5">
-          {s.isInitial  && <Flag        className="h-2.5 w-2.5 text-indigo-400" />}
-          {isDynamicTerminal && <CheckCircle2 className="h-2.5 w-2.5 opacity-60" style={{ color: style.ring }} />}
-          {s.isSystem   && <Shield      className="h-2.5 w-2.5 text-violet-400 opacity-60" />}
+          {s.isInitial && <Flag className="h-2.5 w-2.5 text-indigo-400" />}
+          {isDynamicTerminal && (
+            <CheckCircle2 className="h-2.5 w-2.5 opacity-60" style={{ color: style.ring }} />
+          )}
+          {s.isSystem && <Shield className="h-2.5 w-2.5 text-violet-400 opacity-60" />}
         </div>
       </div>
     </div>
@@ -553,15 +587,30 @@ export function WorkflowGraph({
   onConnectNodes: (fromId: string, toId: string) => void;
   onDeleteEdge: (fromId: string, toId: string) => void;
   onMoveNode?: (id: string, col: number, row: number) => void;
-  onSwapNodes?: (sourceId: string, targetId: string, targetCol: number, targetRow: number, sourceCol: number, sourceRow: number) => void;
+  onSwapNodes?: (
+    sourceId: string,
+    targetId: string,
+    targetCol: number,
+    targetRow: number,
+    sourceCol: number,
+    sourceRow: number,
+  ) => void;
 }) {
-  const [dragState, setDragState] = useState<{ id: string; pointerStartX: number; pointerStartY: number; nodeStartX: number; nodeStartY: number; currentX: number; currentY: number } | null>(null);
+  const [dragState, setDragState] = useState<{
+    id: string;
+    pointerStartX: number;
+    pointerStartY: number;
+    nodeStartX: number;
+    nodeStartY: number;
+    currentX: number;
+    currentY: number;
+  } | null>(null);
   const [hoveredEdge, setHoveredEdge] = useState<string | null>(null);
   const [connectState, setConnectState] = useState<null | "source" | string>(null);
   const isConnectMode = connectState !== null;
   const connectSourceId = connectState !== null && connectState !== "source" ? connectState : null;
 
-  const layoutNodes = computeLayout(statuses).map(n => {
+  const layoutNodes = computeLayout(statuses).map((n) => {
     if (dragState && dragState.id === n.status.id) {
       return { ...n, cx: dragState.currentX, cy: dragState.currentY };
     }
@@ -569,22 +618,26 @@ export function WorkflowGraph({
   });
   const nodeMap = Object.fromEntries(layoutNodes.map((n) => [n.status.id, n]));
 
-  const canvasW = layoutNodes.length > 0
-    ? Math.max(...layoutNodes.map((n) => n.cx)) + NODE_R + PAD + 200
-    : 600;
-  const canvasH = layoutNodes.length > 0
-    ? Math.max(...layoutNodes.map((n) => n.cy)) + Math.abs(Math.min(...layoutNodes.map(n => n.cy))) + NODE_R + PAD + 200
-    : 400;
+  const canvasW =
+    layoutNodes.length > 0 ? Math.max(...layoutNodes.map((n) => n.cx)) + NODE_R + PAD + 200 : 600;
+  const canvasH =
+    layoutNodes.length > 0
+      ? Math.max(...layoutNodes.map((n) => n.cy)) +
+        Math.abs(Math.min(...layoutNodes.map((n) => n.cy))) +
+        NODE_R +
+        PAD +
+        200
+      : 400;
 
   const [zoom, setZoom] = useState(1);
-  const minRow = layoutNodes.length > 0 ? Math.min(...layoutNodes.map(n => n.row)) : 0;
-  
+  const minRow = layoutNodes.length > 0 ? Math.min(...layoutNodes.map((n) => n.row)) : 0;
+
   let y0 = PAD + NODE_R;
   if (layoutNodes.length > 0) {
-    const row0Node = layoutNodes.find(n => n.row === 0) || layoutNodes[0];
+    const row0Node = layoutNodes.find((n) => n.row === 0) || layoutNodes[0];
     y0 = row0Node.cy - row0Node.row * 136;
   }
-  
+
   // Create abundant headers to cover a massive scrolling canvas
   const colHeaders = Array.from({ length: 40 }, (_, i) => i - 5);
   const rowHeaders = Array.from({ length: 40 }, (_, i) => i - 15);
@@ -603,16 +656,17 @@ export function WorkflowGraph({
       // Skip self-loops
       if (!toNode || toNode.status.id === fromNode.status.id) return [];
       return [{ fromNode, toNode, edgeId: `${fromNode.status.id}->${t.toStatusId}` }];
-    })
+    }),
   );
 
   const edgeData = edges.map(({ fromNode, toNode, edgeId }) => {
-    const isBidirectional = edges.some(e => e.fromNode.status.id === toNode.status.id && e.toNode.status.id === fromNode.status.id);
+    const isBidirectional = edges.some(
+      (e) => e.fromNode.status.id === toNode.status.id && e.toNode.status.id === fromNode.status.id,
+    );
     const { d, mx, my } = edgePath(fromNode, toNode, isBidirectional);
     return { fromNode, toNode, edgeId, d, mx, my };
   });
 
-  
   const handlePointerDown = (e: React.PointerEvent, id: string, nodeCx: number, nodeCy: number) => {
     if (isConnectMode || disabled) return;
     e.stopPropagation();
@@ -625,7 +679,7 @@ export function WorkflowGraph({
       nodeStartX: nodeCx,
       nodeStartY: nodeCy,
       currentX: nodeCx,
-      currentY: nodeCy
+      currentY: nodeCy,
     });
   };
 
@@ -633,14 +687,18 @@ export function WorkflowGraph({
     if (!dragState) return;
     const deltaX = (e.clientX - dragState.pointerStartX) / zoom;
     const deltaY = (e.clientY - dragState.pointerStartY) / zoom;
-    setDragState(prev => prev ? { ...prev, currentX: prev.nodeStartX + deltaX, currentY: prev.nodeStartY + deltaY } : null);
+    setDragState((prev) =>
+      prev
+        ? { ...prev, currentX: prev.nodeStartX + deltaX, currentY: prev.nodeStartY + deltaY }
+        : null,
+    );
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
     if (!dragState) return;
     (e.target as HTMLElement).releasePointerCapture(e.pointerId);
 
-    const allRows = layoutNodes.map(n => n.row);
+    const allRows = layoutNodes.map((n) => n.row);
     const minRow = allRows.length > 0 ? Math.min(0, ...allRows) : 0;
     const maxRow = allRows.length > 0 ? Math.max(0, ...allRows) : 0;
     const totalH = (maxRow - minRow) * 136 + 56;
@@ -650,25 +708,27 @@ export function WorkflowGraph({
     const newCol = Math.max(0, Math.round((dragState.currentX - PAD - NODE_R) / 206));
     const newRow = Math.round((dragState.currentY - verticalOffset - NODE_R) / 136) + minRow;
 
-    const collidedNode = layoutNodes.find(n => n.col === newCol && n.row === newRow && n.status.id !== dragState.id);
-    
+    const collidedNode = layoutNodes.find(
+      (n) => n.col === newCol && n.row === newRow && n.status.id !== dragState.id,
+    );
+
     if (collidedNode && onSwapNodes) {
-        const sourceLayoutNode = layoutNodes.find(n => n.status.id === dragState.id);
-        onSwapNodes(
-            dragState.id, 
-            collidedNode.status.id, 
-            collidedNode.col, 
-            collidedNode.row, 
-            sourceLayoutNode ? sourceLayoutNode.col : 0, 
-            sourceLayoutNode ? sourceLayoutNode.row : 0
-        );
+      const sourceLayoutNode = layoutNodes.find((n) => n.status.id === dragState.id);
+      onSwapNodes(
+        dragState.id,
+        collidedNode.status.id,
+        collidedNode.col,
+        collidedNode.row,
+        sourceLayoutNode ? sourceLayoutNode.col : 0,
+        sourceLayoutNode ? sourceLayoutNode.row : 0,
+      );
     } else if (onMoveNode) {
-        onMoveNode(dragState.id, newCol, newRow);
+      onMoveNode(dragState.id, newCol, newRow);
     }
 
     setDragState(null);
   };
-const handleNodeClick = (node: LayoutNode) => {
+  const handleNodeClick = (node: LayoutNode) => {
     if (connectState === "source") {
       // Guard: terminal node cannot be a source
       if (node.status.isTerminal) return;
@@ -700,13 +760,19 @@ const handleNodeClick = (node: LayoutNode) => {
     >
       {/* Zoom Controls */}
       <div className="absolute bottom-4 right-4 z-50 flex flex-col gap-1 bg-background border shadow-sm rounded-md p-1">
-        <button onClick={() => setZoom(z => Math.min(2, z + 0.1))} className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground transition-colors">
+        <button
+          onClick={() => setZoom((z) => Math.min(2, z + 0.1))}
+          className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground transition-colors"
+        >
           <Plus className="w-4 h-4" />
         </button>
         <div className="text-[10px] text-center text-muted-foreground w-6 font-mono select-none">
           {Math.round(zoom * 100)}%
         </div>
-        <button onClick={() => setZoom(z => Math.max(0.3, z - 0.1))} className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground transition-colors">
+        <button
+          onClick={() => setZoom((z) => Math.max(0.3, z - 0.1))}
+          className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground transition-colors"
+        >
           <Minus className="w-4 h-4" />
         </button>
       </div>
@@ -738,33 +804,94 @@ const handleNodeClick = (node: LayoutNode) => {
       </button>
 
       {/* Scaling Container */}
-      <div style={{ width: Math.max(canvasW, 1200) * zoom, height: Math.max(canvasH, 800) * zoom, position: "relative" }}>
-        <div style={{ transform: `scale(${zoom})`, transformOrigin: "0 0", width: "100%", height: "100%", position: "absolute" }}>
+      <div
+        style={{
+          width: Math.max(canvasW, 1200) * zoom,
+          height: Math.max(canvasH, 800) * zoom,
+          position: "relative",
+        }}
+      >
+        <div
+          style={{
+            transform: `scale(${zoom})`,
+            transformOrigin: "0 0",
+            width: "100%",
+            height: "100%",
+            position: "absolute",
+          }}
+        >
           <svg
             className="absolute inset-0 pointer-events-none"
             width="100%"
             height="100%"
             style={{ overflow: "visible" }}
           >
-          <defs>
+            <defs>
               {/* Default arrowhead — slate */}
-              <marker id="wf-arr" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+              <marker
+                id="wf-arr"
+                markerWidth="8"
+                markerHeight="8"
+                refX="7"
+                refY="4"
+                orient="auto"
+                markerUnits="userSpaceOnUse"
+              >
                 <path d="M0,0.5 L0,7.5 L8,4 z" fill="#64748b" />
               </marker>
               {/* Hover arrowhead — indigo */}
-              <marker id="wf-arr-h" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+              <marker
+                id="wf-arr-h"
+                markerWidth="8"
+                markerHeight="8"
+                refX="7"
+                refY="4"
+                orient="auto"
+                markerUnits="userSpaceOnUse"
+              >
                 <path d="M0,0.5 L0,7.5 L8,4 z" fill="#818cf8" />
               </marker>
               {/* Start dot marker — amber */}
-              <marker id="wf-dot" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+              <marker
+                id="wf-dot"
+                markerWidth="8"
+                markerHeight="8"
+                refX="4"
+                refY="4"
+                orient="auto"
+                markerUnits="userSpaceOnUse"
+              >
                 <circle cx="4" cy="4" r="3" fill="#f59e0b" />
               </marker>
               {/* Start dot marker — indigo (hover) */}
-              <marker id="wf-dot-h" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+              <marker
+                id="wf-dot-h"
+                markerWidth="8"
+                markerHeight="8"
+                refX="4"
+                refY="4"
+                orient="auto"
+                markerUnits="userSpaceOnUse"
+              >
                 <circle cx="4" cy="4" r="3" fill="#818cf8" />
               </marker>
-              <pattern id="gridPattern" width="206" height="136" patternUnits="userSpaceOnUse" x={PAD + NODE_R - 103} y={y0 - 68}>
-                <rect width="206" height="136" fill="transparent" stroke="#64748b" strokeOpacity="0.25" strokeWidth="1" strokeDasharray="4 4" />
+              <pattern
+                id="gridPattern"
+                width="206"
+                height="136"
+                patternUnits="userSpaceOnUse"
+                x={PAD + NODE_R - 103}
+                y={y0 - 68}
+              >
+                <rect
+                  width="206"
+                  height="136"
+                  fill="transparent"
+                  stroke="#64748b"
+                  strokeOpacity="0.25"
+                  strokeWidth="1"
+                  strokeDasharray="4 4"
+                />
               </pattern>
             </defs>
 
@@ -772,99 +899,121 @@ const handleNodeClick = (node: LayoutNode) => {
             <rect x="-10000" y="-10000" width="20000" height="20000" fill="url(#gridPattern)" />
 
             {/* Grid Headers */}
-            {colHeaders.map(c => (
-              <text key={`col-lbl-${c}`} x={98 + c * 206} y={y0 + minRow * 136 - 75} fill="#64748b" fontSize="12" fontWeight="600" textAnchor="middle" opacity="0.8">
+            {colHeaders.map((c) => (
+              <text
+                key={`col-lbl-${c}`}
+                x={98 + c * 206}
+                y={y0 + minRow * 136 - 75}
+                fill="#64748b"
+                fontSize="12"
+                fontWeight="600"
+                textAnchor="middle"
+                opacity="0.8"
+              >
                 Col {c}
               </text>
             ))}
-            {rowHeaders.map(t => (
-              <text key={`row-lbl-${t}`} x={98 - 95} y={y0 + t * 136 + 4} fill="#64748b" fontSize="12" fontWeight="600" textAnchor="start" opacity="0.8">
+            {rowHeaders.map((t) => (
+              <text
+                key={`row-lbl-${t}`}
+                x={98 - 95}
+                y={y0 + t * 136 + 4}
+                fill="#64748b"
+                fontSize="12"
+                fontWeight="600"
+                textAnchor="start"
+                opacity="0.8"
+              >
                 Row {t}
               </text>
             ))}
 
-          {edgeData.map(({ edgeId, d }) => {
-            const isHovered = hoveredEdge === edgeId;
-            return (
-              <g key={edgeId}>
-                {/* Wide transparent hit area for hover */}
-                <path
-                  d={d}
-                  stroke="transparent"
-                  strokeWidth={22}
-                  fill="none"
-                  className="pointer-events-auto cursor-pointer"
+            {edgeData.map(({ edgeId, d }) => {
+              const isHovered = hoveredEdge === edgeId;
+              return (
+                <g key={edgeId}>
+                  {/* Wide transparent hit area for hover */}
+                  <path
+                    d={d}
+                    stroke="transparent"
+                    strokeWidth={22}
+                    fill="none"
+                    className="pointer-events-auto cursor-pointer"
+                    onMouseEnter={() => setHoveredEdge(edgeId)}
+                    onMouseLeave={() => setHoveredEdge(null)}
+                  />
+                  {/* Visible stroke with start dot + end arrowhead */}
+                  <path
+                    d={d}
+                    stroke={isHovered ? "#818cf8" : "#64748b"}
+                    strokeWidth={isHovered ? 2.5 : 1.5}
+                    fill="none"
+                    markerStart={isHovered ? "url(#wf-dot-h)" : "url(#wf-dot)"}
+                    markerEnd={isHovered ? "url(#wf-arr-h)" : "url(#wf-arr)"}
+                    className="transition-all duration-150"
+                  />
+                </g>
+              );
+            })}
+          </svg>
+
+          {!isConnectMode &&
+            edgeData.map(({ fromNode, toNode, edgeId, mx, my }) => {
+              const isHovered = hoveredEdge === edgeId;
+              return (
+                <div
+                  key={`edge-btns-${edgeId}`}
+                  style={{ position: "absolute", left: mx - 25, top: my - 11, zIndex: 30 }}
                   onMouseEnter={() => setHoveredEdge(edgeId)}
                   onMouseLeave={() => setHoveredEdge(null)}
-                />
-                {/* Visible stroke with start dot + end arrowhead */}
-                <path
-                  d={d}
-                  stroke={isHovered ? "#818cf8" : "#64748b"}
-                  strokeWidth={isHovered ? 2.5 : 1.5}
-                  fill="none"
-                  markerStart={isHovered ? "url(#wf-dot-h)" : "url(#wf-dot)"}
-                  markerEnd={isHovered ? "url(#wf-arr-h)" : "url(#wf-arr)"}
-                  className="transition-all duration-150"
-                />
-              </g>
-            );
-          })}
-        </svg>
-
-        {!isConnectMode && edgeData.map(({ fromNode, toNode, edgeId, mx, my }) => {
-          const isHovered = hoveredEdge === edgeId;
-          return (
-            <div
-              key={`edge-btns-${edgeId}`}
-              style={{ position: "absolute", left: mx - 25, top: my - 11, zIndex: 30 }}
-              onMouseEnter={() => setHoveredEdge(edgeId)}
-              onMouseLeave={() => setHoveredEdge(null)}
-              className="flex gap-1"
-            >
-              <button
-                onClick={() => onAddBetween(fromNode.status.id, toNode.status.id)}
-                className={`w-[22px] h-[22px] rounded-sm border-2 bg-background flex items-center justify-center transition-all duration-150 ${
-                  isHovered
-                    ? "opacity-100 border-indigo-500 text-indigo-500 shadow-md scale-110"
-                    : "opacity-0 border-slate-400 text-slate-400"
-                }`}
-                title={`Insert stage between ${fromNode.status.name} and ${toNode.status.name}`}
-              >
-                <Plus className="h-3 w-3" />
-              </button>
-              {(!fromNode.status.isInitial || !toNode.status.isSystem) && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); onDeleteEdge(fromNode.status.id, toNode.status.id); }}
-                  className={`w-[22px] h-[22px] rounded-sm border-2 bg-background flex items-center justify-center transition-all duration-150 ${
-                    isHovered
-                      ? "opacity-100 border-red-400 text-red-500 shadow-md hover:bg-red-50 scale-110"
-                      : "opacity-0 border-slate-400 text-slate-400"
-                  }`}
-                  title={`Delete connection ${fromNode.status.name} to ${toNode.status.name}`}
+                  className="flex gap-1"
                 >
-                  <X className="h-3 w-3 stroke-[3]" />
-                </button>
-              )}
-            </div>
-          );
-        })}
+                  <button
+                    onClick={() => onAddBetween(fromNode.status.id, toNode.status.id)}
+                    className={`w-[22px] h-[22px] rounded-sm border-2 bg-background flex items-center justify-center transition-all duration-150 ${
+                      isHovered
+                        ? "opacity-100 border-indigo-500 text-indigo-500 shadow-md scale-110"
+                        : "opacity-0 border-slate-400 text-slate-400"
+                    }`}
+                    title={`Insert stage between ${fromNode.status.name} and ${toNode.status.name}`}
+                  >
+                    <Plus className="h-3 w-3" />
+                  </button>
+                  {(!fromNode.status.isInitial || !toNode.status.isSystem) && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteEdge(fromNode.status.id, toNode.status.id);
+                      }}
+                      className={`w-[22px] h-[22px] rounded-sm border-2 bg-background flex items-center justify-center transition-all duration-150 ${
+                        isHovered
+                          ? "opacity-100 border-red-400 text-red-500 shadow-md hover:bg-red-50 scale-110"
+                          : "opacity-0 border-slate-400 text-slate-400"
+                      }`}
+                      title={`Delete connection ${fromNode.status.name} to ${toNode.status.name}`}
+                    >
+                      <X className="h-3 w-3 stroke-[3]" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
 
-        {layoutNodes.map((node) => (
-          <WorkflowNodeCircle
-            key={node.status.id}
-            node={node}
-            onClick={() => handleNodeClick(node)}
-            onDelete={() => onDeleteNode(node.status.id)}
-            onBranch={() => onAddBranch(node.status.id)}
-            isConnectSource={connectSourceId === node.status.id}
-            isConnectTarget={connectSourceId !== null && connectSourceId !== node.status.id}
-            connectMode={isConnectMode}
-            onDragStart={handlePointerDown}
-            onDragMove={handlePointerMove}
-            onDragEnd={handlePointerUp}
-          />
-        ))}
+          {layoutNodes.map((node) => (
+            <WorkflowNodeCircle
+              key={node.status.id}
+              node={node}
+              onClick={() => handleNodeClick(node)}
+              onDelete={() => onDeleteNode(node.status.id)}
+              onBranch={() => onAddBranch(node.status.id)}
+              isConnectSource={connectSourceId === node.status.id}
+              isConnectTarget={connectSourceId !== null && connectSourceId !== node.status.id}
+              connectMode={isConnectMode}
+              onDragStart={handlePointerDown}
+              onDragMove={handlePointerMove}
+              onDragEnd={handlePointerUp}
+            />
+          ))}
         </div>
       </div>
 
@@ -874,11 +1023,13 @@ const handleNodeClick = (node: LayoutNode) => {
           Initial stage
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 rounded-full border-2 border-emerald-500 inline-block" />
+          <span className="w-2.5 h-2.5 rounded-full border-2 border-primary inline-block" />
           Terminal stage
         </span>
         <span className="flex items-center gap-1">
-          <span className="inline-block w-3 h-3 rounded-sm border border-muted-foreground/50 text-center leading-3 text-[9px]">+</span>
+          <span className="inline-block w-3 h-3 rounded-sm border border-muted-foreground/50 text-center leading-3 text-[9px]">
+            +
+          </span>
           Hover edge to insert
         </span>
       </div>

@@ -1,6 +1,6 @@
-import { Context } from "hono";
 import { db, templateHeaderFields } from "@starter/db";
-import { eq, and } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
+import { Context } from "hono";
 import { z } from "zod";
 
 const createHeaderFieldSchema = z.object({
@@ -45,10 +45,10 @@ export class TemplateHeaderFieldsController {
       .where(
         and(
           eq(templateHeaderFields.templateId, templateId),
-          eq(templateHeaderFields.columnPosition, parsed.data.columnPosition)
-        )
+          eq(templateHeaderFields.columnPosition, parsed.data.columnPosition),
+        ),
       );
-    const nextOrder = existing.length > 0 ? Math.max(...existing.map(f => f.sortOrder)) + 1 : 0;
+    const nextOrder = existing.length > 0 ? Math.max(...existing.map((f) => f.sortOrder)) + 1 : 0;
 
     const [newField] = await db
       .insert(templateHeaderFields)
@@ -72,10 +72,7 @@ export class TemplateHeaderFieldsController {
     const [deleted] = await db
       .delete(templateHeaderFields)
       .where(
-        and(
-          eq(templateHeaderFields.id, fieldId),
-          eq(templateHeaderFields.templateId, templateId)
-        )
+        and(eq(templateHeaderFields.id, fieldId), eq(templateHeaderFields.templateId, templateId)),
       )
       .returning();
 
@@ -110,10 +107,7 @@ export class TemplateHeaderFieldsController {
       .update(templateHeaderFields)
       .set(parsed.data)
       .where(
-        and(
-          eq(templateHeaderFields.id, fieldId),
-          eq(templateHeaderFields.templateId, templateId)
-        )
+        and(eq(templateHeaderFields.id, fieldId), eq(templateHeaderFields.templateId, templateId)),
       )
       .returning();
 
@@ -128,13 +122,17 @@ export class TemplateHeaderFieldsController {
     if (!organizationId) return c.json({ error: "Unauthorized" }, 401);
 
     const body = await c.req.json();
-    const parsed = z.object({
-      updates: z.array(z.object({
-        fieldId: z.string(),
-        columnPosition: z.enum(["left", "right"]),
-        sortOrder: z.number()
-      }))
-    }).safeParse(body);
+    const parsed = z
+      .object({
+        updates: z.array(
+          z.object({
+            fieldId: z.string(),
+            columnPosition: z.enum(["left", "right"]),
+            sortOrder: z.number(),
+          }),
+        ),
+      })
+      .safeParse(body);
 
     if (!parsed.success) return c.json({ error: parsed.error }, 400);
 
@@ -142,16 +140,17 @@ export class TemplateHeaderFieldsController {
 
     await db.transaction(async (tx) => {
       await Promise.all(
-        updates.map(u => 
-          tx.update(templateHeaderFields)
+        updates.map((u) =>
+          tx
+            .update(templateHeaderFields)
             .set({ columnPosition: u.columnPosition, sortOrder: u.sortOrder })
             .where(
               and(
                 eq(templateHeaderFields.id, u.fieldId),
-                eq(templateHeaderFields.templateId, templateId)
-              )
-            )
-        )
+                eq(templateHeaderFields.templateId, templateId),
+              ),
+            ),
+        ),
       );
     });
 

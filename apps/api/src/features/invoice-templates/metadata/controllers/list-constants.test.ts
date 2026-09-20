@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { makeCtx, makeConstant, TEMPLATE_ID, CONSTANT_ID } from "../../invoice-templates.fixtures";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { CONSTANT_ID, makeConstant, makeCtx, TEMPLATE_ID } from "../../invoice-templates.fixtures";
 
 const { hoistedChain } = vi.hoisted(() => ({
   hoistedChain: (result: any[] = []) => {
@@ -38,9 +38,16 @@ vi.mock("@starter/db", () => {
 
   return {
     db,
-    eq, and,
+    eq,
+    and,
     encodeFormula: vi.fn((f: any) => f),
-    templateConstants: { id: "id", templateId: "templateId", token: "token", defaultValue: "defaultValue", name: "name" },
+    templateConstants: {
+      id: "id",
+      templateId: "templateId",
+      token: "token",
+      defaultValue: "defaultValue",
+      name: "name",
+    },
     templateRows: { id: "id", templateId: "templateId", rowToken: "rowToken", formula: "formula" },
     templateSections: { id: "id", templateId: "templateId", sectionToken: "sectionToken" },
     templateSectionCharges: { id: "id", sectionId: "sectionId", formula: "formula" },
@@ -48,8 +55,8 @@ vi.mock("@starter/db", () => {
   };
 });
 
-import { listConstants } from "./list-constants.controller";
 import { db } from "@starter/db";
+import { listConstants } from "./list-constants.controller";
 
 function mockSelectReturns(value: any[]) {
   (db.select as any).mockReturnValue({

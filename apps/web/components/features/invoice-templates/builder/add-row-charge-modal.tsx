@@ -1,33 +1,22 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
+import { AlertCircle, Loader2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Loader2, AlertCircle, Calculator, ChevronDown } from "lucide-react";
+import { parseChargeFormula } from "@/lib/charge-formula-parser";
 import { cn } from "@/lib/utils";
 import { useBuilderContext } from "./builder-context";
-import {
-  parseChargeFormula,
-  buildChargeFormula,
-  SimpleChargeFormula,
-} from "@/lib/charge-formula-parser";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 // ─── Token helpers (same rules as add-edit-row-modal) ────────────────────────
 function processTokenSuffix(raw: string): string {
@@ -44,7 +33,8 @@ function validateSuffix(suffix: string): string | null {
   if (suffix.startsWith("_")) return "Suffix cannot start with an underscore";
   if (suffix.endsWith("_")) return "Suffix cannot end with an underscore";
   if (/__/.test(suffix)) return "Consecutive underscores are not allowed";
-  if (!/^[A-Z0-9_]+$/.test(suffix)) return "Only letters A–Z, digits 0–9, and underscore are allowed";
+  if (!/^[A-Z0-9_]+$/.test(suffix))
+    return "Only letters A–Z, digits 0–9, and underscore are allowed";
   return null;
 }
 
@@ -79,63 +69,53 @@ export function AddRowChargeModal({
   const { apiBasePath } = useBuilderContext();
   const isEdit = !!editCharge;
   const [suffix, setSuffix] = useState("");
+  const [rate, setRate] = useState("15");
   const [tokenError, setTokenError] = useState("");
+  const [rateError, setRateError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
-
-  // Formula State
-  const [isAdvanced, setIsAdvanced] = useState(false);
-  const [formulaRaw, setFormulaRaw] = useState(`${rowToken} * 0.15`);
-  const [simpleFormula, setSimpleFormula] = useState<SimpleChargeFormula>({
-    operator: "*",
-    value: 15,
-    unit: "percent",
-  });
 
   // Full charge token = PREFIX + suffix
   const prefix = `${rowToken}_`;
   const fullToken = suffix ? `${prefix}${suffix}` : "";
+  const baseToken = `${rowToken}_BASE`;
 
   useEffect(() => {
     if (!isOpen) return;
-    
+
     // Reset tokens
     if (isEdit && editCharge.chargeToken) {
       setSuffix(
         editCharge.chargeToken.startsWith(prefix)
           ? editCharge.chargeToken.replace(prefix, "")
-          : editCharge.chargeToken
+          : editCharge.chargeToken,
       );
       setTokenError("");
     } else {
       setSuffix("");
       setTokenError("");
     }
-    
-    // Init formula
+
+    // Init rate
     if (isEdit && editCharge.formula) {
-      const parsed = parseChargeFormula(editCharge.formula, rowToken);
+      const parsed = parseChargeFormula(editCharge.formula, baseToken);
       if (parsed) {
-        setSimpleFormula(parsed);
-        setIsAdvanced(false);
-        setFormulaRaw(editCharge.formula);
+        setRate(String(parsed.value));
       } else {
-        setFormulaRaw(editCharge.formula);
-        setIsAdvanced(true);
+        // Fallback: extract first number if possible or default to 15
+        const numMatch = editCharge.formula.match(/(\d+(?:\.\d+)?)/);
+        setRate(numMatch ? numMatch[1] : "15");
       }
     } else {
-      setSimpleFormula({ operator: "*", value: 15, unit: "percent" });
-      setFormulaRaw(`${rowToken} * 0.15`);
-      setIsAdvanced(false);
+      setRate("15");
     }
+    setRateError("");
 
     setTimeout(() => inputRef.current?.focus(), 50);
-  }, [isOpen, isEdit, editCharge, prefix, rowToken]);
+  }, [isOpen, isEdit, editCharge, prefix, baseToken]);
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const finalFormula = isAdvanced
-        ? formulaRaw.trim()
-        : buildChargeFormula(simpleFormula, rowToken);
+      const finalFormula = `${baseToken} * ${rate}%`;
 
       if (isEdit) {
         // PATCH /rows/:rowId/charges/:chargeId
@@ -147,7 +127,7 @@ export function AddRowChargeModal({
             headers: { "Content-Type": "application/json" },
             credentials: "include",
             body: JSON.stringify({ chargeToken: fullToken, formula: finalFormula }),
-          }
+          },
         );
         const data = await res.json();
         if (!res.ok) {
@@ -163,15 +143,12 @@ export function AddRowChargeModal({
           formula: finalFormula,
           orderIndex: existingCharges.length,
         };
-        const res = await fetch(
-          `${apiBasePath}/sections/${sectionId}/rows/${rowId}/charges`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify(newCharge),
-          }
-        );
+        const res = await fetch(`${apiBasePath}/sections/${sectionId}/rows/${rowId}/charges`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(newCharge),
+        });
         const data = await res.json();
         if (!res.ok) {
           if (res.status === 409) setTokenError(data.error ?? "Token already in use");
@@ -195,11 +172,20 @@ export function AddRowChargeModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setTokenError("");
-    const err = validateSuffix(suffix);
-    if (err) {
-      setTokenError(err);
+    setRateError("");
+
+    const suffixErr = validateSuffix(suffix);
+    if (suffixErr) {
+      setTokenError(suffixErr);
       return;
     }
+
+    const num = parseFloat(rate);
+    if (isNaN(num) || num < 0) {
+      setRateError("Please enter a valid rate percentage");
+      return;
+    }
+
     mutation.mutate();
   };
 
@@ -234,7 +220,8 @@ export function AddRowChargeModal({
           <DialogTitle>{isEdit ? "Edit Row Charge" : "Add Row Charge"}</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Token Suffix */}
           <div className="space-y-1.5">
             <Label htmlFor="chargeTokenSuffix">Charge Token *</Label>
 
@@ -242,7 +229,7 @@ export function AddRowChargeModal({
               className={cn(
                 "flex items-center rounded-md border bg-background overflow-hidden",
                 "focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-0",
-                tokenError && "border-destructive focus-within:ring-destructive"
+                tokenError && "border-destructive focus-within:ring-destructive",
               )}
             >
               <span className="pl-3 pr-1 text-sm font-mono text-muted-foreground select-none shrink-0 bg-muted/40 h-9 flex items-center border-r">
@@ -259,7 +246,7 @@ export function AddRowChargeModal({
                 spellCheck={false}
                 className={cn(
                   "flex-1 h-9 px-3 text-sm font-mono tracking-wide bg-transparent",
-                  "border-none outline-none focus:outline-none"
+                  "border-none outline-none focus:outline-none",
                 )}
               />
             </div>
@@ -279,96 +266,57 @@ export function AddRowChargeModal({
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label>Charge Formula</Label>
-            
-            {!isAdvanced ? (
-              <div className="flex items-center gap-2">
-                <div className="bg-muted text-muted-foreground text-sm font-mono px-3 h-9 flex items-center rounded-md border">
-                  {rowToken}
-                </div>
-                
-                <Select
-                  value={simpleFormula.operator}
-                  onValueChange={(val: any) =>
-                    setSimpleFormula({ ...simpleFormula, operator: val })
-                  }
-                >
-                  <SelectTrigger className="w-[60px] h-9 px-2 font-mono">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="*">×</SelectItem>
-                    <SelectItem value="/">÷</SelectItem>
-                    <SelectItem value="+">+</SelectItem>
-                    <SelectItem value="-">-</SelectItem>
-                  </SelectContent>
-                </Select>
+          {/* Rate Formula */}
+          <div className="space-y-1.5">
+            <Label htmlFor="chargeRate">Charge Rate *</Label>
 
-                <div className="relative flex-1">
-                  <Input
-                    type="number"
-                    step="any"
-                    className="h-9 pr-8 text-right font-mono"
-                    value={simpleFormula.value}
-                    onChange={(e) =>
-                      setSimpleFormula({
-                        ...simpleFormula,
-                        value: parseFloat(e.target.value) || 0,
-                      })
-                    }
-                  />
-                  <div className="absolute right-0 top-0 h-full flex items-center">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      className="h-full px-2 text-muted-foreground hover:text-foreground font-mono font-bold"
-                      onClick={() =>
-                        setSimpleFormula({
-                          ...simpleFormula,
-                          unit: simpleFormula.unit === "percent" ? "fixed" : "percent",
-                        })
-                      }
-                      title="Toggle %"
-                    >
-                      {simpleFormula.unit === "percent" ? "%" : "$"}
-                    </Button>
-                  </div>
-                </div>
+            <div className="flex items-center gap-2">
+              <div className="bg-muted text-muted-foreground text-xs font-mono px-2.5 h-9 flex items-center rounded-md border font-medium select-none shrink-0">
+                {baseToken}
               </div>
-            ) : (
-              <div className="flex items-center gap-2">
+
+              <span className="text-muted-foreground font-mono font-bold text-sm select-none">
+                ×
+              </span>
+
+              <div className="relative flex-1">
                 <Input
-                  className="font-mono text-sm"
-                  value={formulaRaw}
-                  onChange={(e) => setFormulaRaw(e.target.value)}
-                  placeholder={`${rowToken} * 0.15`}
+                  id="chargeRate"
+                  type="number"
+                  step="any"
+                  min="0"
+                  placeholder="15"
+                  className={cn(
+                    "h-9 pr-7 text-right font-mono text-sm",
+                    rateError && "border-destructive focus-visible:ring-destructive",
+                  )}
+                  value={rate}
+                  onChange={(e) => {
+                    setRate(e.target.value);
+                    setRateError("");
+                  }}
                 />
+                <div className="absolute right-0 top-0 h-full flex items-center pr-2.5 pointer-events-none text-muted-foreground font-mono font-semibold text-sm">
+                  %
+                </div>
               </div>
-            )}
-
-            <div className="flex justify-end">
-              <Button
-                type="button"
-                variant="link"
-                size="sm"
-                className="h-auto p-0 text-xs text-muted-foreground hover:text-primary"
-                onClick={() => {
-                  if (!isAdvanced) {
-                    setFormulaRaw(buildChargeFormula(simpleFormula, rowToken));
-                  } else {
-                    const parsed = parseChargeFormula(formulaRaw, rowToken);
-                    if (parsed) setSimpleFormula(parsed);
-                  }
-                  setIsAdvanced(!isAdvanced);
-                }}
-              >
-                {isAdvanced ? "← Simple formula" : "Advanced formula →"}
-              </Button>
             </div>
+
+            {rateError ? (
+              <p className="text-xs text-destructive flex items-center gap-1">
+                <AlertCircle className="h-3 w-3 shrink-0" /> {rateError}
+              </p>
+            ) : (
+              <p className="text-[11px] text-muted-foreground/50">
+                Calculated as{" "}
+                <code className="font-mono bg-muted/50 px-1 rounded">
+                  {baseToken} × {rate || "0"}%
+                </code>
+              </p>
+            )}
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="pt-2">
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>

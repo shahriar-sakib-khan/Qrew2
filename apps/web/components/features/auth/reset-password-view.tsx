@@ -1,15 +1,15 @@
 "use client";
 
-import { useState, Suspense } from "react";
-import type { SubmitEvent } from "react";
+import { CheckCircle2, Loader2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Loader2, CheckCircle2 } from "lucide-react";
-import { authClient } from "@/lib/auth-client";
+import type { SubmitEvent } from "react";
+import { Suspense, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { PasswordInput } from "@/components/ui/password-input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
 import { QrewLogo } from "@/components/ui/logo";
+import { PasswordInput } from "@/components/ui/password-input";
+import { authClient } from "@/lib/auth-client";
 
 function ResetPasswordForm() {
   const router = useRouter();
@@ -58,13 +58,15 @@ function ResetPasswordForm() {
 
   if (isSuccess) {
     return (
-      <Card className="w-full max-w-md mx-auto shadow-2xl border-emerald-500/20 bg-background/50 backdrop-blur-xl">
+      <Card className="w-full max-w-md mx-auto shadow-2xl border-primary/20 bg-background/50 backdrop-blur-xl">
         <CardContent className="pt-6 flex flex-col items-center text-center space-y-4">
-          <div className="bg-emerald-500/10 p-3 rounded-full">
-            <CheckCircle2 className="h-10 w-10 text-emerald-500" />
+          <div className="bg-primary/10 p-3 rounded-full">
+            <CheckCircle2 className="h-10 w-10 text-primary" />
           </div>
           <CardTitle className="text-xl">Password Reset Complete</CardTitle>
-          <CardDescription>Your password has been successfully updated. Redirecting to login...</CardDescription>
+          <CardDescription>
+            Your password has been successfully updated. Redirecting to login...
+          </CardDescription>
         </CardContent>
       </Card>
     );
@@ -81,7 +83,11 @@ function ResetPasswordForm() {
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
-          {error && <div className="p-3 text-sm bg-destructive/15 text-destructive border border-destructive/20 rounded-md">{error}</div>}
+          {error && (
+            <div className="p-3 text-sm bg-destructive/15 text-destructive border border-destructive/20 rounded-md">
+              {error}
+            </div>
+          )}
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="password">New Password</Label>
@@ -116,7 +122,13 @@ function ResetPasswordForm() {
 
 export function ResetPasswordView() {
   return (
-    <Suspense fallback={<div className="flex justify-center p-8"><Loader2 className="animate-spin size-8 text-primary" /></div>}>
+    <Suspense
+      fallback={
+        <div className="flex justify-center p-8">
+          <Loader2 className="animate-spin size-8 text-primary" />
+        </div>
+      }
+    >
       <ResetPasswordForm />
     </Suspense>
   );

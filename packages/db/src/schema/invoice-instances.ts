@@ -1,10 +1,19 @@
-import { pgTable, text, timestamp, boolean, integer, index, unique, jsonb } from "drizzle-orm/pg-core";
-import { organizations, users } from "./auth";
-import { projects } from "./projects";
-import { invoiceTemplates } from "./invoice-templates";
-import { documentTypeEnum } from "./invoice-enums";
-import { invoices } from "./invoices";
 import { relations } from "drizzle-orm";
+import {
+  boolean,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+} from "drizzle-orm/pg-core";
+import { organizations, users } from "./auth";
+import { documentTypeEnum } from "./invoice-enums";
+import { invoiceTemplates } from "./invoice-templates";
+import { invoices } from "./invoices";
+import { projects } from "./projects";
 
 export const invoiceDrafts = pgTable(
   "invoice_drafts",
@@ -19,8 +28,9 @@ export const invoiceDrafts = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    sourceTemplateId: text("source_template_id")
-      .references(() => invoiceTemplates.id, { onDelete: "set null" }),
+    sourceTemplateId: text("source_template_id").references(() => invoiceTemplates.id, {
+      onDelete: "set null",
+    }),
     sourceTemplateVersion: integer("source_template_version"),
     name: text("name").default("Draft").notNull(),
     description: text("description"),
@@ -35,9 +45,7 @@ export const invoiceDrafts = pgTable(
       .notNull()
       .$onUpdate(() => new Date()),
   },
-  (table) => [
-    unique("invoice_drafts_project_user_unique").on(table.projectId, table.userId),
-  ]
+  (table) => [unique("invoice_drafts_project_user_unique").on(table.projectId, table.userId)],
 );
 
 export const invoiceReservedNumbers = pgTable(
@@ -53,13 +61,17 @@ export const invoiceReservedNumbers = pgTable(
     documentType: documentTypeEnum("document_type").notNull(),
     documentNumber: text("document_number").notNull(),
     isUsed: boolean("is_used").default(false).notNull(),
-    usedByInvoiceId: text("used_by_invoice_id")
-      .references(() => invoices.id, { onDelete: "set null" }),
+    usedByInvoiceId: text("used_by_invoice_id").references(() => invoices.id, {
+      onDelete: "set null",
+    }),
     createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
   },
   (table) => [
-    unique("invoice_reserved_numbers_project_doctype_unique").on(table.projectId, table.documentType),
-  ]
+    unique("invoice_reserved_numbers_project_doctype_unique").on(
+      table.projectId,
+      table.documentType,
+    ),
+  ],
 );
 
 export const invoiceDraftsRelations = relations(invoiceDrafts, ({ one }) => ({

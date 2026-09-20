@@ -1,17 +1,29 @@
 "use client";
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Loader2 } from "lucide-react";
+import { ChangeEvent, useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { useState, ChangeEvent } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiUrl } from "@/lib/constants";
-import { Loader2 } from "lucide-react";
-import { toast } from "sonner";
 
-export function AddExpenseCategoryModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+export function AddExpenseCategoryModal({
+  isOpen,
+  onClose,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+}) {
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -36,7 +48,7 @@ export function AddExpenseCategoryModal({ isOpen, onClose }: { isOpen: boolean; 
     },
     onError: (error) => {
       toast.error(error.message || "Failed to create expense category");
-    }
+    },
   });
 
   return (
@@ -51,23 +63,25 @@ export function AddExpenseCategoryModal({ isOpen, onClose }: { isOpen: boolean; 
         <div className="flex flex-col gap-4 py-4">
           <div className="flex flex-col gap-2">
             <Label>Category Name</Label>
-            <Input 
-              placeholder="e.g. Travel, Office Supplies" 
+            <Input
+              placeholder="e.g. Travel, Office Supplies"
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
           </div>
           <div className="flex flex-col gap-2">
             <Label>Description (Optional)</Label>
-            <Textarea 
-              placeholder="Describe this category..." 
+            <Textarea
+              placeholder="Describe this category..."
               value={description}
               onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setDescription(e.target.value)}
             />
           </div>
         </div>
         <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
           <Button onClick={() => mutate()} disabled={!name || isPending}>
             {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Create Category

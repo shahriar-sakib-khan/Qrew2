@@ -1,7 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  makeCtx, makeSectionCharge,
-  SECTION_ID, TEMPLATE_ID, SECTION_TOKEN,
+  makeCtx,
+  makeSectionCharge,
+  SECTION_ID,
+  SECTION_TOKEN,
+  TEMPLATE_ID,
 } from "../../invoice-templates.fixtures";
 
 const { hoistedChain } = vi.hoisted(() => ({
@@ -28,8 +31,16 @@ vi.mock("@starter/db", () => {
 
   return {
     db,
-    eq, and, asc,
-    templateSectionCharges: { id: "id", sectionId: "sectionId", chargeToken: "chargeToken", sortOrder: "sortOrder", formula: "formula" },
+    eq,
+    and,
+    asc,
+    templateSectionCharges: {
+      id: "id",
+      sectionId: "sectionId",
+      chargeToken: "chargeToken",
+      sortOrder: "sortOrder",
+      formula: "formula",
+    },
     templateSections: { id: "id", templateId: "templateId", sectionToken: "sectionToken" },
     templateConstants: { id: "id", templateId: "templateId", token: "token" },
     templateRows: { id: "id", templateId: "templateId", rowToken: "rowToken" },
@@ -39,16 +50,23 @@ vi.mock("@starter/db", () => {
   };
 });
 
-import { listSectionCharges } from "./list-section-charges.controller";
 import { db } from "@starter/db";
+import { listSectionCharges } from "./list-section-charges.controller";
 
 function mockSectionOwned(charges: any[] = []) {
   (db.select as any)
-    .mockReturnValueOnce(hoistedChain([{ section: { id: SECTION_ID, templateId: TEMPLATE_ID, sectionToken: SECTION_TOKEN }, templateId: TEMPLATE_ID }]))
-    .mockReturnValueOnce(hoistedChain([]))  // buildRowIndex
-    .mockReturnValueOnce(hoistedChain([]))  // buildSectionIndex
-    .mockReturnValueOnce(hoistedChain([]))  // buildConstantIndex
-    .mockReturnValueOnce(hoistedChain(charges.map(c => ({ charge: c }))));  // charges list
+    .mockReturnValueOnce(
+      hoistedChain([
+        {
+          section: { id: SECTION_ID, templateId: TEMPLATE_ID, sectionToken: SECTION_TOKEN },
+          templateId: TEMPLATE_ID,
+        },
+      ]),
+    )
+    .mockReturnValueOnce(hoistedChain([])) // buildRowIndex
+    .mockReturnValueOnce(hoistedChain([])) // buildSectionIndex
+    .mockReturnValueOnce(hoistedChain([])) // buildConstantIndex
+    .mockReturnValueOnce(hoistedChain(charges.map((c) => ({ charge: c })))); // charges list
 }
 
 function mockSectionNotOwned() {

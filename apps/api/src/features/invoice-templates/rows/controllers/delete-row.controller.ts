@@ -1,6 +1,6 @@
+import { db, invoiceTemplates, templateRows } from "@starter/db";
+import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
-import { db, templateRows, invoiceTemplates } from "@starter/db";
-import { eq, and } from "drizzle-orm";
 
 export async function deleteRow(c: Context) {
   const rowId = c.req.param("rowId") as string;

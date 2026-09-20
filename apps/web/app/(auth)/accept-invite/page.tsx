@@ -1,22 +1,28 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
-import { z } from "zod";
-import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, Check, Loader2, LogOut, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Check, Eye, EyeOff, Loader2, LogOut } from "lucide-react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
-
-import { useSession, signIn, signUp, signOut, authClient } from "@/lib/auth-client";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
-import { Field, FieldLabel, FieldError } from "@/components/ui/field";
+import { z } from "zod";
 import { BackgroundEffects } from "@/components/layout/background-effects";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { authClient, signIn, signOut, signUp, useSession } from "@/lib/auth-client";
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
+const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
 // Schemas for embedded forms
 const loginSchema = z.object({
@@ -109,12 +115,12 @@ function AcceptInviteContent() {
       if (!res.ok) throw new Error(data.error || "Failed to accept invitation");
 
       toast.success("Invitation accepted successfully!");
-      
+
       // Auto-switch to the newly joined organization!
       if (data.organizationId) {
         await authClient.organization.setActive({ organizationId: data.organizationId });
       }
-      
+
       window.location.href = "/dashboard";
     } catch (err: any) {
       setError(err.message);
@@ -129,7 +135,7 @@ function AcceptInviteContent() {
     // 1. Sign In
     const { error: signInError } = await signIn.email({
       email: data.email,
-      password: data.password
+      password: data.password,
     });
 
     if (signInError) {
@@ -150,7 +156,7 @@ function AcceptInviteContent() {
     const { error: signUpError } = await signUp.email({
       name: data.name,
       email: data.email,
-      password: data.password
+      password: data.password,
     });
 
     if (signUpError) {
@@ -181,11 +187,15 @@ function AcceptInviteContent() {
       <div className="flex-1 grid place-items-center px-4 py-12 z-10">
         <Card className="w-full max-w-md border-border/50 bg-background/80 backdrop-blur-xl">
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl font-bold tracking-tight text-destructive">Invalid Invitation</CardTitle>
+            <CardTitle className="text-2xl font-bold tracking-tight text-destructive">
+              Invalid Invitation
+            </CardTitle>
             <CardDescription>{error}</CardDescription>
           </CardHeader>
           <CardFooter className="justify-center">
-            <Link href="/"><Button variant="outline">Return Home</Button></Link>
+            <Link href="/">
+              <Button variant="outline">Return Home</Button>
+            </Link>
           </CardFooter>
         </Card>
       </div>
@@ -219,15 +229,19 @@ function AcceptInviteContent() {
                 <p className="text-sm text-muted-foreground mb-1">Logged in as</p>
                 <p className="font-semibold">{session?.user?.email}</p>
               </div>
-              <Button 
-                onClick={handleDirectAccept} 
-                disabled={isAccepting} 
+              <Button
+                onClick={handleDirectAccept}
+                disabled={isAccepting}
                 className="w-full h-10 shadow-md shadow-primary/20"
               >
                 {isAccepting ? (
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Accepting...</>
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Accepting...
+                  </>
                 ) : (
-                  <><Check className="mr-2 h-4 w-4" /> Accept Invitation</>
+                  <>
+                    <Check className="mr-2 h-4 w-4" /> Accept Invitation
+                  </>
                 )}
               </Button>
             </div>
@@ -240,15 +254,21 @@ function AcceptInviteContent() {
                   You are already logged into this account.
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Currently logged in as <strong>{session.user.email}</strong>. If this invitation was meant for a different address, please log out.
+                  Currently logged in as <strong>{session.user.email}</strong>. If this invitation
+                  was meant for a different address, please log out.
                 </p>
               </div>
               <div className="flex flex-col gap-2">
-                <Button onClick={handleLogout} className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                <Button
+                  onClick={handleLogout}
+                  className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
                   <LogOut className="mr-2 h-4 w-4" /> Log out
                 </Button>
                 <Link href="/dashboard" className="w-full">
-                  <Button variant="outline" className="w-full">Return to Dashboard</Button>
+                  <Button variant="outline" className="w-full">
+                    Return to Dashboard
+                  </Button>
                 </Link>
               </div>
             </div>
@@ -258,7 +278,11 @@ function AcceptInviteContent() {
             <form onSubmit={loginForm.handleSubmit(onLoginSubmit)} className="space-y-4">
               <div className="space-y-2">
                 <FieldLabel>Email</FieldLabel>
-                <Input value={inviteData.email} disabled className="bg-muted text-muted-foreground opacity-70" />
+                <Input
+                  value={inviteData.email}
+                  disabled
+                  className="bg-muted text-muted-foreground opacity-70"
+                />
               </div>
               <Controller
                 name="password"
@@ -284,15 +308,29 @@ function AcceptInviteContent() {
                         onClick={() => setShowPassword((prev) => !prev)}
                         disabled={isAccepting}
                       >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
                       </Button>
                     </div>
                     {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
                   </Field>
                 )}
               />
-              <Button type="submit" className="w-full h-10 shadow-md shadow-primary/20" disabled={isAccepting}>
-                {isAccepting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Accepting...</> : "Sign In & Accept"}
+              <Button
+                type="submit"
+                className="w-full h-10 shadow-md shadow-primary/20"
+                disabled={isAccepting}
+              >
+                {isAccepting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Accepting...
+                  </>
+                ) : (
+                  "Sign In & Accept"
+                )}
               </Button>
             </form>
           )}
@@ -320,12 +358,12 @@ function AcceptInviteContent() {
               />
               <div className="space-y-2">
                 <FieldLabel htmlFor="signup-email">Email</FieldLabel>
-                <Input 
-                  id="signup-email" 
-                  value={inviteData?.email} 
+                <Input
+                  id="signup-email"
+                  value={inviteData?.email}
                   autoComplete="username"
-                  disabled 
-                  className="bg-muted text-muted-foreground opacity-70" 
+                  disabled
+                  className="bg-muted text-muted-foreground opacity-70"
                 />
               </div>
               <Controller
@@ -351,24 +389,38 @@ function AcceptInviteContent() {
                         onClick={() => setShowPassword((prev) => !prev)}
                         disabled={isAccepting}
                       >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
                       </Button>
                     </div>
                     {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
                   </Field>
                 )}
               />
-              <Button type="submit" className="w-full h-10 shadow-md shadow-primary/20" disabled={isAccepting}>
-                {isAccepting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Creating account...</> : "Create Account & Accept"}
+              <Button
+                type="submit"
+                className="w-full h-10 shadow-md shadow-primary/20"
+                disabled={isAccepting}
+              >
+                {isAccepting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Creating account...
+                  </>
+                ) : (
+                  "Create Account & Accept"
+                )}
               </Button>
             </form>
           )}
         </CardContent>
-        
-        {(!session?.user) && (
-           <CardFooter className="flex justify-center border-t border-border/50 pt-6 text-xs text-muted-foreground text-center">
-             By accepting, you agree to join this workspace.
-           </CardFooter>
+
+        {!session?.user && (
+          <CardFooter className="flex justify-center border-t border-border/50 pt-6 text-xs text-muted-foreground text-center">
+            By accepting, you agree to join this workspace.
+          </CardFooter>
         )}
       </Card>
     </div>
@@ -381,14 +433,23 @@ export default function AcceptInvitePage() {
       <BackgroundEffects />
 
       <header className="relative z-10 flex items-center justify-between px-6 py-4 border-b border-border/50 bg-background/50 backdrop-blur-md">
-        <Link href="/" className="flex items-center gap-2 text-sm font-semibold tracking-tight hover:opacity-80 transition-opacity">
+        <Link
+          href="/"
+          className="flex items-center gap-2 text-sm font-semibold tracking-tight hover:opacity-80 transition-opacity"
+        >
           <ArrowLeft className="h-4 w-4" />
           <div className="h-4 w-4 rounded bg-primary ml-2" />
           Qrew
         </Link>
       </header>
 
-      <Suspense fallback={<div className="flex-1 grid place-items-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
+      <Suspense
+        fallback={
+          <div className="flex-1 grid place-items-center">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        }
+      >
         <AcceptInviteContent />
       </Suspense>
     </section>

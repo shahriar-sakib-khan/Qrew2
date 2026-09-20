@@ -1,10 +1,10 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useParams, useRouter } from "next/navigation";
-import { apiUrl } from "@/lib/constants";
-import { Button } from "@/components/ui/button";
 import { ArrowLeft, Printer } from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { apiUrl } from "@/lib/constants";
 import { formatCurrency } from "@/lib/utils/format";
 
 export default function InvoicePrintViewPage() {
@@ -52,16 +52,19 @@ export default function InvoicePrintViewPage() {
 
       {/* Printable Area */}
       <div className="w-full max-w-4xl bg-white shadow-sm border rounded-sm p-12 print:shadow-none print:border-none print:p-0">
-        
         {/* Header */}
         <div className="flex justify-between items-start mb-12 border-b pb-8">
           <div>
-            <h1 className="text-4xl font-light tracking-tight text-neutral-900 uppercase">Invoice</h1>
+            <h1 className="text-4xl font-light tracking-tight text-neutral-900 uppercase">
+              Invoice
+            </h1>
             <p className="text-sm text-neutral-500 mt-2 font-mono">{invoice.documentNumber}</p>
           </div>
           <div className="text-right">
             <h2 className="font-semibold text-lg">{invoice.issuedToClientName || client.name}</h2>
-            {client.address && <p className="text-sm text-neutral-600 whitespace-pre-line">{client.address}</p>}
+            {client.address && (
+              <p className="text-sm text-neutral-600 whitespace-pre-line">{client.address}</p>
+            )}
             {client.email && <p className="text-sm text-neutral-600">{client.email}</p>}
           </div>
         </div>
@@ -82,7 +85,9 @@ export default function InvoicePrintViewPage() {
           <div className="text-right">
             <h3 className="font-semibold text-neutral-900 mb-2">Project</h3>
             <p className="text-neutral-600">{project.name || "N/A"}</p>
-            {project.internalId && <p className="text-neutral-500 text-xs mt-1">Ref: {project.internalId}</p>}
+            {project.internalId && (
+              <p className="text-neutral-500 text-xs mt-1">Ref: {project.internalId}</p>
+            )}
           </div>
         </div>
 
@@ -130,7 +135,9 @@ export default function InvoicePrintViewPage() {
             {parseFloat(invoice.totalChargesAmount) > 0 && (
               <div className="flex justify-between text-neutral-600">
                 <span>Charges / Tax</span>
-                <span>{formatCurrency(parseFloat(invoice.totalChargesAmount), invoice.currency)}</span>
+                <span>
+                  {formatCurrency(parseFloat(invoice.totalChargesAmount), invoice.currency)}
+                </span>
               </div>
             )}
             <div className="flex justify-between text-lg font-semibold text-neutral-900 pt-4 border-t border-neutral-200">

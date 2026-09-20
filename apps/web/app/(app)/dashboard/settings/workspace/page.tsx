@@ -1,18 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiUrl } from "@/lib/constants";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Can } from "@/components/features/auth/can";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { apiUrl } from "@/lib/constants";
 
 export default function WorkspaceSettingsPage() {
   const queryClient = useQueryClient();
   const [selectedColumns, setSelectedColumns] = useState<string[]>([]);
-  
+
   const { data: orgSettings, isLoading: settingsLoading } = useQuery({
     queryKey: ["org-settings"],
     queryFn: async () => {
@@ -26,7 +26,9 @@ export default function WorkspaceSettingsPage() {
   const { data: customFields, isLoading: fieldsLoading } = useQuery({
     queryKey: ["custom-fields", "project"],
     queryFn: async () => {
-      const res = await fetch(`${apiUrl}/api/workspaces/custom-fields?entityType=project`, { credentials: "include" });
+      const res = await fetch(`${apiUrl}/api/workspaces/custom-fields?entityType=project`, {
+        credentials: "include",
+      });
       if (!res.ok) throw new Error("Failed to fetch custom fields");
       return res.json();
     },
@@ -36,7 +38,12 @@ export default function WorkspaceSettingsPage() {
     if (orgSettings?.clientFileViewColumns) {
       setSelectedColumns(orgSettings.clientFileViewColumns);
     } else {
-      setSelectedColumns(["sys-project-name", "sys-project-status", "arrival_date", "total_expenses"]);
+      setSelectedColumns([
+        "sys-project-name",
+        "sys-project-status",
+        "arrival_date",
+        "total_expenses",
+      ]);
     }
   }, [orgSettings]);
 
@@ -62,20 +69,20 @@ export default function WorkspaceSettingsPage() {
 
   const handleSave = () => {
     updateSettingsMutation.mutate({
-      clientFileViewColumns: selectedColumns
+      clientFileViewColumns: selectedColumns,
     });
   };
 
   const toggleColumn = (col: string) => {
-    setSelectedColumns(prev => 
-      prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col]
+    setSelectedColumns((prev) =>
+      prev.includes(col) ? prev.filter((c) => c !== col) : [...prev, col],
     );
   };
 
   const systemFields = [
     { key: "sys-project-name", label: "File Name" },
     { key: "sys-project-status", label: "Status" },
-    { key: "total_expenses", label: "Total Expenses" }
+    { key: "total_expenses", label: "Total Expenses" },
   ];
 
   if (settingsLoading || fieldsLoading) return <div>Loading...</div>;
@@ -83,7 +90,9 @@ export default function WorkspaceSettingsPage() {
   const AccessDenied = (
     <div className="flex flex-col items-center justify-center h-[50vh] text-center space-y-4">
       <h1 className="text-2xl font-bold">Access Denied</h1>
-      <p className="text-muted-foreground">You do not have permission to manage workspace settings.</p>
+      <p className="text-muted-foreground">
+        You do not have permission to manage workspace settings.
+      </p>
     </div>
   );
 
@@ -92,23 +101,26 @@ export default function WorkspaceSettingsPage() {
       <div className="space-y-6 max-w-2xl">
         <div>
           <h1 className="text-2xl font-bold tracking-tight mb-2">Workspace Settings</h1>
-          <p className="text-muted-foreground">Configure organization-wide defaults and settings.</p>
+          <p className="text-muted-foreground">
+            Configure organization-wide defaults and settings.
+          </p>
         </div>
 
         <div className="space-y-4 border p-4 rounded-md bg-card">
           <div>
             <h3 className="text-lg font-medium">Client Details: File View Columns</h3>
             <p className="text-sm text-muted-foreground mb-4">
-              Select which columns should be visible when viewing a client's files across the organization.
+              Select which columns should be visible when viewing a client's files across the
+              organization.
             </p>
           </div>
 
           <div className="space-y-2">
             <h4 className="text-sm font-semibold text-muted-foreground">System Fields</h4>
-            {systemFields.map(field => (
+            {systemFields.map((field) => (
               <div key={field.key} className="flex items-center space-x-2">
-                <Checkbox 
-                  id={`col-${field.key}`} 
+                <Checkbox
+                  id={`col-${field.key}`}
                   checked={selectedColumns.includes(field.key)}
                   onCheckedChange={() => toggleColumn(field.key)}
                 />
@@ -122,8 +134,8 @@ export default function WorkspaceSettingsPage() {
               <h4 className="text-sm font-semibold text-muted-foreground">Custom Fields</h4>
               {customFields.map((field: any) => (
                 <div key={field.id} className="flex items-center space-x-2">
-                  <Checkbox 
-                    id={`col-${field.fieldKey}`} 
+                  <Checkbox
+                    id={`col-${field.fieldKey}`}
                     checked={selectedColumns.includes(field.fieldKey)}
                     onCheckedChange={() => toggleColumn(field.fieldKey)}
                   />
@@ -134,10 +146,7 @@ export default function WorkspaceSettingsPage() {
           )}
 
           <div className="pt-4 border-t mt-4 flex justify-end">
-            <Button 
-              onClick={handleSave} 
-              disabled={updateSettingsMutation.isPending}
-            >
+            <Button onClick={handleSave} disabled={updateSettingsMutation.isPending}>
               {updateSettingsMutation.isPending ? "Saving..." : "Save Settings"}
             </Button>
           </div>

@@ -8,10 +8,17 @@ import { deleteRow } from "./delete-row.controller";
  * Auth cases  : 401 for every endpoint
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  makeCtx, makeRow, makeRowCharge, makeSelectChain,
-  ORG_ID, TEMPLATE_ID, SECTION_ID, ROW_ID, CHARGE_ID,
+  CHARGE_ID,
+  makeCtx,
+  makeRow,
+  makeRowCharge,
+  makeSelectChain,
+  ORG_ID,
+  ROW_ID,
+  SECTION_ID,
+  TEMPLATE_ID,
 } from "../../invoice-templates.fixtures";
 
 // ─── hoisted chain builder used inside the vi.mock factory ────────────────────
@@ -57,14 +64,32 @@ vi.mock("@starter/db", () => {
 
   return {
     db: dbObj,
-    eq, and, asc,
+    eq,
+    and,
+    asc,
     encodeFormula: vi.fn((f: any) => f),
     decodeFormula: vi.fn((f: any) => f),
     templateSections: { id: "sec-id", templateId: "sec-templateId" },
     invoiceTemplates: { id: "tpl-id", organizationId: "tpl-orgId" },
-    templateRows: { id: "row-id", templateId: "row-templateId", sectionId: "row-sectionId", rowToken: "rowToken", sortOrder: "sortOrder" },
-    templateRowCharges: { id: "ch-id", rowId: "ch-rowId", sortOrder: "sortOrder", chargeToken: "ch-chargeToken" },
-    templateSectionCharges: { id: "sc-id", templateId: "sc-templateId", sectionId: "sc-sectionId", sortOrder: "sc-sortOrder" },
+    templateRows: {
+      id: "row-id",
+      templateId: "row-templateId",
+      sectionId: "row-sectionId",
+      rowToken: "rowToken",
+      sortOrder: "sortOrder",
+    },
+    templateRowCharges: {
+      id: "ch-id",
+      rowId: "ch-rowId",
+      sortOrder: "sortOrder",
+      chargeToken: "ch-chargeToken",
+    },
+    templateSectionCharges: {
+      id: "sc-id",
+      templateId: "sc-templateId",
+      sectionId: "sc-sectionId",
+      sortOrder: "sc-sortOrder",
+    },
     templateConstants: { id: "c-id", templateId: "c-templateId", token: "c-token" },
   };
 });
@@ -76,10 +101,17 @@ import { db } from "@starter/db";
 /** Queue up all 4 selects for section-ownership flow (section check + 3 index builders) */
 function mockSectionOwned(templateId = TEMPLATE_ID) {
   (db.select as any)
-    .mockReturnValueOnce(hoistedChain([{ section: { id: SECTION_ID, templateId, sectionToken: "SECTION_A" }, templateOrgId: ORG_ID }]))
-    .mockReturnValueOnce(hoistedChain([]))   // buildRowIndex
-    .mockReturnValueOnce(hoistedChain([]))   // buildSectionIndex
-    .mockReturnValueOnce(hoistedChain([]));  // buildConstantIndex
+    .mockReturnValueOnce(
+      hoistedChain([
+        {
+          section: { id: SECTION_ID, templateId, sectionToken: "SECTION_A" },
+          templateOrgId: ORG_ID,
+        },
+      ]),
+    )
+    .mockReturnValueOnce(hoistedChain([])) // buildRowIndex
+    .mockReturnValueOnce(hoistedChain([])) // buildSectionIndex
+    .mockReturnValueOnce(hoistedChain([])); // buildConstantIndex
 }
 
 function mockSectionNotFound() {
@@ -90,9 +122,9 @@ function mockSectionNotFound() {
 function mockRowOwned(row = makeRow()) {
   (db.select as any)
     .mockReturnValueOnce(hoistedChain([{ row, orgId: ORG_ID }]))
-    .mockReturnValueOnce(hoistedChain([]))   // buildRowIndex (collision check)
-    .mockReturnValueOnce(hoistedChain([]))   // buildSectionIndex
-    .mockReturnValueOnce(hoistedChain([]));  // buildConstantIndex
+    .mockReturnValueOnce(hoistedChain([])) // buildRowIndex (collision check)
+    .mockReturnValueOnce(hoistedChain([])) // buildSectionIndex
+    .mockReturnValueOnce(hoistedChain([])); // buildConstantIndex
 }
 
 function mockRowNotFound() {
@@ -122,35 +154,33 @@ function mockTransaction(result: any) {
 
 // ─── TESTS ────────────────────────────────────────────────────────────────────
 
-
 describe("TemplateRowsController - deleteRow", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     (db.transaction as any).mockImplementation(async (fn: any) => fn(db));
   });
 
-describe("deleteRow", () => {
-  it("returns 401 when unauthenticated", async () => {
-    const ctx = makeCtx({ orgId: null, params: { rowId: ROW_ID } });
-    const res = await deleteRow(ctx);
-    expect(res.status).toBe(401);
-  });
+  describe("deleteRow", () => {
+    it("returns 401 when unauthenticated", async () => {
+      const ctx = makeCtx({ orgId: null, params: { rowId: ROW_ID } });
+      const res = await deleteRow(ctx);
+      expect(res.status).toBe(401);
+    });
 
-  it("returns 404 when row not found", async () => {
-    mockRowNotFound();
-    const ctx = makeCtx({ params: { rowId: ROW_ID } });
-    const res = await deleteRow(ctx);
-    expect(res.status).toBe(404);
-  });
+    it("returns 404 when row not found", async () => {
+      mockRowNotFound();
+      const ctx = makeCtx({ params: { rowId: ROW_ID } });
+      const res = await deleteRow(ctx);
+      expect(res.status).toBe(404);
+    });
 
-  it("deletes row and returns {success:true}", async () => {
-    (db.select as any).mockReturnValueOnce(hoistedChain([{ orgId: ORG_ID }]));
-    (db.delete as any).mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) });
-    const ctx = makeCtx({ params: { rowId: ROW_ID } });
-    const res = await deleteRow(ctx);
-    expect(res.status).toBe(200);
-    expect((res as any).data.success).toBe(true);
+    it("deletes row and returns {success:true}", async () => {
+      (db.select as any).mockReturnValueOnce(hoistedChain([{ orgId: ORG_ID }]));
+      (db.delete as any).mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) });
+      const ctx = makeCtx({ params: { rowId: ROW_ID } });
+      const res = await deleteRow(ctx);
+      expect(res.status).toBe(200);
+      expect((res as any).data.success).toBe(true);
+    });
   });
-});
-
 });

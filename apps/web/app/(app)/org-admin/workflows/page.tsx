@@ -1,12 +1,12 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { apiUrl } from "@/lib/constants";
-import { WorkflowBuilder } from "@/components/features/workflows/workflow-builder";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useRouter } from "next/navigation";
 import { ArrowLeft, GitBranch } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { WorkflowBuilder } from "@/components/features/workflows/workflow-builder";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { apiUrl } from "@/lib/constants";
 
 export default function WorkflowsPage() {
   const router = useRouter();
@@ -14,7 +14,9 @@ export default function WorkflowsPage() {
   const { data: statuses, isLoading: loadingStatuses } = useQuery({
     queryKey: ["project-statuses"],
     queryFn: async () => {
-      const res = await fetch(`${apiUrl}/api/workspaces/projects/statuses`, { credentials: "include" });
+      const res = await fetch(`${apiUrl}/api/workspaces/projects/statuses`, {
+        credentials: "include",
+      });
       if (!res.ok) throw new Error("Failed to fetch project statuses");
       return res.json();
     },
@@ -64,7 +66,8 @@ export default function WorkflowsPage() {
             <div>
               <h1 className="text-2xl font-bold tracking-tight">Project Workflows</h1>
               <p className="text-[14px] text-muted-foreground mt-0.5">
-                Configure the state machine for project files — define stages, transitions, and field gates.
+                Configure the state machine for project files — define stages, transitions, and
+                field gates.
               </p>
             </div>
           </div>
@@ -72,11 +75,7 @@ export default function WorkflowsPage() {
       </div>
 
       {/* Workflow Builder */}
-      <WorkflowBuilder
-        initialStatuses={statuses}
-        customFields={customFields}
-        disabled={false}
-      />
+      <WorkflowBuilder initialStatuses={statuses} customFields={customFields} disabled={false} />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { Loader2 } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -10,7 +11,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Loader2 } from "lucide-react";
 
 interface ArchiveModalProps {
   isOpen: boolean;
@@ -33,8 +33,8 @@ export function ArchiveModal({
         <AlertDialogHeader>
           <AlertDialogTitle>Are you sure?</AlertDialogTitle>
           <AlertDialogDescription>
-            You are about to archive <strong>{entityName}</strong>. 
-            Archived items are hidden from active views but can be restored later.
+            You are about to archive <strong>{entityName}</strong>. Archived items are hidden from
+            active views but can be restored later.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

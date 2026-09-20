@@ -1,6 +1,6 @@
+import { db, invoiceTemplates, templateSectionCharges, templateSections } from "@starter/db";
+import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
-import { db, templateSectionCharges, templateSections, invoiceTemplates } from "@starter/db";
-import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 
 export async function deleteSectionCharge(c: Context) {
@@ -16,8 +16,8 @@ export async function deleteSectionCharge(c: Context) {
     .where(
       and(
         eq(templateSectionCharges.id, chargeId),
-        eq(invoiceTemplates.organizationId, organizationId)
-      )
+        eq(invoiceTemplates.organizationId, organizationId),
+      ),
     )
     .limit(1);
 
@@ -38,10 +38,7 @@ export async function reorderSectionCharges(c: Context) {
     .from(templateSections)
     .innerJoin(invoiceTemplates, eq(templateSections.templateId, invoiceTemplates.id))
     .where(
-      and(
-        eq(templateSections.id, sectionId),
-        eq(invoiceTemplates.organizationId, organizationId)
-      )
+      and(eq(templateSections.id, sectionId), eq(invoiceTemplates.organizationId, organizationId)),
     )
     .limit(1);
   if (secCheck.length === 0) return c.json({ error: "Section not found" }, 404);
@@ -59,12 +56,9 @@ export async function reorderSectionCharges(c: Context) {
           .update(templateSectionCharges)
           .set({ sortOrder: index })
           .where(
-            and(
-              eq(templateSectionCharges.id, id),
-              eq(templateSectionCharges.sectionId, sectionId)
-            )
-          )
-      )
+            and(eq(templateSectionCharges.id, id), eq(templateSectionCharges.sectionId, sectionId)),
+          ),
+      ),
     );
   });
 

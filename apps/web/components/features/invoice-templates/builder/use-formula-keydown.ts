@@ -2,8 +2,8 @@
 
 import { useCallback } from "react";
 import { toast } from "sonner";
-import { getLastWord } from "./formula-bar-utils";
 import type { SelectedCell } from "./builder-context";
+import { getChunkAtCursor, getLastWord, isValidTokenPrefix } from "./formula-bar-utils";
 
 export interface UseFormulaKeyDownProps {
   inputValue: string;
@@ -18,6 +18,9 @@ export interface UseFormulaKeyDownProps {
   setAcState: React.Dispatch<React.SetStateAction<{ items: string[]; activeIdx: number }>>;
   handleSave: () => void;
   setSelectedCell: (cell: SelectedCell | null) => void;
+  currentToken?: string;
+  onUndo?: () => void;
+  onRedo?: () => void;
 }
 
 export function useFormulaKeyDown({
@@ -33,10 +36,31 @@ export function useFormulaKeyDown({
   setAcState,
   handleSave,
   setSelectedCell,
+  currentToken,
   invalidTokens = new Set<string>(),
+  onUndo,
+  onRedo,
 }: UseFormulaKeyDownProps & { invalidTokens?: Set<string> }) {
   return useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
+      // ── Undo (Ctrl+Z) & Redo (Ctrl+Shift+Z) ──
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key.toLowerCase() === "z") {
+          e.preventDefault();
+          if (e.shiftKey) {
+            onRedo?.();
+          } else {
+            onUndo?.();
+          }
+          return;
+        }
+        if (e.key.toLowerCase() === "y") {
+          // Explicitly block Ctrl+Y (replaced by Ctrl+Shift+Z)
+          e.preventDefault();
+          return;
+        }
+      }
+
       // ── Autocomplete navigation ──
       if (acVisible) {
         if (e.key === "ArrowDown") {
@@ -44,7 +68,7 @@ export function useFormulaKeyDown({
           // Find next valid index
           let nextIdx = ac.activeIdx + 1;
           while (nextIdx < ac.items.length && invalidTokens.has(ac.items[nextIdx])) {
-             nextIdx++;
+            nextIdx++;
           }
           if (nextIdx < ac.items.length) setActiveIdx(nextIdx);
           return;
@@ -54,7 +78,7 @@ export function useFormulaKeyDown({
           // Find prev valid index
           let prevIdx = ac.activeIdx - 1;
           while (prevIdx >= 0 && invalidTokens.has(ac.items[prevIdx])) {
-             prevIdx--;
+            prevIdx--;
           }
           if (prevIdx >= 0) setActiveIdx(prevIdx);
           return;
@@ -72,16 +96,30 @@ export function useFormulaKeyDown({
         }
       }
 
-      if (e.key === "Enter") { e.preventDefault(); handleSave(); return; }
-      if (e.key === "Escape") { e.preventDefault(); setSelectedCell(null); isDirty.current = false; return; }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        handleSave();
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setSelectedCell(null);
+        isDirty.current = false;
+        return;
+      }
 
       // Control / navigation keys always pass through (except Backspace which we handle smartly)
       if (
-        e.ctrlKey || e.metaKey || e.altKey ||
+        e.ctrlKey ||
+        e.metaKey ||
+        e.altKey ||
         e.key === "Delete" ||
-        e.key.startsWith("Arrow") || e.key === "Home" || e.key === "End" ||
+        e.key.startsWith("Arrow") ||
+        e.key === "Home" ||
+        e.key === "End" ||
         e.key === "Tab"
-      ) return;
+      )
+        return;
 
       // Smart Backspace: delete spaced operators as a single block
       if (e.key === "Backspace") {
@@ -100,7 +138,10 @@ export function useFormulaKeyDown({
             const newVal = before.slice(0, -toRemove) + after;
             setInputValue(newVal);
             isDirty.current = true;
-            setTimeout(() => inputRef.current?.setSelectionRange(selStart - toRemove, selStart - toRemove), 0);
+            setTimeout(
+              () => inputRef.current?.setSelectionRange(selStart - toRemove, selStart - toRemove),
+              0,
+            );
             return;
           }
 
@@ -112,7 +153,10 @@ export function useFormulaKeyDown({
             const newVal = before.slice(0, -toRemove) + after;
             setInputValue(newVal);
             isDirty.current = true;
-            setTimeout(() => inputRef.current?.setSelectionRange(selStart - toRemove, selStart - toRemove), 0);
+            setTimeout(
+              () => inputRef.current?.setSelectionRange(selStart - toRemove, selStart - toRemove),
+              0,
+            );
             return;
           }
 
@@ -132,10 +176,29 @@ export function useFormulaKeyDown({
             return;
           }
         }
+
+        // 5. Prefix validation
+        if (selStart > 0) {
+          const charToDelete = inputValue[selStart - 1];
+          if (charToDelete !== " ") {
+            const chunk = getChunkAtCursor(inputValue, selStart - 1);
+            if (chunk && /^[A-Za-z0-9_.]+$/.test(chunk.text)) {
+              const relativePos = selStart - 1 - chunk.start;
+              const newChunkText =
+                chunk.text.slice(0, relativePos) + chunk.text.slice(relativePos + 1);
+              if (newChunkText.length > 0 && !isValidTokenPrefix(newChunkText, allTokens)) {
+                e.preventDefault();
+                toast.error(`Cannot delete: "${newChunkText}" does not match any valid token.`);
+                return;
+              }
+            }
+          }
+        }
+
         return; // let normal backspace pass through otherwise
       }
 
-      // Block manual Delete of spaces
+      // Block manual Delete of spaces and apply prefix validation
       if (e.key === "Delete") {
         const target = e.target as HTMLInputElement;
         const selStart = target.selectionStart ?? inputValue.length;
@@ -144,6 +207,22 @@ export function useFormulaKeyDown({
           if (inputValue[selStart] === " ") {
             e.preventDefault();
             return;
+          }
+
+          // Prefix validation for forward delete
+          const charToDelete = inputValue[selStart];
+          if (charToDelete !== " ") {
+            const chunk = getChunkAtCursor(inputValue, selStart);
+            if (chunk && /^[A-Za-z0-9_.]+$/.test(chunk.text)) {
+              const relativePos = selStart - chunk.start;
+              const newChunkText =
+                chunk.text.slice(0, relativePos) + chunk.text.slice(relativePos + 1);
+              if (newChunkText.length > 0 && !isValidTokenPrefix(newChunkText, allTokens)) {
+                e.preventDefault();
+                toast.error(`Cannot delete: "${newChunkText}" does not match any valid token.`);
+                return;
+              }
+            }
           }
         }
         return;
@@ -161,7 +240,7 @@ export function useFormulaKeyDown({
 
         const candidate = currentLastWord + "_";
         const hasMatches = allTokens.some(
-          (t) => t.startsWith(candidate) || t.includes("_" + candidate)
+          (t) => t.startsWith(candidate) || t.includes("_" + candidate),
         );
 
         if (hasMatches) {
@@ -186,7 +265,7 @@ export function useFormulaKeyDown({
 
         const candidate = currentLastWord + "_";
         const hasMatches = allTokens.some(
-          (t) => t.startsWith(candidate) || t.includes("_" + candidate)
+          (t) => t.startsWith(candidate) || t.includes("_" + candidate),
         );
 
         if (hasMatches) {
@@ -244,44 +323,74 @@ export function useFormulaKeyDown({
           const selEnd = target.selectionEnd ?? inputValue.length;
           const before = inputValue.slice(0, selStart);
           const after = inputValue.slice(selEnd);
-
-          // Block operator if current last word is an incomplete token
           const trimmedBefore = before.trimEnd();
-          const lastWordMatch = trimmedBefore.match(/[A-Z0-9_]+$/);
-          const lastWordInBuf = lastWordMatch ? lastWordMatch[0] : "";
-          if (lastWordInBuf && !allTokens.includes(lastWordInBuf) && !/^[0-9.]+$/.test(lastWordInBuf)) {
-            toast.error(`"${lastWordInBuf}" is not a complete token. Finish the token before adding an operator.`);
+
+          // Block operator if formula is empty or begins after (
+          if (trimmedBefore.length === 0) {
+            toast.error("Formula cannot start with an operator.");
+            return;
+          }
+          if (trimmedBefore.endsWith("(")) {
+            toast.error("Cannot place an operator directly after '('.");
             return;
           }
 
-          // Bug B fix: block consecutive operators
-          // (The `//` case is handled below — second `/` converts " / " → " // ")
+          // Block operator if current last word is an incomplete token
+          const lastWordMatch = trimmedBefore.match(/[A-Z0-9_]+$/);
+          const lastWordInBuf = lastWordMatch ? lastWordMatch[0] : "";
+          if (lastWordInBuf && !/^[0-9.]+$/.test(lastWordInBuf)) {
+            if (
+              currentToken &&
+              (lastWordInBuf === currentToken || lastWordInBuf === `${currentToken}_TOTAL`)
+            ) {
+              toast.error(
+                `Circular reference: a formula cannot reference its own token "${lastWordInBuf}"`,
+              );
+              return;
+            }
+            if (invalidTokens.has(lastWordInBuf)) {
+              toast.error(`Circular reference: "${lastWordInBuf}" depends on the current cell.`);
+              return;
+            }
+            if (!allTokens.includes(lastWordInBuf)) {
+              toast.error(
+                `"${lastWordInBuf}" is not a complete token. Finish the token before adding an operator.`,
+              );
+              return;
+            }
+          }
+
+          // Handle `//` (second `/` after " / ")
+          if (
+            e.key === "/" &&
+            (before.endsWith(" / ") || (before.endsWith(" /") && after.startsWith(" ")))
+          ) {
+            const beforeSlash = before.replace(/\s*\/\s*$/, "").trimEnd();
+            const cleanAfter = after.trimStart();
+            const newVal = beforeSlash + " // " + cleanAfter;
+            setInputValue(newVal);
+            isDirty.current = true;
+            const newPos = beforeSlash.length + 4;
+            setTimeout(() => inputRef.current?.setSelectionRange(newPos, newPos), 0);
+            return;
+          }
+
+          // Block consecutive operators
           const lastMeaningfulChar = trimmedBefore[trimmedBefore.length - 1];
-          // Only block if it's NOT the second `/` that would form `//`
-          const wouldFormDoubleSlash = e.key === "/" && before.endsWith(" / ");
-          if (!wouldFormDoubleSlash && lastMeaningfulChar && /[+\-*\/%]/.test(lastMeaningfulChar)) {
+          if (lastMeaningfulChar && /[+\-*/%]/.test(lastMeaningfulChar)) {
             // Consecutive operators — silent reject
             return;
           }
 
-          // Handle `//`
-          if (e.key === "/" && before.endsWith(" / ")) {
-            const newVal = before.slice(0, -3) + " // " + after;
-            setInputValue(newVal);
-            isDirty.current = true;
-            setTimeout(() => inputRef.current?.setSelectionRange(selStart + 1, selStart + 1), 0);
-            return;
-          }
-
-          const padLeft = before.endsWith(" ") || before === "" || before.endsWith("(") ? "" : " ";
-          const padRight = after.startsWith(" ") ? "" : " ";
-
-          const newVal = before + padLeft + e.key + padRight + after;
+          // Strictly enforce single spaces on both sides of binary operators
+          const cleanBefore = before.trimEnd();
+          const cleanAfter = after.trimStart();
+          const newVal = cleanBefore + " " + e.key + " " + cleanAfter;
           setInputValue(newVal);
           isDirty.current = true;
 
           setTimeout(() => {
-            const newPos = before.length + padLeft.length + 1 + padRight.length;
+            const newPos = cleanBefore.length + 1 + e.key.length + 1;
             inputRef.current?.setSelectionRange(newPos, newPos);
           }, 0);
           return;
@@ -300,9 +409,26 @@ export function useFormulaKeyDown({
           const lastWordInBuf = lastWordMatch ? lastWordMatch[0] : "";
 
           // Block ( after incomplete token
-          if (lastWordInBuf && !allTokens.includes(lastWordInBuf) && !/^[0-9.]+$/.test(lastWordInBuf)) {
-            toast.error(`"${lastWordInBuf}" is not a complete token. Finish the token before adding (.`);
-            return;
+          if (lastWordInBuf && !/^[0-9.]+$/.test(lastWordInBuf)) {
+            if (
+              currentToken &&
+              (lastWordInBuf === currentToken || lastWordInBuf === `${currentToken}_TOTAL`)
+            ) {
+              toast.error(
+                `Circular reference: a formula cannot reference its own token "${lastWordInBuf}"`,
+              );
+              return;
+            }
+            if (invalidTokens.has(lastWordInBuf)) {
+              toast.error(`Circular reference: "${lastWordInBuf}" depends on the current cell.`);
+              return;
+            }
+            if (!allTokens.includes(lastWordInBuf)) {
+              toast.error(
+                `"${lastWordInBuf}" is not a complete token. Finish the token before adding (.`,
+              );
+              return;
+            }
           }
           // Block ( directly after a complete token or number (needs operator in between)
           const lastActualChar = trimmedBefore[trimmedBefore.length - 1];
@@ -333,19 +459,36 @@ export function useFormulaKeyDown({
 
           // Bug D fix: block % after any complete token (word chars ending with letters/underscore)
           if (lastWordInBuf) {
-            if (!allTokens.includes(lastWordInBuf) && !/^[0-9.]+$/.test(lastWordInBuf)) {
-              // Incomplete token
+            if (!/^[0-9.]+$/.test(lastWordInBuf)) {
+              if (
+                currentToken &&
+                (lastWordInBuf === currentToken || lastWordInBuf === `${currentToken}_TOTAL`)
+              ) {
+                e.preventDefault();
+                toast.error(
+                  `Circular reference: a formula cannot reference its own token "${lastWordInBuf}"`,
+                );
+                return;
+              }
+              if (invalidTokens.has(lastWordInBuf)) {
+                e.preventDefault();
+                toast.error(`Circular reference: "${lastWordInBuf}" depends on the current cell.`);
+                return;
+              }
+              if (!allTokens.includes(lastWordInBuf)) {
+                // Incomplete token
+                e.preventDefault();
+                toast.error(
+                  `"${lastWordInBuf}" is not a complete token. Finish the token before adding %.`,
+                );
+                return;
+              }
+              // Complete token
               e.preventDefault();
-              toast.error(`"${lastWordInBuf}" is not a complete token. Finish the token before adding %.`);
+              toast.error("Percentage (%) can only be added to numbers.");
               return;
             }
-            // Complete token but % is not valid after a token (only after numbers)
-            if (allTokens.includes(lastWordInBuf)) {
-              e.preventDefault();
-              return; // silent reject — % is only valid after numbers
-            }
-          }
-          // Let % pass through natively (valid after a number like 50%)
+          } // Let % pass through natively (valid after a number like 50%)
           return;
         }
 
@@ -353,7 +496,7 @@ export function useFormulaKeyDown({
         return;
       }
 
-      // Letter typing: validate against active tokens with auto-capitalization & auto-underscore
+      // Letter typing: validate against active tokens with auto-capitalization & exact matching
       if (/^[a-zA-Z]$/.test(e.key)) {
         e.preventDefault();
         const upper = e.key.toUpperCase();
@@ -364,13 +507,10 @@ export function useFormulaKeyDown({
         const after = inputValue.slice(selEnd);
         const currentLastWord = getLastWord(before);
 
-        // Path A: Direct continuation (e.g. typing "P", "PO", "PORT")
+        // Exact match continuation (e.g. typing "P", "PO", "PORT")
         const directCandidate = currentLastWord ? currentLastWord + upper : upper;
         const hasDirectMatch = allTokens.some(
-          (t) =>
-            t.startsWith(directCandidate) ||
-            t.includes("_" + directCandidate) ||
-            t.includes(directCandidate)
+          (t) => t.startsWith(directCandidate) || t.includes(directCandidate),
         );
 
         if (hasDirectMatch) {
@@ -381,25 +521,6 @@ export function useFormulaKeyDown({
           return;
         }
 
-        // Path B: Missing underscore auto-insertion
-        if (currentLastWord && !before.endsWith("_")) {
-          const autoUnderscoreCandidate = currentLastWord + "_" + upper;
-          const hasUnderscoreMatch = allTokens.some(
-            (t) =>
-              t.startsWith(autoUnderscoreCandidate) ||
-              t.includes("_" + autoUnderscoreCandidate) ||
-              t.includes(autoUnderscoreCandidate)
-          );
-
-          if (hasUnderscoreMatch) {
-            const newVal = before + "_" + upper + after;
-            setInputValue(newVal);
-            isDirty.current = true;
-            setTimeout(() => inputRef.current?.setSelectionRange(selStart + 2, selStart + 2), 0);
-            return;
-          }
-        }
-
         // Keystroke does not match any token path -> reject
         return;
       }
@@ -408,6 +529,16 @@ export function useFormulaKeyDown({
       e.preventDefault();
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [acVisible, ac, setActiveIdx, insertToken, setAcState, handleSave, setSelectedCell, inputValue, allTokens]
+    [
+      acVisible,
+      ac,
+      setActiveIdx,
+      insertToken,
+      setAcState,
+      handleSave,
+      setSelectedCell,
+      inputValue,
+      allTokens,
+    ],
   );
 }

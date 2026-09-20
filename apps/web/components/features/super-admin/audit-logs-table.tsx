@@ -1,24 +1,20 @@
 "use client";
 
-import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { format } from "date-fns";
-import { ChevronLeft, ChevronRight, Loader2, ShieldCheck, Search } from "lucide-react";
-
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
+import { ChevronLeft, ChevronRight, Loader2, Search, ShieldCheck } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { apiUrl } from "@/lib/constants";
+import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  FilterableTableCell,
+  FilterableTableHeader,
+} from "@/components/ui/table-filter-components";
 import { useTableCellFilter } from "@/hooks/use-table-cell-filter";
-import { FilterableTableHeader, FilterableTableCell } from "@/components/ui/table-filter-components";
+import { apiUrl } from "@/lib/constants";
 
 interface AuditLog {
   id: string;
@@ -51,13 +47,8 @@ export function AuditLogsTable() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const {
-    filters,
-    toggleFilter,
-    clearColumnFilter,
-    filterRows,
-    isColumnFiltered,
-  } = useTableCellFilter();
+  const { filters, toggleFilter, clearColumnFilter, filterRows, isColumnFiltered } =
+    useTableCellFilter();
 
   const page = Number(searchParams.get("page") || "1");
   const actionFilter = searchParams.get("action") || "";
@@ -110,19 +101,20 @@ export function AuditLogsTable() {
   const totalPages = meta?.totalPages || 1;
 
   const getActionColor = (action: string) => {
-    if (action.includes("BAN") || action.includes("NUKE")) return "bg-destructive/10 text-destructive border-destructive/20";
-    if (action.includes("IMPERSONATE")) return "bg-amber-500/10 text-amber-500 border-amber-500/20";
+    if (action.includes("BAN") || action.includes("NUKE"))
+      return "bg-destructive/10 text-destructive border-destructive/20";
+    if (action.includes("IMPERSONATE")) return "bg-accent/10 text-accent-foreground border-amber-500/20";
     if (action.includes("ELEVATE")) return "bg-indigo-500/10 text-indigo-500 border-indigo-500/20";
     return "bg-muted text-muted-foreground border-border";
   };
 
   const extractors = useMemo(() => {
     return {
-      'timestamp': (l: AuditLog) => format(new Date(l.createdAt), "MMM d, yyyy HH:mm:ss"),
-      'action': (l: AuditLog) => l.action.replace("SECURITY_ENFORCEMENT_", ""),
-      'actor': (l: AuditLog) => l.adminEmail,
-      'target': (l: AuditLog) => l.targetEmail,
-      'reason': (l: AuditLog) => l.reason,
+      timestamp: (l: AuditLog) => format(new Date(l.createdAt), "MMM d, yyyy HH:mm:ss"),
+      action: (l: AuditLog) => l.action.replace("SECURITY_ENFORCEMENT_", ""),
+      actor: (l: AuditLog) => l.adminEmail,
+      target: (l: AuditLog) => l.targetEmail,
+      reason: (l: AuditLog) => l.reason,
     };
   }, []);
 
@@ -246,7 +238,10 @@ export function AuditLogsTable() {
                     isFiltered={isColumnFiltered("action")}
                     onToggleFilter={toggleFilter}
                   >
-                    <Badge className={`${getActionColor(log.action)} uppercase text-[10px] tracking-wider`} variant="outline">
+                    <Badge
+                      className={`${getActionColor(log.action)} uppercase text-[10px] tracking-wider`}
+                      variant="outline"
+                    >
                       {log.action.replace("SECURITY_ENFORCEMENT_", "")}
                     </Badge>
                   </FilterableTableCell>
@@ -258,7 +253,9 @@ export function AuditLogsTable() {
                   >
                     <div>
                       {log.adminEmail}
-                      <div className="text-[10px] text-muted-foreground font-normal mt-0.5">{log.ipAddress}</div>
+                      <div className="text-[10px] text-muted-foreground font-normal mt-0.5">
+                        {log.ipAddress}
+                      </div>
                     </div>
                   </FilterableTableCell>
                   <FilterableTableCell

@@ -6,7 +6,9 @@ export interface WorkspaceSlice {
   setActiveWorkspaceId: (id: string | null) => void;
 }
 
-export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [], [], WorkspaceSlice> = (set) => ({
+export const createWorkspaceSlice: StateCreator<WorkspaceSlice, [], [], WorkspaceSlice> = (
+  set,
+) => ({
   activeWorkspaceId: null,
   setActiveWorkspaceId: (id) => set({ activeWorkspaceId: id }),
 });

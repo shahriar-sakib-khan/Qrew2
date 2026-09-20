@@ -1,16 +1,25 @@
-import { type Context } from 'hono';
-import { z } from 'zod';
-import { db, projects, customFieldDefinitions, expenses, invoices, projectStatuses, projectStatusTransitions, projectStatusFields } from '@starter/db';
-import { type SQL, eq, and, ne, isNull, sql, sum, count, inArray } from 'drizzle-orm';
-import { v4 as uuidv4 } from 'uuid';
-import { createDynamicZodSchema } from '../custom-fields/custom-fields.service';
-import { logger } from '../../infra/lib/logger';
+import {
+  customFieldDefinitions,
+  db,
+  expenses,
+  invoices,
+  projectStatuses,
+  projectStatusFields,
+  projectStatusTransitions,
+  projects,
+} from "@starter/db";
+import { and, count, eq, inArray, isNull, ne, type SQL, sql, sum } from "drizzle-orm";
+import { type Context } from "hono";
+import { v4 as uuidv4 } from "uuid";
+import { z } from "zod";
+import { logger } from "../../infra/lib/logger";
+import { createDynamicZodSchema } from "../custom-fields/custom-fields.service";
 
-const log = logger.child({ module: 'projects' });
+const log = logger.child({ module: "projects" });
 
 const baseProjectSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  clientId: z.string().min(1, 'Client ID is required'),
+  name: z.string().min(1, "Name is required"),
+  clientId: z.string().min(1, "Client ID is required"),
   status: z.string().optional(),
 
   customFields: z.record(z.string(), z.any()).default({}), // We validate this deeper inside the controller
@@ -18,9 +27,9 @@ const baseProjectSchema = z.object({
 
 export class ProjectsController {
   static async listProjects(c: Context) {
-    const orgId = c.get('organizationId');
-    const clientId = c.req.query('clientId');
-    const statusFilter = c.req.query('status'); // 'archived' or 'active'
+    const orgId = c.get("organizationId");
+    const clientId = c.req.query("clientId");
+    const statusFilter = c.req.query("status"); // 'archived' or 'active'
 
     let conditions: SQL | undefined = eq(projects.organizationId, orgId);
     if (clientId) {
@@ -28,11 +37,11 @@ export class ProjectsController {
     }
 
     // Filter by status
-    if (statusFilter === 'archived') {
-      conditions = and(conditions, eq(projects.lifecycleState, 'archived'));
+    if (statusFilter === "archived") {
+      conditions = and(conditions, eq(projects.lifecycleState, "archived"));
     } else {
       // Default: show all non-archived
-      conditions = and(conditions, ne(projects.lifecycleState, 'archived'));
+      conditions = and(conditions, ne(projects.lifecycleState, "archived"));
     }
 
     const result = await db.query.projects.findMany({
@@ -43,11 +52,14 @@ export class ProjectsController {
 
     // Compute total expenses and invoice count per project in a single query
     const projectIds = result.map((p) => p.id);
-    let expenseTotals: Record<string, string> = {};
-    let invoiceCounts: Record<string, number> = {};
+    const expenseTotals: Record<string, string> = {};
+    const invoiceCounts: Record<string, number> = {};
 
     if (projectIds.length > 0) {
-      const inClause = sql`${projects.id} IN (${sql.join(projectIds.map(id => sql`${id}`), sql`, `)})`; // safe placeholder trick
+      const inClause = sql`${projects.id} IN (${sql.join(
+        projectIds.map((id) => sql`${id}`),
+        sql`, `,
+      )})`; // safe placeholder trick
 
       const totals = await db
         .select({
@@ -58,14 +70,17 @@ export class ProjectsController {
         .where(
           and(
             eq(expenses.organizationId, orgId),
-            sql`${expenses.projectId} IN (${sql.join(projectIds.map(id => sql`${id}`), sql`, `)})`
-          )
+            sql`${expenses.projectId} IN (${sql.join(
+              projectIds.map((id) => sql`${id}`),
+              sql`, `,
+            )})`,
+          ),
         )
         .groupBy(expenses.projectId);
 
       for (const row of totals) {
         if (row.projectId) {
-          expenseTotals[row.projectId] = row.total || '0';
+          expenseTotals[row.projectId] = row.total || "0";
         }
       }
 
@@ -78,8 +93,11 @@ export class ProjectsController {
         .where(
           and(
             eq(invoices.organizationId, orgId),
-            sql`${invoices.projectId} IN (${sql.join(projectIds.map(id => sql`${id}`), sql`, `)})`
-          )
+            sql`${invoices.projectId} IN (${sql.join(
+              projectIds.map((id) => sql`${id}`),
+              sql`, `,
+            )})`,
+          ),
         )
         .groupBy(invoices.projectId);
 
@@ -93,35 +111,35 @@ export class ProjectsController {
     // Merge totalExpenses and invoiceCounts into each project
     const enrichedResult = result.map((project) => ({
       ...project,
-      totalExpenses: expenseTotals[project.id] || '0',
+      totalExpenses: expenseTotals[project.id] || "0",
       invoiceCount: invoiceCounts[project.id] || 0,
     }));
 
-    const { scrubEntityData, getScrubberConfig } = await import('../../infra/lib/data-scrubber');
-    const scrubberConfig = await getScrubberConfig(c, 'project');
-    const scrubbedResult = enrichedResult.map(p => scrubEntityData(p, scrubberConfig, 'project'));
+    const { scrubEntityData, getScrubberConfig } = await import("../../infra/lib/data-scrubber");
+    const scrubberConfig = await getScrubberConfig(c, "project");
+    const scrubbedResult = enrichedResult.map((p) => scrubEntityData(p, scrubberConfig, "project"));
 
     return c.json(scrubbedResult);
   }
 
   static async createProject(c: Context) {
-    const orgId = c.get('organizationId');
+    const orgId = c.get("organizationId");
     const body = await c.req.json();
-    
+
     const baseValidation = baseProjectSchema.safeParse(body);
     if (!baseValidation.success) {
-      return c.json({ error: 'Validation Error', details: baseValidation.error.format() }, 400);
+      return c.json({ error: "Validation Error", details: baseValidation.error.format() }, 400);
     }
 
     const defaultStatus = await db.query.projectStatuses.findFirst({
-      where: and(
-        eq(projectStatuses.organizationId, orgId),
-        eq(projectStatuses.isDefault, true)
-      )
+      where: and(eq(projectStatuses.organizationId, orgId), eq(projectStatuses.isDefault, true)),
     });
 
     if (!defaultStatus) {
-      return c.json({ error: 'System Configuration Error: No default status found for this organization.' }, 500);
+      return c.json(
+        { error: "System Configuration Error: No default status found for this organization." },
+        500,
+      );
     }
 
     // Fetch ALL project custom field definitions for this org (no status filter needed;
@@ -129,15 +147,18 @@ export class ProjectsController {
     const definitions = await db.query.customFieldDefinitions.findMany({
       where: and(
         eq(customFieldDefinitions.organizationId, orgId),
-        eq(customFieldDefinitions.entityType, 'project')
-      )
+        eq(customFieldDefinitions.entityType, "project"),
+      ),
     });
 
     const dynamicSchema = createDynamicZodSchema(definitions);
     const customFieldsValidation = dynamicSchema.safeParse(baseValidation.data.customFields);
 
     if (!customFieldsValidation.success) {
-      return c.json({ error: 'Custom Fields Validation Error', details: customFieldsValidation.error.format() }, 400);
+      return c.json(
+        { error: "Custom Fields Validation Error", details: customFieldsValidation.error.format() },
+        400,
+      );
     }
 
     const currentYear = new Date().getFullYear();
@@ -154,63 +175,70 @@ export class ProjectsController {
         and(
           eq(projects.organizationId, orgId),
           sql`${projects.createdAt} >= ${firstDayOfMonth.toISOString()}`,
-          sql`${projects.createdAt} < ${firstDayOfNextMonth.toISOString()}`
-        )
+          sql`${projects.createdAt} < ${firstDayOfNextMonth.toISOString()}`,
+        ),
       );
 
     const nextSeq = (maxSeq?.max || 0) + 1;
 
-    const [newProject] = await db.insert(projects).values({
-      id: uuidv4(),
-      organizationId: orgId,
-      clientId: baseValidation.data.clientId,
-      name: baseValidation.data.name,
-      status: defaultStatus.id,
-      fileSequenceNumber: nextSeq,
-      customFields: customFieldsValidation.data,
-    }).returning();
+    const [newProject] = await db
+      .insert(projects)
+      .values({
+        id: uuidv4(),
+        organizationId: orgId,
+        clientId: baseValidation.data.clientId,
+        name: baseValidation.data.name,
+        status: defaultStatus.id,
+        fileSequenceNumber: nextSeq,
+        customFields: customFieldsValidation.data,
+      })
+      .returning();
 
-    log.info({ orgId, projectId: newProject.id }, 'Created new project');
+    log.info({ orgId, projectId: newProject.id }, "Created new project");
     return c.json(newProject, 201);
   }
 
   static async updateProject(c: Context) {
-    const orgId = c.get('organizationId');
-    const id = c.req.param('id');
+    const orgId = c.get("organizationId");
+    const id = c.req.param("id");
     if (!id) {
-      return c.json({ error: 'Missing ID' }, 400);
+      return c.json({ error: "Missing ID" }, 400);
     }
     const body = await c.req.json();
 
     const existing = await db.query.projects.findFirst({
-      where: and(eq(projects.id, id), eq(projects.organizationId, orgId))
+      where: and(eq(projects.id, id), eq(projects.organizationId, orgId)),
     });
 
-    if (!existing) return c.json({ error: 'Not Found' }, 404);
+    if (!existing) return c.json({ error: "Not Found" }, 404);
 
     const baseValidation = baseProjectSchema.safeParse(body);
     if (!baseValidation.success) {
-      return c.json({ error: 'Validation Error', details: baseValidation.error.format() }, 400);
+      return c.json({ error: "Validation Error", details: baseValidation.error.format() }, 400);
     }
 
     const definitions = await db.query.customFieldDefinitions.findMany({
       where: and(
         eq(customFieldDefinitions.organizationId, orgId),
-        eq(customFieldDefinitions.entityType, 'project')
-      )
+        eq(customFieldDefinitions.entityType, "project"),
+      ),
     });
 
     const dynamicSchema = createDynamicZodSchema(definitions);
     const customFieldsValidation = dynamicSchema.safeParse(baseValidation.data.customFields);
 
     if (!customFieldsValidation.success) {
-      return c.json({ 
-        error: 'Custom Fields Validation Error', 
-        details: customFieldsValidation.error.format() 
-      }, 400);
+      return c.json(
+        {
+          error: "Custom Fields Validation Error",
+          details: customFieldsValidation.error.format(),
+        },
+        400,
+      );
     }
 
-    const [updatedProject] = await db.update(projects)
+    const [updatedProject] = await db
+      .update(projects)
       .set({
         clientId: baseValidation.data.clientId,
         name: baseValidation.data.name,
@@ -224,24 +252,25 @@ export class ProjectsController {
   }
 
   static async archiveProject(c: Context) {
-    const orgId = c.get('organizationId');
-    const id = c.req.param('id');
+    const orgId = c.get("organizationId");
+    const id = c.req.param("id");
     if (!id) {
-      return c.json({ error: 'Missing ID' }, 400);
+      return c.json({ error: "Missing ID" }, 400);
     }
 
     const existing = await db.query.projects.findFirst({
-      where: and(eq(projects.id, id), eq(projects.organizationId, orgId))
+      where: and(eq(projects.id, id), eq(projects.organizationId, orgId)),
     });
 
-    if (!existing) return c.json({ error: 'Not Found' }, 404);
-    if (existing.lifecycleState === 'archived') {
-      return c.json({ error: 'Already archived' }, 400);
+    if (!existing) return c.json({ error: "Not Found" }, 404);
+    if (existing.lifecycleState === "archived") {
+      return c.json({ error: "Already archived" }, 400);
     }
 
-    const [updated] = await db.update(projects)
+    const [updated] = await db
+      .update(projects)
       .set({
-        lifecycleState: 'archived',
+        lifecycleState: "archived",
         archivedAt: new Date(),
       })
       .where(eq(projects.id, id))
@@ -251,24 +280,25 @@ export class ProjectsController {
   }
 
   static async unarchiveProject(c: Context) {
-    const orgId = c.get('organizationId');
-    const id = c.req.param('id');
+    const orgId = c.get("organizationId");
+    const id = c.req.param("id");
     if (!id) {
-      return c.json({ error: 'Missing ID' }, 400);
+      return c.json({ error: "Missing ID" }, 400);
     }
 
     const existing = await db.query.projects.findFirst({
-      where: and(eq(projects.id, id), eq(projects.organizationId, orgId))
+      where: and(eq(projects.id, id), eq(projects.organizationId, orgId)),
     });
 
-    if (!existing) return c.json({ error: 'Not Found' }, 404);
-    if (existing.lifecycleState !== 'archived') {
-      return c.json({ error: 'Not archived' }, 400);
+    if (!existing) return c.json({ error: "Not Found" }, 404);
+    if (existing.lifecycleState !== "archived") {
+      return c.json({ error: "Not archived" }, 400);
     }
 
-    const [updated] = await db.update(projects)
+    const [updated] = await db
+      .update(projects)
       .set({
-        lifecycleState: 'open',
+        lifecycleState: "open",
         archivedAt: null,
       })
       .where(eq(projects.id, id))
@@ -278,62 +308,65 @@ export class ProjectsController {
   }
 
   static async deleteProject(c: Context) {
-    const orgId = c.get('organizationId');
-    const id = c.req.param('id');
+    const orgId = c.get("organizationId");
+    const id = c.req.param("id");
     if (!id) {
-      return c.json({ error: 'Missing ID' }, 400);
+      return c.json({ error: "Missing ID" }, 400);
     }
 
     const existing = await db.query.projects.findFirst({
-      where: and(eq(projects.id, id), eq(projects.organizationId, orgId))
+      where: and(eq(projects.id, id), eq(projects.organizationId, orgId)),
     });
 
-    if (!existing) return c.json({ error: 'Not Found' }, 404);
-    if (existing.lifecycleState !== 'archived') {
-      return c.json({ error: 'Must archive file before deleting' }, 400);
+    if (!existing) return c.json({ error: "Not Found" }, 404);
+    if (existing.lifecycleState !== "archived") {
+      return c.json({ error: "Must archive file before deleting" }, 400);
     }
 
     // Delete attachments from S3
-    const { projectAttachments } = await import('@starter/db');
-    const attachments = await db.select().from(projectAttachments).where(eq(projectAttachments.projectId, id));
-    
+    const { projectAttachments } = await import("@starter/db");
+    const attachments = await db
+      .select()
+      .from(projectAttachments)
+      .where(eq(projectAttachments.projectId, id));
+
     if (attachments.length > 0) {
-      const { UploadsService } = await import('../uploads/uploads.service');
-      await Promise.all(attachments.map(att => 
-        UploadsService.deleteProjectAttachment(orgId, id, att.id)
-      ));
+      const { UploadsService } = await import("../uploads/uploads.service");
+      await Promise.all(
+        attachments.map((att) => UploadsService.deleteProjectAttachment(orgId, id, att.id)),
+      );
     }
 
     // Then delete project (attachments table should cascade if FK exists, but Drizzle doesn't automatically do it unless configured in the DB. Let's explicitly delete attachments from DB just in case)
     await db.delete(projectAttachments).where(eq(projectAttachments.projectId, id));
     await db.delete(projects).where(eq(projects.id, id));
-    
+
     return c.json({ success: true });
   }
 
   static async deleteAttachment(c: Context) {
-    const orgId = c.get('organizationId');
-    const projectId = c.req.param('id');
-    const attachmentId = c.req.param('attachmentId');
+    const orgId = c.get("organizationId");
+    const projectId = c.req.param("id");
+    const attachmentId = c.req.param("attachmentId");
 
     if (!projectId || !attachmentId) {
-      return c.json({ error: 'Missing projectId or attachmentId' }, 400);
+      return c.json({ error: "Missing projectId or attachmentId" }, 400);
     }
 
-    const { projectAttachments } = await import('@starter/db');
+    const { projectAttachments } = await import("@starter/db");
 
     const existing = await db.query.projectAttachments.findFirst({
       where: and(
         eq(projectAttachments.id, attachmentId),
         eq(projectAttachments.projectId, projectId),
-        eq(projectAttachments.organizationId, orgId)
-      )
+        eq(projectAttachments.organizationId, orgId),
+      ),
     });
 
-    if (!existing) return c.json({ error: 'Not Found' }, 404);
+    if (!existing) return c.json({ error: "Not Found" }, 404);
 
     // Delete from S3
-    const { UploadsService } = await import('../uploads/uploads.service');
+    const { UploadsService } = await import("../uploads/uploads.service");
     await UploadsService.deleteProjectAttachment(orgId, projectId, attachmentId);
 
     // Delete from DB
@@ -343,75 +376,78 @@ export class ProjectsController {
   }
 
   static async getAttachmentUploadUrl(c: Context) {
-    const orgId = c.get('organizationId');
-    const projectId = c.req.param('id');
+    const orgId = c.get("organizationId");
+    const projectId = c.req.param("id");
 
     if (!projectId) {
-      return c.json({ error: 'Missing projectId' }, 400);
+      return c.json({ error: "Missing projectId" }, 400);
     }
 
     const body = await c.req.json();
-    
+
     if (!body.contentType || !body.fileName) {
-      return c.json({ error: 'contentType and fileName are required' }, 400);
+      return c.json({ error: "contentType and fileName are required" }, 400);
     }
 
     const fileId = uuidv4();
-    const { UploadsService } = await import('../uploads/uploads.service');
+    const { UploadsService } = await import("../uploads/uploads.service");
     const result = await UploadsService.generateProjectAttachmentPresignedPut(
       orgId,
       projectId,
       fileId,
-      body.contentType
+      body.contentType,
     );
 
     return c.json({ ...result, fileId });
   }
 
   static async saveAttachment(c: Context) {
-    const orgId = c.get('organizationId');
-    const projectId = c.req.param('id');
+    const orgId = c.get("organizationId");
+    const projectId = c.req.param("id");
 
     if (!projectId) {
-      return c.json({ error: 'Missing projectId' }, 400);
+      return c.json({ error: "Missing projectId" }, 400);
     }
 
-    const user = c.get('user');
+    const user = c.get("user");
     const body = await c.req.json();
 
-    const { projectAttachments } = await import('@starter/db');
+    const { projectAttachments } = await import("@starter/db");
 
-    const [attachment] = await db.insert(projectAttachments).values({
-      id: body.fileId || uuidv4(),
-      organizationId: orgId,
-      projectId,
-      uploadedBy: user?.id,
-      fileName: body.fileName,
-      fileSize: body.fileSize,
-      fileType: body.fileType,
-      fileUrl: body.fileUrl,
-    }).returning();
+    const [attachment] = await db
+      .insert(projectAttachments)
+      .values({
+        id: body.fileId || uuidv4(),
+        organizationId: orgId,
+        projectId,
+        uploadedBy: user?.id,
+        fileName: body.fileName,
+        fileSize: body.fileSize,
+        fileType: body.fileType,
+        fileUrl: body.fileUrl,
+      })
+      .returning();
 
     return c.json(attachment, 201);
   }
 
   static async listAttachments(c: Context) {
-    const orgId = c.get('organizationId');
-    const projectId = c.req.param('id');
+    const orgId = c.get("organizationId");
+    const projectId = c.req.param("id");
 
     if (!projectId) {
-      return c.json({ error: 'Missing projectId' }, 400);
+      return c.json({ error: "Missing projectId" }, 400);
     }
 
-    const { projectAttachments } = await import('@starter/db');
+    const { projectAttachments } = await import("@starter/db");
 
     const result = await db.query.projectAttachments.findMany({
       where: and(
         eq(projectAttachments.organizationId, orgId),
-        eq(projectAttachments.projectId, projectId)
+        eq(projectAttachments.projectId, projectId),
       ),
       with: {
-        uploader: true
+        uploader: true,
       },
       orderBy: (pa, { desc }) => [desc(pa.createdAt)],
     });
@@ -420,73 +456,74 @@ export class ProjectsController {
   }
 
   static async renameAttachment(c: Context) {
-    const orgId = c.get('organizationId');
-    const projectId = c.req.param('id');
-    const attachmentId = c.req.param('attachmentId');
+    const orgId = c.get("organizationId");
+    const projectId = c.req.param("id");
+    const attachmentId = c.req.param("attachmentId");
 
     if (!projectId || !attachmentId) {
-      return c.json({ error: 'Missing parameters' }, 400);
+      return c.json({ error: "Missing parameters" }, 400);
     }
 
     const body = await c.req.json();
     if (!body.fileName) {
-      return c.json({ error: 'fileName is required' }, 400);
+      return c.json({ error: "fileName is required" }, 400);
     }
 
-    const { projectAttachments } = await import('@starter/db');
+    const { projectAttachments } = await import("@starter/db");
 
-    const [updated] = await db.update(projectAttachments)
+    const [updated] = await db
+      .update(projectAttachments)
       .set({ fileName: body.fileName })
       .where(
         and(
           eq(projectAttachments.id, attachmentId),
           eq(projectAttachments.projectId, projectId),
-          eq(projectAttachments.organizationId, orgId)
-        )
+          eq(projectAttachments.organizationId, orgId),
+        ),
       )
       .returning();
 
     if (!updated) {
-      return c.json({ error: 'Attachment not found' }, 404);
+      return c.json({ error: "Attachment not found" }, 404);
     }
 
     return c.json(updated);
   }
 
   static async proxyAttachment(c: Context): Promise<any> {
-    const orgId = c.get('organizationId');
-    const projectId = c.req.param('id');
-    const attachmentId = c.req.param('attachmentId');
+    const orgId = c.get("organizationId");
+    const projectId = c.req.param("id");
+    const attachmentId = c.req.param("attachmentId");
 
     if (!projectId || !attachmentId) {
-      return c.json({ error: 'Missing parameters' }, 400);
+      return c.json({ error: "Missing parameters" }, 400);
     }
 
-    const { projectAttachments } = await import('@starter/db');
+    const { projectAttachments } = await import("@starter/db");
     const attachment = await db.query.projectAttachments.findFirst({
       where: and(
         eq(projectAttachments.organizationId, orgId),
         eq(projectAttachments.projectId, projectId),
-        eq(projectAttachments.id, attachmentId)
-      )
+        eq(projectAttachments.id, attachmentId),
+      ),
     });
 
-    if (!attachment) return c.json({ error: 'Not found' }, 404);
+    if (!attachment) return c.json({ error: "Not found" }, 404);
 
     try {
       const response = await fetch(attachment.fileUrl);
-      if (!response.ok) throw new Error('Failed to fetch from storage');
+      if (!response.ok) throw new Error("Failed to fetch from storage");
 
       return new Response(response.body, {
         headers: {
-          'Content-Type': attachment.fileType || 'application/octet-stream',
-          'Content-Disposition': `attachment; filename="${attachment.fileName}"`,
-          'Access-Control-Allow-Origin': '*',
+          "Content-Type": attachment.fileType || "application/octet-stream",
+          "Content-Disposition": `attachment; filename="${attachment.fileName}"`,
+          "Access-Control-Allow-Origin": "*",
         },
       });
     } catch (e: any) {
-      log.error({ err: e }, 'Failed to proxy attachment');
-      return c.json({ error: 'Failed to download file' }, 500);
+      log.error({ err: e }, "Failed to proxy attachment");
+      return c.json({ error: "Failed to download file" }, 500);
     }
   }
 
@@ -497,13 +534,13 @@ export class ProjectsController {
    *   1. The requested transition must be explicitly configured in project_status_transitions.
    *   2. All fields marked `isRequiredToEnter` for the target status must already have
    *      values stored in the file's customFields JSONB (Scenario A).
-   * 
+   *
    * On success, updates the project's `status` field.
    */
   static async advanceStatus(c: Context): Promise<any> {
-    const orgId = c.get('organizationId');
-    const id = c.req.param('id');
-    if (!id) return c.json({ error: 'Missing project ID' }, 400);
+    const orgId = c.get("organizationId");
+    const id = c.req.param("id");
+    if (!id) return c.json({ error: "Missing project ID" }, 400);
 
     const body = await c.req.json();
     const toStatusId: string | undefined = body.toStatusId;
@@ -511,21 +548,21 @@ export class ProjectsController {
     const incomingCustomFields: Record<string, any> = body.customFields ?? {};
 
     if (!toStatusId) {
-      return c.json({ error: 'toStatusId is required' }, 400);
+      return c.json({ error: "toStatusId is required" }, 400);
     }
 
     // 1. Fetch the project (must belong to this org)
     const project = await db.query.projects.findFirst({
       where: and(eq(projects.id, id), eq(projects.organizationId, orgId)),
     });
-    if (!project) return c.json({ error: 'Project not found' }, 404);
-    if (project.lifecycleState === 'archived') {
-      return c.json({ error: 'Archived files cannot change status' }, 400);
+    if (!project) return c.json({ error: "Project not found" }, 404);
+    if (project.lifecycleState === "archived") {
+      return c.json({ error: "Archived files cannot change status" }, 400);
     }
 
     // 2. Prevent no-op transitions
     if (project.status === toStatusId) {
-      return c.json({ error: 'File is already in the requested status' }, 400);
+      return c.json({ error: "File is already in the requested status" }, 400);
     }
 
     // 3. Validate the target status exists in this org
@@ -535,7 +572,7 @@ export class ProjectsController {
       .where(and(eq(projectStatuses.id, toStatusId), eq(projectStatuses.organizationId, orgId)));
 
     if (!targetStatus) {
-      return c.json({ error: 'Target status not found' }, 404);
+      return c.json({ error: "Target status not found" }, 404);
     }
 
     // 4. Validate the transition is allowed in the workflow graph
@@ -546,8 +583,8 @@ export class ProjectsController {
         and(
           eq(projectStatusTransitions.organizationId, orgId),
           eq(projectStatusTransitions.fromStatusId, project.status),
-          eq(projectStatusTransitions.toStatusId, toStatusId)
-        )
+          eq(projectStatusTransitions.toStatusId, toStatusId),
+        ),
       );
 
     // If workflows are configured (transitions exist), enforce the graph.
@@ -560,10 +597,13 @@ export class ProjectsController {
       .limit(1);
 
     if (hasAnyTransitions.length > 0 && !allowedTransition) {
-      return c.json({
-        error: 'Transition not allowed',
-        message: `Files cannot move from the current status to "${targetStatus.name}". Check your workflow configuration.`,
-      }, 422);
+      return c.json(
+        {
+          error: "Transition not allowed",
+          message: `Files cannot move from the current status to "${targetStatus.name}". Check your workflow configuration.`,
+        },
+        422,
+      );
     }
 
     // 5. Check Scenario A: fields required BEFORE entering the target status
@@ -580,8 +620,8 @@ export class ProjectsController {
         and(
           eq(projectStatusFields.organizationId, orgId),
           eq(projectStatusFields.statusId, toStatusId),
-          eq(projectStatusFields.isRequiredToEnter, true)
-        )
+          eq(projectStatusFields.isRequiredToEnter, true),
+        ),
       );
 
     // Merge existing customFields with incoming overrides for this transition
@@ -590,23 +630,28 @@ export class ProjectsController {
     const missingFields: { fieldKey: string; fieldName: string }[] = [];
     for (const rf of requiredFields) {
       const value = mergedFields[rf.fieldKey];
-      const isEmpty = value === undefined || value === null || value === '';
+      const isEmpty = value === undefined || value === null || value === "";
       if (isEmpty) {
         missingFields.push({ fieldKey: rf.fieldKey, fieldName: rf.fieldName });
       }
     }
 
     if (missingFields.length > 0) {
-      return c.json({
-        error: 'Required fields missing',
-        message: `The following fields must be filled before advancing to "${targetStatus.name}".`,
-        missingFields,
-      }, 422);
+      return c.json(
+        {
+          error: "Required fields missing",
+          message: `The following fields must be filled before advancing to "${targetStatus.name}".`,
+          missingFields,
+        },
+        422,
+      );
     }
 
     // 6. Execute the transition — update status, append previous status to history,
     //    and merge any submitted field values.
-    const previousHistory: string[] = Array.isArray(project.statusHistory) ? project.statusHistory : [];
+    const previousHistory: string[] = Array.isArray(project.statusHistory)
+      ? project.statusHistory
+      : [];
     const [updatedProject] = await db
       .update(projects)
       .set({
@@ -620,10 +665,9 @@ export class ProjectsController {
 
     log.info(
       { orgId, projectId: id, fromStatus: project.status, toStatus: toStatusId },
-      'Project status advanced'
+      "Project status advanced",
     );
 
     return c.json(updatedProject);
   }
 }
-

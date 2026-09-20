@@ -1,7 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  makeCtx, makeSectionCharge,
-  SECTION_ID, TEMPLATE_ID, SECTION_TOKEN,
+  makeCtx,
+  makeSectionCharge,
+  SECTION_ID,
+  SECTION_TOKEN,
+  TEMPLATE_ID,
 } from "../../invoice-templates.fixtures";
 
 const { hoistedChain } = vi.hoisted(() => ({
@@ -35,8 +38,16 @@ vi.mock("@starter/db", () => {
 
   return {
     db,
-    eq, and, asc,
-    templateSectionCharges: { id: "id", sectionId: "sectionId", chargeToken: "chargeToken", sortOrder: "sortOrder", formula: "formula" },
+    eq,
+    and,
+    asc,
+    templateSectionCharges: {
+      id: "id",
+      sectionId: "sectionId",
+      chargeToken: "chargeToken",
+      sortOrder: "sortOrder",
+      formula: "formula",
+    },
     templateSections: { id: "id", templateId: "templateId", sectionToken: "sectionToken" },
     templateConstants: { id: "id", templateId: "templateId", token: "token" },
     templateRows: { id: "id", templateId: "templateId", rowToken: "rowToken" },
@@ -46,16 +57,23 @@ vi.mock("@starter/db", () => {
   };
 });
 
-import { createSectionCharge } from "./create-section-charge.controller";
 import { db } from "@starter/db";
+import { createSectionCharge } from "./create-section-charge.controller";
 
 function mockSectionOwned(charges: any[] = []) {
   (db.select as any)
-    .mockReturnValueOnce(hoistedChain([{ section: { id: SECTION_ID, templateId: TEMPLATE_ID, sectionToken: SECTION_TOKEN }, templateId: TEMPLATE_ID }]))
-    .mockReturnValueOnce(hoistedChain([]))  
-    .mockReturnValueOnce(hoistedChain([]))  
-    .mockReturnValueOnce(hoistedChain([]))  
-    .mockReturnValueOnce(hoistedChain(charges.map(c => ({ charge: c }))));  
+    .mockReturnValueOnce(
+      hoistedChain([
+        {
+          section: { id: SECTION_ID, templateId: TEMPLATE_ID, sectionToken: SECTION_TOKEN },
+          templateId: TEMPLATE_ID,
+        },
+      ]),
+    )
+    .mockReturnValueOnce(hoistedChain([]))
+    .mockReturnValueOnce(hoistedChain([]))
+    .mockReturnValueOnce(hoistedChain([]))
+    .mockReturnValueOnce(hoistedChain(charges.map((c) => ({ charge: c }))));
 }
 
 function mockSectionNotOwned() {
@@ -76,35 +94,51 @@ describe("createSectionCharge", () => {
   });
 
   it("returns 401 when unauthenticated", async () => {
-    const ctx = makeCtx({ orgId: null, params: { sectionId: SECTION_ID, templateId: TEMPLATE_ID }, body: {} });
+    const ctx = makeCtx({
+      orgId: null,
+      params: { sectionId: SECTION_ID, templateId: TEMPLATE_ID },
+      body: {},
+    });
     const res = await createSectionCharge(ctx);
     expect(res.status).toBe(401);
   });
 
   it("returns 404 when section not found", async () => {
     mockSectionNotOwned();
-    const ctx = makeCtx({ params: { sectionId: SECTION_ID, templateId: TEMPLATE_ID }, body: { label: "Port Levy", formula: "SEC_SECTION_A * 0.10" } });
+    const ctx = makeCtx({
+      params: { sectionId: SECTION_ID, templateId: TEMPLATE_ID },
+      body: { label: "Port Levy", formula: "SEC_SECTION_A * 0.10" },
+    });
     const res = await createSectionCharge(ctx);
     expect(res.status).toBe(404);
   });
 
   it("returns 400 when label is missing", async () => {
     mockSectionOwned();
-    const ctx = makeCtx({ params: { sectionId: SECTION_ID, templateId: TEMPLATE_ID }, body: { formula: "SEC_SECTION_A * 0.10" } });
+    const ctx = makeCtx({
+      params: { sectionId: SECTION_ID, templateId: TEMPLATE_ID },
+      body: { formula: "SEC_SECTION_A * 0.10" },
+    });
     const res = await createSectionCharge(ctx);
     expect(res.status).toBeGreaterThanOrEqual(400);
   });
 
   it("returns 400 when formula is empty string", async () => {
     mockSectionOwned();
-    const ctx = makeCtx({ params: { sectionId: SECTION_ID, templateId: TEMPLATE_ID }, body: { label: "Port Levy", formula: "" } });
+    const ctx = makeCtx({
+      params: { sectionId: SECTION_ID, templateId: TEMPLATE_ID },
+      body: { label: "Port Levy", formula: "" },
+    });
     const res = await createSectionCharge(ctx);
     expect(res.status).toBeGreaterThanOrEqual(400);
   });
 
   it("returns 422 when formula syntax is invalid", async () => {
     mockSectionOwned();
-    const ctx = makeCtx({ params: { sectionId: SECTION_ID, templateId: TEMPLATE_ID }, body: { label: "Port Levy", formula: "INVALID +" } });
+    const ctx = makeCtx({
+      params: { sectionId: SECTION_ID, templateId: TEMPLATE_ID },
+      body: { label: "Port Levy", formula: "INVALID +" },
+    });
     const res = await createSectionCharge(ctx);
     expect(res.status).toBe(422);
   });
@@ -112,7 +146,10 @@ describe("createSectionCharge", () => {
   it("returns 409 when chargeToken already exists in section", async () => {
     mockSectionOwned();
     (db.query.templateSectionCharges.findFirst as any).mockResolvedValue(makeSectionCharge());
-    const ctx = makeCtx({ params: { sectionId: SECTION_ID, templateId: TEMPLATE_ID }, body: { label: "Port Levy", formula: "SEC_SECTION_A * 0.10" } });
+    const ctx = makeCtx({
+      params: { sectionId: SECTION_ID, templateId: TEMPLATE_ID },
+      body: { label: "Port Levy", formula: "SEC_SECTION_A * 0.10" },
+    });
     const res = await createSectionCharge(ctx);
     expect(res.status).toBe(409);
   });
@@ -126,7 +163,10 @@ describe("createSectionCharge", () => {
       .mockReturnValueOnce(hoistedChain([]))
       .mockReturnValueOnce(hoistedChain([]))
       .mockReturnValueOnce(hoistedChain([]));
-    const ctx = makeCtx({ params: { sectionId: SECTION_ID, templateId: TEMPLATE_ID }, body: { label: "Port Levy", formula: "SEC_SECTION_A * 0.10" } });
+    const ctx = makeCtx({
+      params: { sectionId: SECTION_ID, templateId: TEMPLATE_ID },
+      body: { label: "Port Levy", formula: "SEC_SECTION_A * 0.10" },
+    });
     const res = await createSectionCharge(ctx);
     expect(res.status).toBe(201);
     expect((res as any).data.formula).toBe(`SEC_${SECTION_TOKEN} * 0.10`);
@@ -142,7 +182,12 @@ describe("createSectionCharge", () => {
       .mockReturnValueOnce(hoistedChain([]));
     const ctx = makeCtx({
       params: { sectionId: SECTION_ID, templateId: TEMPLATE_ID },
-      body: { label: "Port Levy", formula: "SEC_SECTION_A * 0.10", subDescription: null, qualifier: null },
+      body: {
+        label: "Port Levy",
+        formula: "SEC_SECTION_A * 0.10",
+        subDescription: null,
+        qualifier: null,
+      },
     });
     const res = await createSectionCharge(ctx);
     expect(res.status).toBe(201);
@@ -161,7 +206,10 @@ describe("createSectionCharge", () => {
       const { decodeFormula } = await import("@starter/db");
       (decodeFormula as any).mockReturnValue("SEC_SECTION_A * 0.10");
 
-      const ctx = makeCtx({ params: { sectionId: SECTION_ID, templateId: TEMPLATE_ID }, body: { label: "Port Levy", formula: "SEC_SECTION_A * 0.10" } });
+      const ctx = makeCtx({
+        params: { sectionId: SECTION_ID, templateId: TEMPLATE_ID },
+        body: { label: "Port Levy", formula: "SEC_SECTION_A * 0.10" },
+      });
       const res = await createSectionCharge(ctx);
       expect(res.status).toBe(201);
       expect((res as any).data.formula).not.toContain("{{$row:");
@@ -173,7 +221,10 @@ describe("createSectionCharge", () => {
     it("chargeToken = SEC_<SECTION_TOKEN>_<UPPER_SNAKE(label)>", () => {
       const sectionToken = "SECTION_A";
       const label = "Port Levy";
-      const suffix = label.toUpperCase().replace(/\s+/g, "_").replace(/[^A-Z0-9_]/g, "");
+      const suffix = label
+        .toUpperCase()
+        .replace(/\s+/g, "_")
+        .replace(/[^A-Z0-9_]/g, "");
       expect(`SEC_${sectionToken}_${suffix}`).toBe("SEC_SECTION_A_PORT_LEVY");
     });
 

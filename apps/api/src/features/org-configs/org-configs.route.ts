@@ -10,24 +10,21 @@ router.use("*", requireAuth);
 router.post(
   "/",
   requireOrgPermission("finance:manage_invoices"),
-  orgConfigsController.createConfig
+  orgConfigsController.createConfig,
 );
 
-router.get(
-  "/",
-  orgConfigsController.listConfigs
-);
+router.get("/", orgConfigsController.listConfigs);
 
 router.patch(
   "/:id",
   requireOrgPermission("finance:manage_invoices"),
-  orgConfigsController.updateConfig
+  orgConfigsController.updateConfig,
 );
 
 router.delete(
   "/:id",
   requireOrgPermission("finance:manage_invoices"),
-  orgConfigsController.deleteConfig
+  orgConfigsController.deleteConfig,
 );
 
 export { router as orgConfigsRouter };

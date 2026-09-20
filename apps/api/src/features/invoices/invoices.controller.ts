@@ -1,6 +1,16 @@
+import {
+  db,
+  expenseCategories,
+  invoiceDrafts,
+  invoiceLineItems,
+  invoices,
+  organizationConfigs,
+  templateHeaderFields,
+  templateRows,
+  templateSections,
+} from "@starter/db";
+import { and, desc, eq } from "drizzle-orm";
 import { Context } from "hono";
-import { db, invoices, invoiceLineItems, expenseCategories, organizationConfigs, templateHeaderFields, templateSections, templateRows, invoiceDrafts } from "@starter/db";
-import { eq, and, desc } from "drizzle-orm";
 import { z } from "zod";
 import { freezeInvoice } from "./engine/invoice-freeze";
 
@@ -12,7 +22,7 @@ const generateSchema = z.object({
   headerFieldValues: z.record(z.string(), z.string()).default({}),
   issuedToClientName: z.string(),
   currency: z.string().default("USD"),
-  notes: z.string().optional()
+  notes: z.string().optional(),
 });
 
 export class InvoicesController {
@@ -22,27 +32,30 @@ export class InvoicesController {
       if (!orgId) return c.json({ error: "Organization context required" }, 401);
 
       const templateId = c.req.query("templateId");
-      
+
       const [categoriesData, orgConfigsData] = await Promise.all([
         db.select().from(expenseCategories).where(eq(expenseCategories.organizationId, orgId)),
-        db.select().from(organizationConfigs).where(
-          and(
-            eq(organizationConfigs.organizationId, orgId),
-            eq(organizationConfigs.isFormulaInjectable, true)
-          )
-        )
+        db
+          .select()
+          .from(organizationConfigs)
+          .where(
+            and(
+              eq(organizationConfigs.organizationId, orgId),
+              eq(organizationConfigs.isFormulaInjectable, true),
+            ),
+          ),
       ]);
 
-      const categories = categoriesData.map(cat => ({
+      const categories = categoriesData.map((cat) => ({
         tokenKey: cat.tokenKey,
         label: cat.name,
-        token: `CAT_${cat.tokenKey}`
+        token: `CAT_${cat.tokenKey}`,
       }));
 
-      const orgConfigs = orgConfigsData.map(conf => ({
+      const orgConfigs = orgConfigsData.map((conf) => ({
         configKey: conf.configKey,
         displayLabel: conf.displayLabel,
-        token: `ORG_${conf.configKey}`
+        token: `GBL_${conf.configKey}`,
       }));
 
       let fileFields: any[] = [];
@@ -51,33 +64,36 @@ export class InvoicesController {
 
       if (templateId) {
         const [fieldsData, sectionsData, rowsData] = await Promise.all([
-          db.select().from(templateHeaderFields).where(
-            and(
-              eq(templateHeaderFields.templateId, templateId),
-              eq(templateHeaderFields.fieldType, "file_field"),
-              eq(templateHeaderFields.isFormulaInjectable, true)
-            )
-          ),
+          db
+            .select()
+            .from(templateHeaderFields)
+            .where(
+              and(
+                eq(templateHeaderFields.templateId, templateId),
+                eq(templateHeaderFields.fieldType, "file_field"),
+                eq(templateHeaderFields.isFormulaInjectable, true),
+              ),
+            ),
           db.select().from(templateSections).where(eq(templateSections.templateId, templateId)),
-          db.select().from(templateRows).where(eq(templateRows.templateId, templateId))
+          db.select().from(templateRows).where(eq(templateRows.templateId, templateId)),
         ]);
 
-        fileFields = fieldsData.map(f => ({
+        fileFields = fieldsData.map((f) => ({
           fieldKey: f.fileFieldKey,
           displayLabel: f.label,
-          token: `FILE_${f.fileFieldKey}`
+          token: `FILE_${f.fileFieldKey}`,
         }));
 
-        sections = sectionsData.map(s => ({
+        sections = sectionsData.map((s) => ({
           sectionToken: s.sectionToken,
           name: s.label ?? s.sectionToken,
-          token: `SECTION_${s.sectionToken}`
+          token: `SECTION_${s.sectionToken}`,
         }));
 
-        rows = rowsData.map(r => ({
+        rows = rowsData.map((r) => ({
           rowToken: r.rowToken,
           label: r.label,
-          token: `ROW_${r.rowToken}`
+          token: `ROW_${r.rowToken}`,
         }));
       }
 
@@ -85,7 +101,7 @@ export class InvoicesController {
         categories,
         orgConfigs,
         fileFields,
-        ...(templateId ? { sections, rows } : {})
+        ...(templateId ? { sections, rows } : {}),
       });
     } catch (err: any) {
       console.error(err);
@@ -111,10 +127,10 @@ export class InvoicesController {
         with: {
           project: {
             with: {
-              client: true
-            }
-          }
-        }
+              client: true,
+            },
+          },
+        },
       });
 
       return c.json(allInvoices);
@@ -136,10 +152,10 @@ export class InvoicesController {
         with: {
           project: {
             with: {
-              client: true
-            }
-          }
-        }
+              client: true,
+            },
+          },
+        },
       });
 
       if (!invoice) return c.json({ error: "Invoice not found" }, 404);
@@ -170,18 +186,21 @@ export class InvoicesController {
       const frozenInvoice = await freezeInvoice({
         organizationId,
         userId,
-        ...parsed.data
+        ...parsed.data,
       });
 
       return c.json({
         invoiceId: frozenInvoice.id,
         documentNumber: frozenInvoice.documentNumber,
-        status: frozenInvoice.status
+        status: frozenInvoice.status,
       });
     } catch (err: any) {
       console.error("[InvoicesController.generateInvoice]", err);
       if (err.message === "INVOICE_GENERATION_IN_PROGRESS") {
-        return c.json({ error: "Invoice generation is already in progress for this project." }, 409);
+        return c.json(
+          { error: "Invoice generation is already in progress for this project." },
+          409,
+        );
       }
       return c.json({ error: err.message || "Failed to generate invoice" }, 500);
     }
@@ -192,9 +211,16 @@ export class InvoicesController {
       const id = c.req.param("id");
       const organizationId = c.get("organizationId");
 
-      const [invoice] = await db.update(invoices)
+      const [invoice] = await db
+        .update(invoices)
         .set({ status: "issued", issuedAt: new Date() })
-        .where(and(eq(invoices.id, id!), eq(invoices.organizationId, organizationId!), eq(invoices.status, "frozen")))
+        .where(
+          and(
+            eq(invoices.id, id!),
+            eq(invoices.organizationId, organizationId!),
+            eq(invoices.status, "frozen"),
+          ),
+        )
         .returning();
 
       if (!invoice) return c.json({ error: "Invoice not found or not in frozen state" }, 404);
@@ -212,7 +238,8 @@ export class InvoicesController {
       const organizationId = c.get("organizationId");
       const body = await c.req.json();
 
-      const [invoice] = await db.update(invoices)
+      const [invoice] = await db
+        .update(invoices)
         .set({ status: "void", voidedAt: new Date(), voidReason: body.voidReason || null })
         .where(and(eq(invoices.id, id!), eq(invoices.organizationId, organizationId!)))
         .returning();
@@ -231,7 +258,8 @@ export class InvoicesController {
       const id = c.req.param("id");
       const organizationId = c.get("organizationId");
 
-      const [invoice] = await db.update(invoices)
+      const [invoice] = await db
+        .update(invoices)
         .set({ status: "paid", paidAt: new Date() })
         .where(and(eq(invoices.id, id!), eq(invoices.organizationId, organizationId!)))
         .returning();
@@ -256,7 +284,7 @@ export class InvoicesController {
         where: and(
           eq(invoices.id, id!),
           eq(invoices.organizationId, organizationId!),
-          eq(invoices.status, "frozen")
+          eq(invoices.status, "frozen"),
         ),
       });
 
@@ -265,17 +293,19 @@ export class InvoicesController {
       await db.transaction(async (tx) => {
         // Create draft from the historical snapshot
         const { historicalFormat, resolvedHeaderValues } = invoice;
-        
+
         // Check if draft exists
-        const [existingDraft] = await tx.select().from(invoiceDrafts)
-          .where(and(
-            eq(invoiceDrafts.projectId, invoice.projectId),
-            eq(invoiceDrafts.userId, userId)
-          ))
+        const [existingDraft] = await tx
+          .select()
+          .from(invoiceDrafts)
+          .where(
+            and(eq(invoiceDrafts.projectId, invoice.projectId), eq(invoiceDrafts.userId, userId)),
+          )
           .limit(1);
 
         if (existingDraft) {
-          await tx.update(invoiceDrafts)
+          await tx
+            .update(invoiceDrafts)
             .set({
               sourceTemplateId: invoice.sourceTemplateId,
               draftHeaderValues: resolvedHeaderValues || {},

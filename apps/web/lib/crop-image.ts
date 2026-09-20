@@ -10,7 +10,7 @@ export const createImage = (url: string): Promise<HTMLImageElement> =>
 export async function getCroppedImg(
   imageSrc: string,
   pixelCrop: { x: number; y: number; width: number; height: number },
-  fileName: string = "avatar.webp"
+  fileName: string = "avatar.webp",
 ): Promise<File | null> {
   const image = await createImage(imageSrc);
   const canvas = document.createElement("canvas");
@@ -30,17 +30,21 @@ export async function getCroppedImg(
     0,
     0,
     pixelCrop.width,
-    pixelCrop.height
+    pixelCrop.height,
   );
 
   return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (!blob) {
-        reject(new Error("Canvas is empty"));
-        return;
-      }
-      const file = new File([blob], fileName, { type: "image/webp" });
-      resolve(file);
-    }, "image/webp", 0.9);
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          reject(new Error("Canvas is empty"));
+          return;
+        }
+        const file = new File([blob], fileName, { type: "image/webp" });
+        resolve(file);
+      },
+      "image/webp",
+      0.9,
+    );
   });
 }

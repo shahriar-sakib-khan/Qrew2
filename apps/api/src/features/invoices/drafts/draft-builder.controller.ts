@@ -1,11 +1,6 @@
+import { db, decodeFormula, encodeFormula, invoiceDrafts } from "@starter/db";
+import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
-import {
-  db,
-  invoiceDrafts,
-  encodeFormula,
-  decodeFormula,
-} from "@starter/db";
-import { eq, and } from "drizzle-orm";
 
 async function getDraft(c: Context) {
   const draftId = c.req.param("id") as string;
@@ -13,12 +8,7 @@ async function getDraft(c: Context) {
   const [draft] = await db
     .select()
     .from(invoiceDrafts)
-    .where(
-      and(
-        eq(invoiceDrafts.id, draftId),
-        eq(invoiceDrafts.organizationId, organizationId)
-      )
-    )
+    .where(and(eq(invoiceDrafts.id, draftId), eq(invoiceDrafts.organizationId, organizationId)))
     .limit(1);
   return draft;
 }
@@ -90,16 +80,12 @@ export class DraftBuilderController {
         formula: decodeFormula(r.formula, idToToken, secIdToToken, tplIdToToken),
         charges: (r.charges || []).map((ch: any) => ({
           ...ch,
-          formula:
-            decodeFormula(ch.formula, idToToken, secIdToToken, tplIdToToken) ??
-            ch.formula,
+          formula: decodeFormula(ch.formula, idToToken, secIdToToken, tplIdToToken) ?? ch.formula,
         })),
       })),
       sectionCharges: (sec.sectionCharges || []).map((sc: any) => ({
         ...sc,
-        formula:
-          decodeFormula(sc.formula, idToToken, secIdToToken, tplIdToToken) ??
-          sc.formula,
+        formula: decodeFormula(sc.formula, idToToken, secIdToToken, tplIdToToken) ?? sc.formula,
       })),
     }));
 
@@ -243,9 +229,7 @@ export class DraftBuilderController {
       const match = order.find((o) => o.id === s.id);
       if (match) s.displayOrder = match.displayOrder;
     }
-    sections.sort(
-      (a: any, b: any) => (a.displayOrder || 0) - (b.displayOrder || 0)
-    );
+    sections.sort((a: any, b: any) => (a.displayOrder || 0) - (b.displayOrder || 0));
 
     await updateDraft(draft.id, {
       draftSections: sections,
@@ -266,11 +250,7 @@ export class DraftBuilderController {
     const s = sections.find((s: any) => s.id === sectionId);
     if (!s) return c.json({ error: "Section not found" }, 404);
 
-    if (
-      sections.some((sec: any) =>
-        sec.rows.some((r: any) => r.rowToken === body.rowToken)
-      )
-    ) {
+    if (sections.some((sec: any) => sec.rows.some((r: any) => r.rowToken === body.rowToken))) {
       return c.json({ error: "Row token must be unique across all sections" }, 400);
     }
 
@@ -306,7 +286,7 @@ export class DraftBuilderController {
         ...newRow,
         formula: decodeFormula(newRow.formula, idToToken, secIdToToken, tplIdToToken),
       },
-      201
+      201,
     );
   }
 
@@ -419,9 +399,7 @@ export class DraftBuilderController {
     const { idToToken, secIdToToken, tplIdToToken } = buildDraftIndices(draft);
     const decodedCharges = (r.charges || []).map((ch: any) => ({
       ...ch,
-      formula:
-        decodeFormula(ch.formula, idToToken, secIdToToken, tplIdToToken) ??
-        ch.formula,
+      formula: decodeFormula(ch.formula, idToToken, secIdToToken, tplIdToToken) ?? ch.formula,
     }));
 
     return c.json(decodedCharges);
@@ -443,8 +421,7 @@ export class DraftBuilderController {
     const { tokenToId, idToToken, secTokenToId, secIdToToken, tplTokenToId, tplIdToToken } =
       buildDraftIndices(draft);
 
-    const chargeToken =
-      body.chargeToken || `${r.rowToken}_${toSnakeCase(body.label)}`;
+    const chargeToken = body.chargeToken || `${r.rowToken}_${toSnakeCase(body.label)}`;
     const encodedFormula = body.formula
       ? encodeFormula(body.formula, tokenToId, secTokenToId, tplTokenToId)
       : body.formula;
@@ -476,7 +453,7 @@ export class DraftBuilderController {
           decodeFormula(newCharge.formula, idToToken, secIdToToken, tplIdToToken) ??
           newCharge.formula,
       },
-      201
+      201,
     );
   }
 
@@ -549,9 +526,8 @@ export class DraftBuilderController {
     const sectionId = c.req.param("sectionId");
     const rowId = c.req.param("rowId");
     const body = await c.req.json();
-    const orderedIds = (
-      body.orderedIds || (body.order ? body.order.map((o: any) => o.id) : [])
-    ) as string[];
+    const orderedIds = (body.orderedIds ||
+      (body.order ? body.order.map((o: any) => o.id) : [])) as string[];
 
     const sections = draft.draftSections || [];
     const s = sections.find((s: any) => s.id === sectionId);
@@ -621,14 +597,10 @@ export class DraftBuilderController {
       {
         ...newCharge,
         formula:
-          decodeFormula(
-            newCharge.formula,
-            idToToken,
-            secIdToToken,
-            tplIdToToken
-          ) ?? newCharge.formula,
+          decodeFormula(newCharge.formula, idToToken, secIdToToken, tplIdToToken) ??
+          newCharge.formula,
       },
-      201
+      201,
     );
   }
 
@@ -666,12 +638,8 @@ export class DraftBuilderController {
     return c.json({
       ...s.sectionCharges[cIdx],
       formula:
-        decodeFormula(
-          s.sectionCharges[cIdx].formula,
-          idToToken,
-          secIdToToken,
-          tplIdToToken
-        ) ?? s.sectionCharges[cIdx].formula,
+        decodeFormula(s.sectionCharges[cIdx].formula, idToToken, secIdToToken, tplIdToToken) ??
+        s.sectionCharges[cIdx].formula,
     });
   }
 
@@ -698,9 +666,8 @@ export class DraftBuilderController {
     if (!draft) return c.json({ error: "Draft not found" }, 404);
     const sectionId = c.req.param("sectionId");
     const body = await c.req.json();
-    const orderedIds = (
-      body.orderedIds || (body.order ? body.order.map((o: any) => o.id) : [])
-    ) as string[];
+    const orderedIds = (body.orderedIds ||
+      (body.order ? body.order.map((o: any) => o.id) : [])) as string[];
 
     const sections = draft.draftSections || [];
     const s = sections.find((s: any) => s.id === sectionId);

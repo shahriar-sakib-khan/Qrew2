@@ -1,7 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  makeCtx, makeSectionCharge,
-  TEMPLATE_ID, CHARGE_ID,
+  CHARGE_ID,
+  makeCtx,
+  makeSectionCharge,
+  TEMPLATE_ID,
 } from "../../invoice-templates.fixtures";
 
 const { hoistedChain } = vi.hoisted(() => ({
@@ -33,8 +35,16 @@ vi.mock("@starter/db", () => {
 
   return {
     db,
-    eq, and, asc,
-    templateSectionCharges: { id: "id", sectionId: "sectionId", chargeToken: "chargeToken", sortOrder: "sortOrder", formula: "formula" },
+    eq,
+    and,
+    asc,
+    templateSectionCharges: {
+      id: "id",
+      sectionId: "sectionId",
+      chargeToken: "chargeToken",
+      sortOrder: "sortOrder",
+      formula: "formula",
+    },
     templateSections: { id: "id", templateId: "templateId", sectionToken: "sectionToken" },
     templateConstants: { id: "id", templateId: "templateId", token: "token" },
     templateRows: { id: "id", templateId: "templateId", rowToken: "rowToken" },
@@ -44,25 +54,26 @@ vi.mock("@starter/db", () => {
   };
 });
 
-import { updateSectionCharge } from "./update-section-charge.controller";
 import { db } from "@starter/db";
+import { updateSectionCharge } from "./update-section-charge.controller";
 
 function mockChargeOwned(charge = makeSectionCharge(), withFormulaIndexes = false) {
-  const mock = (db.select as any)
-    .mockReturnValueOnce(hoistedChain([{ charge, section: { templateId: TEMPLATE_ID } }]));
+  const mock = (db.select as any).mockReturnValueOnce(
+    hoistedChain([{ charge, section: { templateId: TEMPLATE_ID } }]),
+  );
   if (withFormulaIndexes) {
     mock
-      .mockReturnValueOnce(hoistedChain([]))  
-      .mockReturnValueOnce(hoistedChain([]))  
-      .mockReturnValueOnce(hoistedChain([]))  
-      .mockReturnValueOnce(hoistedChain([]))  
-      .mockReturnValueOnce(hoistedChain([]))  
-      .mockReturnValueOnce(hoistedChain([])); 
+      .mockReturnValueOnce(hoistedChain([]))
+      .mockReturnValueOnce(hoistedChain([]))
+      .mockReturnValueOnce(hoistedChain([]))
+      .mockReturnValueOnce(hoistedChain([]))
+      .mockReturnValueOnce(hoistedChain([]))
+      .mockReturnValueOnce(hoistedChain([]));
   } else {
     mock
-      .mockReturnValueOnce(hoistedChain([]))  
-      .mockReturnValueOnce(hoistedChain([]))  
-      .mockReturnValueOnce(hoistedChain([])); 
+      .mockReturnValueOnce(hoistedChain([]))
+      .mockReturnValueOnce(hoistedChain([]))
+      .mockReturnValueOnce(hoistedChain([]));
   }
 }
 
@@ -92,7 +103,10 @@ describe("updateSectionCharge", () => {
 
   it("returns 404 when charge not found", async () => {
     mockChargeNotFound();
-    const ctx = makeCtx({ params: { chargeId: CHARGE_ID }, body: { formula: "SEC_SECTION_A * 0.15" } });
+    const ctx = makeCtx({
+      params: { chargeId: CHARGE_ID },
+      body: { formula: "SEC_SECTION_A * 0.15" },
+    });
     const res = await updateSectionCharge(ctx);
     expect(res.status).toBe(404);
   });
@@ -101,7 +115,10 @@ describe("updateSectionCharge", () => {
     mockChargeOwned(makeSectionCharge(), true);
     const updated = makeSectionCharge({ formula: "SEC_SECTION_A * 0.15" });
     mockUpdateReturns(updated);
-    const ctx = makeCtx({ params: { chargeId: CHARGE_ID }, body: { formula: "SEC_SECTION_A * 0.15" } });
+    const ctx = makeCtx({
+      params: { chargeId: CHARGE_ID },
+      body: { formula: "SEC_SECTION_A * 0.15" },
+    });
     const res = await updateSectionCharge(ctx);
     expect(res.status).toBe(200);
   });
@@ -130,7 +147,10 @@ describe("updateSectionCharge", () => {
       const { decodeFormula } = await import("@starter/db");
       (decodeFormula as any).mockReturnValue("SEC_SECTION_A * 0.15");
 
-      const ctx = makeCtx({ params: { chargeId: CHARGE_ID }, body: { formula: "SEC_SECTION_A * 0.15" } });
+      const ctx = makeCtx({
+        params: { chargeId: CHARGE_ID },
+        body: { formula: "SEC_SECTION_A * 0.15" },
+      });
       const res = await updateSectionCharge(ctx);
       expect(res.status).toBe(200);
       expect((res as any).data.formula).not.toContain("{{$row:");

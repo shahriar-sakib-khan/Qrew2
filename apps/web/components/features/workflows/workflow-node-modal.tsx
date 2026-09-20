@@ -1,45 +1,50 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiUrl } from "@/lib/constants";
-import { toast } from "sonner";
 import { Loader2, Plus, X } from "lucide-react";
-
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { apiUrl } from "@/lib/constants";
 
-export function WorkflowNodeModal({ 
-  isOpen, 
-  onClose, 
-  node, 
-  allStatuses, 
+export function WorkflowNodeModal({
+  isOpen,
+  onClose,
+  node,
+  allStatuses,
   customFields,
   initialTransitions = [],
   insertBetween = null,
   branchFrom = null,
-}: { 
-  isOpen: boolean, 
-  onClose: () => void, 
-  node: any | null,
-  allStatuses: any[],
-  customFields: any[],
-  initialTransitions?: string[],
-  insertBetween?: { fromId: string; toId: string } | null,
-  branchFrom?: string | null,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  node: any | null;
+  allStatuses: any[];
+  customFields: any[];
+  initialTransitions?: string[];
+  insertBetween?: { fromId: string; toId: string } | null;
+  branchFrom?: string | null;
 }) {
   const queryClient = useQueryClient();
   const isEditing = !!node;
@@ -47,12 +52,14 @@ export function WorkflowNodeModal({
   const [name, setName] = useState("");
   const [color, setColor] = useState("#94a3b8");
   const [isTerminal, setIsTerminal] = useState(false);
-  
+
   // Graph Edges
   const [transitions, setTransitions] = useState<string[]>([]);
-  
+
   // Field Mappings
-  const [fieldMappings, setFieldMappings] = useState<{fieldId: string, isRequiredToEnter: boolean, isVisibleInStage: boolean}[]>([]);
+  const [fieldMappings, setFieldMappings] = useState<
+    { fieldId: string; isRequiredToEnter: boolean; isVisibleInStage: boolean }[]
+  >([]);
 
   useEffect(() => {
     if (isOpen) {
@@ -61,11 +68,13 @@ export function WorkflowNodeModal({
         setColor(node.color || "#94a3b8");
         setIsTerminal(node.isTerminal || false);
         setTransitions((node.transitions || []).map((t: any) => t.toStatusId));
-        setFieldMappings((node.statusFields || []).map((f: any) => ({
-          fieldId: f.fieldId,
-          isRequiredToEnter: f.isRequiredToEnter,
-          isVisibleInStage: f.isVisibleInStage
-        })));
+        setFieldMappings(
+          (node.statusFields || []).map((f: any) => ({
+            fieldId: f.fieldId,
+            isRequiredToEnter: f.isRequiredToEnter,
+            isVisibleInStage: f.isVisibleInStage,
+          })),
+        );
       } else {
         setName("");
         setColor("#3b82f6");
@@ -92,7 +101,7 @@ export function WorkflowNodeModal({
         } else if (branchFrom) {
           const fromStatus = allStatuses.find((s: any) => s.id === branchFrom);
           gridColumn = (fromStatus?.gridColumn ?? 0) + 1;
-          
+
           // Find first free row
           let r = fromStatus?.gridRow ?? 0;
           let offset = 1;
@@ -104,7 +113,10 @@ export function WorkflowNodeModal({
           gridRow = r;
         } else {
           // Default: append to the end
-          const maxCol = allStatuses.reduce((max: number, s: any) => Math.max(max, s.gridColumn ?? 0), -1);
+          const maxCol = allStatuses.reduce(
+            (max: number, s: any) => Math.max(max, s.gridColumn ?? 0),
+            -1,
+          );
           gridColumn = maxCol + 1;
           gridRow = 0;
         }
@@ -112,7 +124,14 @@ export function WorkflowNodeModal({
         const res = await fetch(`${apiUrl}/api/workspaces/projects/statuses`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, color, isTerminal, gridColumn, gridRow, insertBump: !!insertBetween }),
+          body: JSON.stringify({
+            name,
+            color,
+            isTerminal,
+            gridColumn,
+            gridRow,
+            insertBump: !!insertBetween,
+          }),
           credentials: "include",
         });
         if (!res.ok) throw new Error((await res.json()).error || "Failed to create node");
@@ -128,30 +147,39 @@ export function WorkflowNodeModal({
       }
 
       // 2. Update Transitions for the new/edited node
-      const transRes = await fetch(`${apiUrl}/api/workspaces/projects/statuses/${statusId}/transitions`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ toStatusIds: transitions }),
-        credentials: "include",
-      });
-      if (!transRes.ok) throw new Error((await transRes.json()).error || "Failed to save transitions");
+      const transRes = await fetch(
+        `${apiUrl}/api/workspaces/projects/statuses/${statusId}/transitions`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ toStatusIds: transitions }),
+          credentials: "include",
+        },
+      );
+      if (!transRes.ok)
+        throw new Error((await transRes.json()).error || "Failed to save transitions");
 
       // 3. If this was an "insert between" operation, patch the FROM node's transitions:
       //    Remove the toId, add this new node's id instead.
       if (!isEditing && insertBetween) {
         const fromStatus = allStatuses.find((s: any) => s.id === insertBetween.fromId);
         if (fromStatus) {
-          const oldTransitions: string[] = (fromStatus.transitions ?? []).map((t: any) => t.toStatusId);
+          const oldTransitions: string[] = (fromStatus.transitions ?? []).map(
+            (t: any) => t.toStatusId,
+          );
           const patchedTransitions = [
             ...oldTransitions.filter((id: string) => id !== insertBetween.toId),
             statusId,
           ];
-          await fetch(`${apiUrl}/api/workspaces/projects/statuses/${insertBetween.fromId}/transitions`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ toStatusIds: patchedTransitions }),
-            credentials: "include",
-          });
+          await fetch(
+            `${apiUrl}/api/workspaces/projects/statuses/${insertBetween.fromId}/transitions`,
+            {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ toStatusIds: patchedTransitions }),
+              credentials: "include",
+            },
+          );
         }
       }
 
@@ -159,7 +187,9 @@ export function WorkflowNodeModal({
       if (!isEditing && branchFrom) {
         const fromStatus = allStatuses.find((s: any) => s.id === branchFrom);
         if (fromStatus) {
-          const oldTransitions: string[] = (fromStatus.transitions ?? []).map((t: any) => t.toStatusId);
+          const oldTransitions: string[] = (fromStatus.transitions ?? []).map(
+            (t: any) => t.toStatusId,
+          );
           if (!oldTransitions.includes(statusId)) {
             const patchedTransitions = [...oldTransitions, statusId];
             await fetch(`${apiUrl}/api/workspaces/projects/statuses/${branchFrom}/transitions`, {
@@ -173,13 +203,17 @@ export function WorkflowNodeModal({
       }
 
       // 4. Update Fields
-      const fieldsRes = await fetch(`${apiUrl}/api/workspaces/projects/statuses/${statusId}/fields`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fields: fieldMappings }),
-        credentials: "include",
-      });
-      if (!fieldsRes.ok) throw new Error((await fieldsRes.json()).error || "Failed to save field mappings");
+      const fieldsRes = await fetch(
+        `${apiUrl}/api/workspaces/projects/statuses/${statusId}/fields`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fields: fieldMappings }),
+          credentials: "include",
+        },
+      );
+      if (!fieldsRes.ok)
+        throw new Error((await fieldsRes.json()).error || "Failed to save field mappings");
 
       return true;
     },
@@ -192,25 +226,32 @@ export function WorkflowNodeModal({
   });
 
   const toggleTransition = (id: string) => {
-    setTransitions(prev => prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]);
+    setTransitions((prev) => (prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]));
   };
 
   const handleFieldMapping = (fieldId: string, key: "isRequiredToEnter" | "isVisibleInStage") => {
-    setFieldMappings(prev => {
-      const existing = prev.find(f => f.fieldId === fieldId);
+    setFieldMappings((prev) => {
+      const existing = prev.find((f) => f.fieldId === fieldId);
       if (existing) {
         const updated = { ...existing, [key]: !existing[key] };
         if (!updated.isRequiredToEnter && !updated.isVisibleInStage) {
-          return prev.filter(f => f.fieldId !== fieldId); // Remove if both are false
+          return prev.filter((f) => f.fieldId !== fieldId); // Remove if both are false
         }
-        return prev.map(f => f.fieldId === fieldId ? updated : f);
+        return prev.map((f) => (f.fieldId === fieldId ? updated : f));
       } else {
-        return [...prev, { fieldId, isRequiredToEnter: key === 'isRequiredToEnter', isVisibleInStage: key === 'isVisibleInStage' }];
+        return [
+          ...prev,
+          {
+            fieldId,
+            isRequiredToEnter: key === "isRequiredToEnter",
+            isVisibleInStage: key === "isVisibleInStage",
+          },
+        ];
       }
     });
   };
 
-  const availableTargets = allStatuses.filter(s => s.id !== node?.id);
+  const availableTargets = allStatuses.filter((s) => s.id !== node?.id);
 
   return (
     <Dialog open={isOpen} onOpenChange={(val) => !val && onClose()}>
@@ -220,32 +261,44 @@ export function WorkflowNodeModal({
             {isEditing
               ? `Configure Stage: ${node.name}`
               : insertBetween
-              ? "Insert Stage Between Nodes"
-              : "Create New Stage"}
+                ? "Insert Stage Between Nodes"
+                : "Create New Stage"}
           </DialogTitle>
         </DialogHeader>
 
         <ScrollArea className="flex-1 px-6 py-4">
           <div className="space-y-8">
-            
             {/* General Info */}
             <section className="space-y-4">
-              <h3 className="text-sm font-semibold tracking-tight uppercase text-muted-foreground">General Info</h3>
+              <h3 className="text-sm font-semibold tracking-tight uppercase text-muted-foreground">
+                General Info
+              </h3>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Stage Name</Label>
-                  <Input 
-                    value={name} 
-                    onChange={e => setName(e.target.value)} 
-                    disabled={node?.isSystem} 
+                  <Input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    disabled={node?.isSystem}
                   />
-                  {node?.isSystem && <p className="text-xs text-muted-foreground">System nodes cannot be renamed.</p>}
+                  {node?.isSystem && (
+                    <p className="text-xs text-muted-foreground">System nodes cannot be renamed.</p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label>Node Color</Label>
                   <div className="flex gap-2">
-                    <Input type="color" className="w-12 h-10 p-1" value={color} onChange={e => setColor(e.target.value)} />
-                    <Input className="flex-1 font-mono uppercase" value={color} onChange={e => setColor(e.target.value)} />
+                    <Input
+                      type="color"
+                      className="w-12 h-10 p-1"
+                      value={color}
+                      onChange={(e) => setColor(e.target.value)}
+                    />
+                    <Input
+                      className="flex-1 font-mono uppercase"
+                      value={color}
+                      onChange={(e) => setColor(e.target.value)}
+                    />
                   </div>
                 </div>
               </div>
@@ -254,9 +307,18 @@ export function WorkflowNodeModal({
         </ScrollArea>
 
         <DialogFooter className="px-6 py-4 border-t bg-muted/20">
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={() => saveNodeMutation.mutate()} disabled={saveNodeMutation.isPending || !name.trim()}>
-            {saveNodeMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Plus className="h-4 w-4 mr-2" />}
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            onClick={() => saveNodeMutation.mutate()}
+            disabled={saveNodeMutation.isPending || !name.trim()}
+          >
+            {saveNodeMutation.isPending ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Plus className="h-4 w-4 mr-2" />
+            )}
             Save Stage Configuration
           </Button>
         </DialogFooter>

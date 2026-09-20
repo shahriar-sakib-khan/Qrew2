@@ -1,19 +1,17 @@
-import { Context } from "hono";
 import {
   db,
+  decodeFormula,
+  encodeFormula,
+  invoiceTemplates,
   templateSectionCharges,
   templateSections,
-  invoiceTemplates,
-  encodeFormula,
-  decodeFormula,
 } from "@starter/db";
-import { eq, and } from "drizzle-orm";
-import { z } from "zod";
-import { buildRowIndex } from "../../rows/services/row-index.service";
-import { buildSectionIndex } from "../services/section-index.service";
-import { buildConstantIndex } from "../../metadata/services/constant-index.service";
-import { validateFormulaChars } from "../../validation/formula-validator";
+import { and, eq } from "drizzle-orm";
+import { Context } from "hono";
 import * as math from "mathjs";
+import { z } from "zod";
+import { getTemplateFormulaContext } from "../../services/template-formula-context.service";
+import { validateFormulaChars } from "../../validation/formula-validator";
 
 function validateFormula(formula: string): boolean {
   try {
@@ -47,8 +45,8 @@ export async function updateSectionCharge(c: Context) {
     .where(
       and(
         eq(templateSectionCharges.id, chargeId),
-        eq(invoiceTemplates.organizationId, organizationId)
-      )
+        eq(invoiceTemplates.organizationId, organizationId),
+      ),
     )
     .limit(1);
 
@@ -61,21 +59,22 @@ export async function updateSectionCharge(c: Context) {
   const existing = chargeCheck[0].charge;
   const templateId = chargeCheck[0].section.templateId;
 
-  let encodedFormula = undefined;
+  const context = await getTemplateFormulaContext(templateId, organizationId);
+  let encodedFormula;
   if (parsed.data.formula !== undefined) {
-    const { tokenToId: rowTokenToId } = await buildRowIndex(templateId);
-    const { tokenToId: secTokenToId } = await buildSectionIndex(templateId);
-    const { tplTokenToId } = await buildConstantIndex(templateId);
-    encodedFormula = encodeFormula(parsed.data.formula, rowTokenToId, secTokenToId, tplTokenToId) ?? parsed.data.formula;
+    encodedFormula = context.encode(parsed.data.formula) ?? parsed.data.formula;
   }
 
   const nextFormula = encodedFormula ?? existing.formula;
   if (!validateFormula(nextFormula)) {
     return c.json({ error: `Invalid formula syntax: "${nextFormula}"` }, 422);
   }
-  
+
   if (parsed.data.formula !== undefined) {
-    const charVal = validateFormulaChars(parsed.data.formula, parsed.data.chargeToken ?? existing.chargeToken);
+    const charVal = validateFormulaChars(
+      parsed.data.formula,
+      parsed.data.chargeToken ?? existing.chargeToken,
+    );
     if (!charVal.valid) {
       return c.json({ error: charVal.error }, 422);
     }
@@ -86,7 +85,9 @@ export async function updateSectionCharge(c: Context) {
     .set({
       ...(parsed.data.chargeToken !== undefined && { chargeToken: parsed.data.chargeToken }),
       ...(parsed.data.label !== undefined && { label: parsed.data.label }),
-      ...(parsed.data.subDescription !== undefined && { subDescription: parsed.data.subDescription }),
+      ...(parsed.data.subDescription !== undefined && {
+        subDescription: parsed.data.subDescription,
+      }),
       ...(parsed.data.qualifier !== undefined && { qualifier: parsed.data.qualifier }),
       ...(parsed.data.tags !== undefined && { tags: parsed.data.tags }),
       ...(encodedFormula !== undefined && { formula: encodedFormula }),
@@ -95,12 +96,8 @@ export async function updateSectionCharge(c: Context) {
     .where(eq(templateSectionCharges.id, chargeId))
     .returning();
 
-  const { idToToken: decodedIdToToken } = await buildRowIndex(templateId);
-  const { idToToken: decodedSecIdToToken } = await buildSectionIndex(templateId);
-  const { tplIdToToken: decodedTplIdToToken } = await buildConstantIndex(templateId);
-
   return c.json({
     ...updated,
-    formula: decodeFormula(updated.formula, decodedIdToToken, decodedSecIdToToken, decodedTplIdToToken) ?? updated.formula,
+    formula: context.decode(updated.formula) ?? updated.formula,
   });
 }

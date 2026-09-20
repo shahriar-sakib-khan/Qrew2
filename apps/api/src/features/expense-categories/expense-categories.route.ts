@@ -10,24 +10,21 @@ router.use("*", requireAuth);
 router.post(
   "/",
   requireOrgPermission("finance:manage_categories"),
-  expenseCategoriesController.createCategory
+  expenseCategoriesController.createCategory,
 );
 
-router.get(
-  "/",
-  expenseCategoriesController.listCategories
-);
+router.get("/", expenseCategoriesController.listCategories);
 
 router.patch(
   "/:id",
   requireOrgPermission("finance:manage_categories"),
-  expenseCategoriesController.updateCategory
+  expenseCategoriesController.updateCategory,
 );
 
 router.delete(
   "/:id",
   requireOrgPermission("finance:manage_categories"),
-  expenseCategoriesController.deleteCategory
+  expenseCategoriesController.deleteCategory,
 );
 
 export { router as expenseCategoriesRouter };

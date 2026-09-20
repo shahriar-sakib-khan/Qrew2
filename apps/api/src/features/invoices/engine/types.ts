@@ -10,29 +10,29 @@
 
 // Re-export all shared JSONB interfaces from the db package
 export type {
+  BankDetailsV1,
   ComponentValueType,
-  LineType,
-  HeaderFieldType,
-  HistoricalFormatV2,
-  HistoricalSectionV2,
-  HistoricalRowV2,
-  HistoricalComponentV2,
-  HistoricalRowChargeV2,
-  HistoricalSectionChargeV2,
-  ResolvedScopeV2,
-  DraftSectionV2,
-  DraftRowV2,
   DraftComponentV2,
   DraftRowChargeV2,
+  DraftRowV1,
+  DraftRowV2,
   DraftSectionChargeV2,
-  BankDetailsV1,
+  DraftSectionV1,
+  DraftSectionV2,
   ExtraSectionV1,
   FooterBlockV1,
+  HeaderFieldType,
+  HistoricalComponentV2,
   // Compat aliases during migration
   HistoricalFormatV1,
+  HistoricalFormatV2,
+  HistoricalRowChargeV2,
+  HistoricalRowV2,
+  HistoricalSectionChargeV2,
+  HistoricalSectionV2,
+  LineType,
   ResolvedScopeV1,
-  DraftSectionV1,
-  DraftRowV1,
+  ResolvedScopeV2,
 } from "@starter/db";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -43,7 +43,7 @@ export type {
 /** A row charge fed into the evaluator. */
 export interface EvaluatorRowCharge {
   id: string;
-  chargeToken: string;           // e.g. PORT_DUES_VAT_15
+  chargeToken: string; // e.g. PORT_DUES_VAT_15
   label: string;
   subDescription?: string;
   qualifier?: string;
@@ -56,19 +56,19 @@ export interface EvaluatorRowCharge {
 /** A section charge fed into the evaluator. */
 export interface EvaluatorSectionCharge {
   id: string;
-  chargeToken: string;           // e.g. SEC_A_PORT_LEVY
+  chargeToken: string; // e.g. SEC_A_PORT_LEVY
   label: string;
   subDescription?: string;
   qualifier?: string;
   tags?: string[];
-  formula: string;               // e.g. "SEC_A * 0.10"
+  formula: string; // e.g. "SEC_A * 0.10"
   sortOrder: number;
 }
 
 /** A parent row fed into the evaluator. */
 export interface EvaluatorRow {
   id: string;
-  rowToken: string;              // e.g. PORT_DUES (= base sum token)
+  rowToken: string; // e.g. PORT_DUES (= base sum token)
   label: string;
   sectionId: string;
   /** valueType = 'formula' → evaluate formula; 'normal' → use initialValue/manualValue */
@@ -89,7 +89,7 @@ export interface EvaluatorRow {
 /** A section fed into the evaluator. */
 export interface EvaluatorSection {
   id: string;
-  sectionToken: string;          // e.g. A, B, PORT_COSTS
+  sectionToken: string; // e.g. A, B, PORT_COSTS
   label?: string;
   sortOrder: number;
   rows: EvaluatorRow[];
@@ -154,7 +154,7 @@ export interface EvaluatedSection {
   id: string;
   sectionToken: string;
   label?: string;
-  autoName: string;              // letter computed by sortOrder (A, B, C…)
+  autoName: string; // letter computed by sortOrder (A, B, C…)
   rows: EvaluatedRow[];
   sectionCharges: EvaluatedSectionCharge[];
   /** BigNumber fixed(6) string */
@@ -172,15 +172,15 @@ export interface EvaluatedSection {
 export type EngineErrorCode =
   | "TOKEN_NOT_FOUND"
   | "CIRCULAR_DEPENDENCY"
-  | "UNRESOLVED_REFERENCE"         // token not in scope at eval time -> zero-filled, soft warning
-  | "CHARGE_SCOPE_VIOLATION"       // row/section charge refs a forbidden token
+  | "UNRESOLVED_REFERENCE" // token not in scope at eval time -> zero-filled, soft warning
+  | "CHARGE_SCOPE_VIOLATION" // row/section charge refs a forbidden token
   | "DIVISION_BY_ZERO"
   | "EVALUATION_FAILED"
   | "NEGATIVE_VALUE_NOT_ALLOWED"
   | "INVALID_FORMULA_SYNTAX"
   | "SECTION_NOT_FOUND"
   | "DUPLICATE_TOKEN"
-  | "REORDER_VIOLATION";           // reorder would break rules
+  | "REORDER_VIOLATION"; // reorder would break rules
 
 export interface EngineError {
   code: EngineErrorCode;

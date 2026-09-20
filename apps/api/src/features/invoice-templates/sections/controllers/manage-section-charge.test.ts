@@ -1,8 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import {
-  makeCtx, SECTION_ID, CHARGE_ID, TEMPLATE_ID,
-} from "../../invoice-templates.fixtures";
 import * as crypto from "crypto";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { CHARGE_ID, makeCtx, SECTION_ID, TEMPLATE_ID } from "../../invoice-templates.fixtures";
 
 const { hoistedChain } = vi.hoisted(() => ({
   hoistedChain: (result: any[] = []) => {
@@ -36,15 +34,23 @@ vi.mock("@starter/db", () => {
 
   return {
     db,
-    eq, and, asc,
-    templateSectionCharges: { id: "id", sectionId: "sectionId", chargeToken: "chargeToken", sortOrder: "sortOrder", formula: "formula" },
+    eq,
+    and,
+    asc,
+    templateSectionCharges: {
+      id: "id",
+      sectionId: "sectionId",
+      chargeToken: "chargeToken",
+      sortOrder: "sortOrder",
+      formula: "formula",
+    },
     templateSections: { id: "id", templateId: "templateId", sectionToken: "sectionToken" },
     invoiceTemplates: { id: "id", organizationId: "organizationId" },
   };
 });
 
-import { deleteSectionCharge, reorderSectionCharges } from "./manage-section-charge.controller";
 import { db } from "@starter/db";
+import { deleteSectionCharge, reorderSectionCharges } from "./manage-section-charge.controller";
 
 function mockChargeNotFound() {
   (db.select as any).mockReturnValueOnce(hoistedChain([]));
@@ -85,7 +91,11 @@ describe("reorderSectionCharges", () => {
   });
 
   it("returns 401 when unauthenticated", async () => {
-    const ctx = makeCtx({ orgId: null, params: { sectionId: SECTION_ID }, body: { orderedIds: [CHARGE_ID] } });
+    const ctx = makeCtx({
+      orgId: null,
+      params: { sectionId: SECTION_ID },
+      body: { orderedIds: [CHARGE_ID] },
+    });
     const res = await reorderSectionCharges(ctx);
     expect(res.status).toBe(401);
   });
@@ -98,14 +108,21 @@ describe("reorderSectionCharges", () => {
   });
 
   it("returns 400 when orderedIds contains non-UUID values", async () => {
-    (db.select as any).mockReturnValueOnce(hoistedChain([{ section: { id: SECTION_ID }, templateId: TEMPLATE_ID }]));
-    const ctx = makeCtx({ params: { sectionId: SECTION_ID }, body: { orderedIds: ["not-a-uuid"] } });
+    (db.select as any).mockReturnValueOnce(
+      hoistedChain([{ section: { id: SECTION_ID }, templateId: TEMPLATE_ID }]),
+    );
+    const ctx = makeCtx({
+      params: { sectionId: SECTION_ID },
+      body: { orderedIds: ["not-a-uuid"] },
+    });
     const res = await reorderSectionCharges(ctx);
     expect(res.status).toBe(400);
   });
 
   it("reorders charges successfully", async () => {
-    (db.select as any).mockReturnValueOnce(hoistedChain([{ section: { id: SECTION_ID }, templateId: TEMPLATE_ID }]));
+    (db.select as any).mockReturnValueOnce(
+      hoistedChain([{ section: { id: SECTION_ID }, templateId: TEMPLATE_ID }]),
+    );
     (db.update as any).mockReturnValue({
       set: vi.fn().mockReturnThis(),
       where: vi.fn().mockResolvedValue(undefined),

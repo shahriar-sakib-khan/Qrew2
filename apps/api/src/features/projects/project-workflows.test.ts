@@ -16,7 +16,7 @@
  *   - Graceful degradation: orgs with no configured transitions allow free status changes
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectsController } from "./projects.controller";
 
 // ─── DB Mock ──────────────────────────────────────────────────────────────
@@ -38,10 +38,26 @@ vi.mock("@starter/db", () => ({
     select: (...args: any[]) => mockDbSelect(...args),
     update: (...args: any[]) => mockDbUpdate(...args),
   },
-  projects: { id: "id", organizationId: "organization_id", status: "status", lifecycleState: "lifecycle_state", customFields: "custom_fields" },
+  projects: {
+    id: "id",
+    organizationId: "organization_id",
+    status: "status",
+    lifecycleState: "lifecycle_state",
+    customFields: "custom_fields",
+  },
   projectStatuses: { id: "id", organizationId: "organization_id" },
-  projectStatusTransitions: { id: "id", organizationId: "organization_id", fromStatusId: "from_status_id", toStatusId: "to_status_id" },
-  projectStatusFields: { fieldId: "field_id", organizationId: "organization_id", statusId: "status_id", isRequiredToEnter: "is_required_to_enter" },
+  projectStatusTransitions: {
+    id: "id",
+    organizationId: "organization_id",
+    fromStatusId: "from_status_id",
+    toStatusId: "to_status_id",
+  },
+  projectStatusFields: {
+    fieldId: "field_id",
+    organizationId: "organization_id",
+    statusId: "status_id",
+    isRequiredToEnter: "is_required_to_enter",
+  },
   customFieldDefinitions: { id: "id", fieldKey: "field_key", fieldName: "field_name" },
   expenses: {},
   invoices: {},
@@ -109,21 +125,31 @@ describe("advanceStatus — happy path", () => {
 
   it("transitions successfully when all required fields are present", async () => {
     const project = {
-      id: PROJECT_ID, organizationId: ORG_ID, status: FROM_STATUS_ID,
-      lifecycleState: "open", customFields: { [FIELD_KEY_A]: "2024-01-15" },
+      id: PROJECT_ID,
+      organizationId: ORG_ID,
+      status: FROM_STATUS_ID,
+      lifecycleState: "open",
+      customFields: { [FIELD_KEY_A]: "2024-01-15" },
     };
     const targetStatus = { id: TO_STATUS_ID, name: "Active", organizationId: ORG_ID };
     const allowedTransition = [{ id: "transition-001" }];
     const anyTransitions = [{ id: "transition-001" }];
-    const requiredFields = [{ fieldKey: FIELD_KEY_A, fieldName: "Discharge Date", fieldId: "f1", isRequiredToEnter: true }];
+    const requiredFields = [
+      {
+        fieldKey: FIELD_KEY_A,
+        fieldName: "Discharge Date",
+        fieldId: "f1",
+        isRequiredToEnter: true,
+      },
+    ];
     const updatedProject = { ...project, status: TO_STATUS_ID };
 
     mockDbQuery.projects.findFirst.mockResolvedValueOnce(project);
     mockDbSelect
-      .mockReturnValueOnce(selectChainable([targetStatus]))    // targetStatus
+      .mockReturnValueOnce(selectChainable([targetStatus])) // targetStatus
       .mockReturnValueOnce(selectChainable(allowedTransition)) // allowed transition
-      .mockReturnValueOnce(selectChainable(anyTransitions))    // hasAnyTransitions
-      .mockReturnValueOnce(selectChainable(requiredFields));   // requiredFields
+      .mockReturnValueOnce(selectChainable(anyTransitions)) // hasAnyTransitions
+      .mockReturnValueOnce(selectChainable(requiredFields)); // requiredFields
     mockDbUpdate.mockReturnValueOnce(updateChainable([updatedProject]));
 
     const ctx = makeCtx({ toStatusId: TO_STATUS_ID, customFields: {} });
@@ -134,12 +160,18 @@ describe("advanceStatus — happy path", () => {
 
   it("merges incoming customFields with existing ones on transition", async () => {
     const project = {
-      id: PROJECT_ID, organizationId: ORG_ID, status: FROM_STATUS_ID,
+      id: PROJECT_ID,
+      organizationId: ORG_ID,
+      status: FROM_STATUS_ID,
       lifecycleState: "open",
       customFields: { [FIELD_KEY_A]: "existing", [FIELD_KEY_B]: "MV Star" },
     };
     const targetStatus = { id: TO_STATUS_ID, name: "Active", organizationId: ORG_ID };
-    const updatedProject = { ...project, status: TO_STATUS_ID, customFields: { [FIELD_KEY_A]: "overridden", [FIELD_KEY_B]: "MV Star" } };
+    const updatedProject = {
+      ...project,
+      status: TO_STATUS_ID,
+      customFields: { [FIELD_KEY_A]: "overridden", [FIELD_KEY_B]: "MV Star" },
+    };
 
     mockDbQuery.projects.findFirst.mockResolvedValueOnce(project);
     mockDbSelect
@@ -149,15 +181,21 @@ describe("advanceStatus — happy path", () => {
       .mockReturnValueOnce(selectChainable([])); // no required fields
     mockDbUpdate.mockReturnValueOnce(updateChainable([updatedProject]));
 
-    const ctx = makeCtx({ toStatusId: TO_STATUS_ID, customFields: { [FIELD_KEY_A]: "overridden" } });
+    const ctx = makeCtx({
+      toStatusId: TO_STATUS_ID,
+      customFields: { [FIELD_KEY_A]: "overridden" },
+    });
     const res = await ProjectsController.advanceStatus(ctx as any);
     expect(res._status).toBe(200);
   });
 
   it("allows free status change when no transitions are configured (graceful degradation)", async () => {
     const project = {
-      id: PROJECT_ID, organizationId: ORG_ID, status: FROM_STATUS_ID,
-      lifecycleState: "open", customFields: {},
+      id: PROJECT_ID,
+      organizationId: ORG_ID,
+      status: FROM_STATUS_ID,
+      lifecycleState: "open",
+      customFields: {},
     };
     const targetStatus = { id: TO_STATUS_ID, name: "Completed", organizationId: ORG_ID };
     const updatedProject = { ...project, status: TO_STATUS_ID };
@@ -165,8 +203,8 @@ describe("advanceStatus — happy path", () => {
     mockDbQuery.projects.findFirst.mockResolvedValueOnce(project);
     mockDbSelect
       .mockReturnValueOnce(selectChainable([targetStatus]))
-      .mockReturnValueOnce(selectChainable([]))  // no allowed transition
-      .mockReturnValueOnce(selectChainable([]))  // no transitions configured at all → graceful
+      .mockReturnValueOnce(selectChainable([])) // no allowed transition
+      .mockReturnValueOnce(selectChainable([])) // no transitions configured at all → graceful
       .mockReturnValueOnce(selectChainable([])); // no required fields
     mockDbUpdate.mockReturnValueOnce(updateChainable([updatedProject]));
 
@@ -181,15 +219,18 @@ describe("advanceStatus — transition graph enforcement", () => {
 
   it("returns 422 when the transition is not in the workflow graph", async () => {
     const project = {
-      id: PROJECT_ID, organizationId: ORG_ID, status: FROM_STATUS_ID,
-      lifecycleState: "open", customFields: {},
+      id: PROJECT_ID,
+      organizationId: ORG_ID,
+      status: FROM_STATUS_ID,
+      lifecycleState: "open",
+      customFields: {},
     };
     const targetStatus = { id: TO_STATUS_ID, name: "Active", organizationId: ORG_ID };
 
     mockDbQuery.projects.findFirst.mockResolvedValueOnce(project);
     mockDbSelect
       .mockReturnValueOnce(selectChainable([targetStatus]))
-      .mockReturnValueOnce(selectChainable([]))   // transition NOT in graph
+      .mockReturnValueOnce(selectChainable([])) // transition NOT in graph
       .mockReturnValueOnce(selectChainable([{ id: "some-transition" }])); // but there ARE transitions
 
     const ctx = makeCtx({ toStatusId: TO_STATUS_ID });
@@ -200,8 +241,11 @@ describe("advanceStatus — transition graph enforcement", () => {
 
   it("returns 400 when trying to advance an archived file", async () => {
     const project = {
-      id: PROJECT_ID, organizationId: ORG_ID, status: FROM_STATUS_ID,
-      lifecycleState: "archived", customFields: {},
+      id: PROJECT_ID,
+      organizationId: ORG_ID,
+      status: FROM_STATUS_ID,
+      lifecycleState: "archived",
+      customFields: {},
     };
     mockDbQuery.projects.findFirst.mockResolvedValueOnce(project);
 
@@ -213,8 +257,11 @@ describe("advanceStatus — transition graph enforcement", () => {
 
   it("returns 400 for no-op (already in target status)", async () => {
     const project = {
-      id: PROJECT_ID, organizationId: ORG_ID, status: TO_STATUS_ID,
-      lifecycleState: "open", customFields: {},
+      id: PROJECT_ID,
+      organizationId: ORG_ID,
+      status: TO_STATUS_ID,
+      lifecycleState: "open",
+      customFields: {},
     };
     mockDbQuery.projects.findFirst.mockResolvedValueOnce(project);
 
@@ -226,8 +273,11 @@ describe("advanceStatus — transition graph enforcement", () => {
 
   it("returns 404 when target status is in a different org", async () => {
     const project = {
-      id: PROJECT_ID, organizationId: ORG_ID, status: FROM_STATUS_ID,
-      lifecycleState: "open", customFields: {},
+      id: PROJECT_ID,
+      organizationId: ORG_ID,
+      status: FROM_STATUS_ID,
+      lifecycleState: "open",
+      customFields: {},
     };
     mockDbQuery.projects.findFirst.mockResolvedValueOnce(project);
     mockDbSelect.mockReturnValueOnce(selectChainable([])); // target status not found
@@ -257,14 +307,22 @@ describe("advanceStatus — Scenario A: pre-transition required fields", () => {
 
   it("returns 422 with missingFields list when required fields are not filled", async () => {
     const project = {
-      id: PROJECT_ID, organizationId: ORG_ID, status: FROM_STATUS_ID,
-      lifecycleState: "open", customFields: {}, // DISCHARGE_DATE missing
+      id: PROJECT_ID,
+      organizationId: ORG_ID,
+      status: FROM_STATUS_ID,
+      lifecycleState: "open",
+      customFields: {}, // DISCHARGE_DATE missing
     };
     const targetStatus = { id: TO_STATUS_ID, name: "Completed", organizationId: ORG_ID };
     const allowedTransition = [{ id: "t1" }];
     const anyTransitions = [{ id: "t1" }];
     const requiredFields = [
-      { fieldKey: FIELD_KEY_A, fieldName: "Discharge Date", fieldId: "f1", isRequiredToEnter: true },
+      {
+        fieldKey: FIELD_KEY_A,
+        fieldName: "Discharge Date",
+        fieldId: "f1",
+        isRequiredToEnter: true,
+      },
     ];
 
     mockDbQuery.projects.findFirst.mockResolvedValueOnce(project);
@@ -284,14 +342,22 @@ describe("advanceStatus — Scenario A: pre-transition required fields", () => {
 
   it("allows transition when required field is supplied in the incoming body", async () => {
     const project = {
-      id: PROJECT_ID, organizationId: ORG_ID, status: FROM_STATUS_ID,
-      lifecycleState: "open", customFields: {}, // DISCHARGE_DATE not in stored fields
+      id: PROJECT_ID,
+      organizationId: ORG_ID,
+      status: FROM_STATUS_ID,
+      lifecycleState: "open",
+      customFields: {}, // DISCHARGE_DATE not in stored fields
     };
     const targetStatus = { id: TO_STATUS_ID, name: "Completed", organizationId: ORG_ID };
     const allowedTransition = [{ id: "t1" }];
     const anyTransitions = [{ id: "t1" }];
     const requiredFields = [
-      { fieldKey: FIELD_KEY_A, fieldName: "Discharge Date", fieldId: "f1", isRequiredToEnter: true },
+      {
+        fieldKey: FIELD_KEY_A,
+        fieldName: "Discharge Date",
+        fieldId: "f1",
+        isRequiredToEnter: true,
+      },
     ];
     const updatedProject = { ...project, status: TO_STATUS_ID };
 
@@ -314,14 +380,21 @@ describe("advanceStatus — Scenario A: pre-transition required fields", () => {
 
   it("returns 422 if ONE of multiple required fields is missing", async () => {
     const project = {
-      id: PROJECT_ID, organizationId: ORG_ID, status: FROM_STATUS_ID,
+      id: PROJECT_ID,
+      organizationId: ORG_ID,
+      status: FROM_STATUS_ID,
       lifecycleState: "open",
       customFields: { [FIELD_KEY_A]: "2024-01-01" }, // A present, B missing
     };
     const targetStatus = { id: TO_STATUS_ID, name: "Completed", organizationId: ORG_ID };
     const allowedTransition = [{ id: "t1" }];
     const requiredFields = [
-      { fieldKey: FIELD_KEY_A, fieldName: "Discharge Date", fieldId: "f1", isRequiredToEnter: true },
+      {
+        fieldKey: FIELD_KEY_A,
+        fieldName: "Discharge Date",
+        fieldId: "f1",
+        isRequiredToEnter: true,
+      },
       { fieldKey: FIELD_KEY_B, fieldName: "Vessel Name", fieldId: "f2", isRequiredToEnter: true },
     ];
 

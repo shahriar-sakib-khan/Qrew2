@@ -1,20 +1,20 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
-import { Button } from "@/components/ui/button";
-import { Edit2, Trash2, ChevronDown, ChevronUp, Plus, GripVertical } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiUrl } from "@/lib/constants";
+import { ChevronDown, ChevronUp, Edit2, GripVertical, Plus, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { AddSectionModal } from "./add-section-modal";
 import { ConfirmDeleteModal } from "@/components/shared/confirm-delete-modal";
-import { TableRow, TemplateRowList, SectionColor, MobileRowActions } from "./row-list";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { apiUrl } from "@/lib/constants";
+import { evaluateFormula, fmt, TokenMap } from "@/lib/formula-evaluator";
+import { cn } from "@/lib/utils";
 import { AddEditRowModal } from "./add-edit-row-modal";
 import { AddEditSectionChargeModal } from "./add-edit-section-charge-modal";
-import { TokenMap, fmt, evaluateFormula } from "@/lib/formula-evaluator";
-import { Badge } from "@/components/ui/badge";
-import { useBuilderContext, cellFromSectionCharge } from "./builder-context";
-import { cn } from "@/lib/utils";
+import { AddSectionModal } from "./add-section-modal";
+import { cellFromSectionCharge, useBuilderContext } from "./builder-context";
+import { MobileRowActions, SectionColor, TableRow, TemplateRowList } from "./row-list";
 
 // ─── Inline section charge label cell ──────────────────────────────────────────
 function SectionChargeLabelCell({
@@ -75,8 +75,14 @@ function SectionChargeLabelCell({
         onChange={(e) => setDraft(e.target.value)}
         onBlur={save}
         onKeyDown={(e) => {
-          if (e.key === "Enter") { e.preventDefault(); save(); }
-          if (e.key === "Escape") { setDraft(charge.label); setEditing(false); }
+          if (e.key === "Enter") {
+            e.preventDefault();
+            save();
+          }
+          if (e.key === "Escape") {
+            setDraft(charge.label);
+            setEditing(false);
+          }
         }}
         className={cn(
           "w-full bg-transparent border-none outline-none focus:outline-none text-right",
@@ -146,6 +152,11 @@ function SectionChargeLine({
           setSelectedCell(cellFromSectionCharge({ templateId, sectionId, charge, sectionToken }));
         }
       }}
+      onClickFormula={() => {
+        if (mode !== "fill") {
+          setSelectedCell(cellFromSectionCharge({ templateId, sectionId, charge, sectionToken }));
+        }
+      }}
       isUsd1Selected={isSelected}
       style={{
         backgroundColor: sectionColor.bg,
@@ -155,10 +166,22 @@ function SectionChargeLine({
       actions={
         mode !== "fill" ? (
           <>
-            <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" onClick={onEdit} title="Edit section charge">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-muted-foreground hover:text-foreground"
+              onClick={onEdit}
+              title="Edit section charge"
+            >
               <Edit2 className="h-3 w-3" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive" onClick={onDelete} title="Delete section charge">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-muted-foreground hover:text-destructive"
+              onClick={onDelete}
+              title="Delete section charge"
+            >
               <Trash2 className="h-3 w-3" />
             </Button>
           </>
@@ -174,7 +197,11 @@ function SectionChargeLine({
           <SectionChargeLabelCell charge={charge} sectionId={sectionId} zoomLevel={zoomLevel} />
         </div>
       }
-      usd1={computedVal != null ? <span style={{ fontSize: 16 + zoomLevel }}>{fmt(computedVal)}</span> : undefined}
+      usd1={
+        computedVal != null ? (
+          <span style={{ fontSize: 16 + zoomLevel }}>{fmt(computedVal)}</span>
+        ) : undefined
+      }
     />
   );
 }
@@ -204,7 +231,8 @@ export function TemplateSectionCard({
   zoomLevel?: number;
 }) {
   const queryClient = useQueryClient();
-  const { apiBasePath, invalidateKey, mode } = useBuilderContext();
+  const { apiBasePath, invalidateKey, mode, selectedCell } = useBuilderContext();
+  const isFormulaMode = !!selectedCell;
   const isDraftMode = mode === "draft";
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isAddRowModalOpen, setIsAddRowModalOpen] = useState(false);
@@ -230,11 +258,15 @@ export function TemplateSectionCard({
       const neighbor = sorted[neighborIdx];
       await Promise.all([
         fetch(`${apiBasePath}/sections/${section.id}`, {
-          method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include",
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
           body: JSON.stringify({ orderIndex: neighbor.sortOrder }),
         }),
         fetch(`${apiBasePath}/sections/${neighbor.id}`, {
-          method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include",
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
           body: JSON.stringify({ orderIndex: section.sortOrder }),
         }),
       ]);
@@ -245,27 +277,35 @@ export function TemplateSectionCard({
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch(
-        `${apiBasePath}/sections/${section.id}`,
-        { method: "DELETE", credentials: "include" }
-      );
+      const res = await fetch(`${apiBasePath}/sections/${section.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
       if (!res.ok) throw new Error("Failed to delete section");
       return res.json();
     },
-    onSuccess: () => { toast.success("Section deleted"); invalidate(); setIsSectionDeleteModalOpen(false); },
+    onSuccess: () => {
+      toast.success("Section deleted");
+      invalidate();
+      setIsSectionDeleteModalOpen(false);
+    },
     onError: (err: any) => toast.error(err.message),
   });
 
   const deleteSectionChargeMutation = useMutation({
     mutationFn: async (chargeId: string) => {
-      const res = await fetch(
-        `${apiBasePath}/sections/${section.id}/section-charges/${chargeId}`,
-        { method: "DELETE", credentials: "include" }
-      );
+      const res = await fetch(`${apiBasePath}/sections/${section.id}/section-charges/${chargeId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
       if (!res.ok) throw new Error("Failed to delete section charge");
       return res.json();
     },
-    onSuccess: () => { toast.success("Section charge deleted"); invalidate(); setChargeToDelete(null); },
+    onSuccess: () => {
+      toast.success("Section charge deleted");
+      invalidate();
+      setChargeToDelete(null);
+    },
     onError: (err: any) => toast.error(err.message),
   });
 
@@ -308,18 +348,33 @@ export function TemplateSectionCard({
               {label || `Section ${sectionToken.split("_").pop()}`}
             </h3>
             {/* Token badge — hover only */}
-            <span className="font-mono text-muted-foreground/40 bg-muted/50 px-1.5 rounded opacity-0 group-hover/sec:opacity-100 transition-opacity select-all" style={{ fontSize: 10 + zoomLevel }}>
+            <span
+              className="font-mono text-muted-foreground/40 bg-muted/50 px-1.5 rounded opacity-0 group-hover/sec:opacity-100 transition-opacity select-all"
+              style={{ fontSize: 10 + zoomLevel }}
+            >
               {sectionToken}
             </span>
           </div>
 
           {/* Edit / Delete — hover only */}
-          {mode !== "fill" && (
+          {mode !== "fill" && !isFormulaMode && (
             <div className="flex items-center gap-1 opacity-0 group-hover/sec:opacity-100 transition-opacity">
-              <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" onClick={() => setIsEditModalOpen(true)} title="Edit section">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                onClick={() => setIsEditModalOpen(true)}
+                title="Edit section"
+              >
                 <Edit2 className="h-3 w-3" />
               </Button>
-              <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive" onClick={() => setIsSectionDeleteModalOpen(true)} title="Delete section">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                onClick={() => setIsSectionDeleteModalOpen(true)}
+                title="Delete section"
+              >
                 <Trash2 className="h-3 w-3" />
               </Button>
             </div>
@@ -370,7 +425,8 @@ export function TemplateSectionCard({
           {/* Add row button */}
           <div className="flex-1 border-r border-border p-0.5">
             <Button
-              variant="ghost" size="sm"
+              variant="ghost"
+              size="sm"
               className="w-full h-7 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/20"
               onClick={() => setIsAddRowModalOpen(true)}
             >
@@ -380,7 +436,8 @@ export function TemplateSectionCard({
           {/* Add section charge button — spans both USD columns */}
           <div className="w-40 shrink-0 p-0.5">
             <Button
-              variant="ghost" size="sm"
+              variant="ghost"
+              size="sm"
               className="w-full h-7 text-xs text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/20"
               onClick={() => setIsAddSectionChargeModalOpen(true)}
             >

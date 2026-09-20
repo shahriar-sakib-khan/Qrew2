@@ -41,7 +41,11 @@ export const invoiceApi = {
   },
 
   // --- Engine ---
-  previewInvoice: async (payload: { templateId: string; projectId?: string; inputs?: Record<string, any> }) => {
+  previewInvoice: async (payload: {
+    templateId: string;
+    projectId?: string;
+    inputs?: Record<string, any>;
+  }) => {
     const res = await fetch(`${apiUrl}/api/invoices/preview`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -58,7 +62,9 @@ export const invoiceApi = {
 
   // --- Drafts ---
   getDraft: async (projectId: string) => {
-    const res = await fetch(`${apiUrl}/api/invoices/drafts?projectId=${projectId}`, { credentials: "include" });
+    const res = await fetch(`${apiUrl}/api/invoices/drafts?projectId=${projectId}`, {
+      credentials: "include",
+    });
     if (!res.ok) throw new Error("Failed to fetch draft");
     return res.json();
   },
@@ -87,7 +93,9 @@ export const invoiceApi = {
   },
 
   getInvoices: async (projectId: string) => {
-    const res = await fetch(`${apiUrl}/api/invoices?projectId=${projectId}`, { credentials: "include" });
+    const res = await fetch(`${apiUrl}/api/invoices?projectId=${projectId}`, {
+      credentials: "include",
+    });
     if (!res.ok) throw new Error("Failed to fetch invoices");
     return res.json();
   },

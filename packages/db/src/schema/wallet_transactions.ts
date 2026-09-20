@@ -1,9 +1,9 @@
-import { pgTable, text, timestamp, decimal, pgEnum } from "drizzle-orm/pg-core";
+import { decimal, pgEnum, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 import { organizations, users } from "./auth";
 
 export const transactionTypeEnum = pgEnum("wallet_transaction_type", [
   "credit", // Money given to staff
-  "debit",  // Expense recorded
+  "debit", // Expense recorded
   "adjustment", // Manual adjustment
 ]);
 
@@ -26,7 +26,7 @@ export const walletTransactions = pgTable("wallet_transactions", {
   referenceType: referenceTypeEnum("reference_type").notNull(),
   referenceId: text("reference_id"), // Links to requisitions.id or expenses.id
   description: text("description"), // E.g., "Disbursed funds for Req-123"
-  createdAt: timestamp("created_at", { mode: 'date' }).defaultNow().notNull(),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
 });
 
 export type WalletTransaction = typeof walletTransactions.$inferSelect;

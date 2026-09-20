@@ -1,13 +1,14 @@
-import { Context } from "hono";
 import {
   db,
-  templateSections,
+  invoiceTemplates,
+  templateRowCharges,
   templateRows,
   templateSectionCharges,
-  templateRowCharges,
-  invoiceTemplates,
+  templateSections,
 } from "@starter/db";
-import { eq, and, asc } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
+import { Context } from "hono";
+import { getTemplateFormulaContext } from "../../services/template-formula-context.service";
 
 export async function listSections(c: Context) {
   const templateId = c.req.param("templateId") as string;
@@ -17,7 +18,7 @@ export async function listSections(c: Context) {
   const template = await db.query.invoiceTemplates.findFirst({
     where: and(
       eq(invoiceTemplates.id, templateId),
-      eq(invoiceTemplates.organizationId, organizationId)
+      eq(invoiceTemplates.organizationId, organizationId),
     ),
   });
   if (!template) return c.json({ error: "Template not found" }, 404);
@@ -40,5 +41,23 @@ export async function listSections(c: Context) {
     },
   });
 
-  return c.json(sections);
+  const context = await getTemplateFormulaContext(templateId, organizationId);
+
+  const decodedSections = sections.map((sec) => ({
+    ...sec,
+    rows: (sec.rows || []).map((row) => ({
+      ...row,
+      formula: context.decode(row.formula),
+      charges: (row.charges || []).map((ch) => ({
+        ...ch,
+        formula: context.decode(ch.formula) ?? ch.formula,
+      })),
+    })),
+    sectionCharges: (sec.sectionCharges || []).map((sc) => ({
+      ...sc,
+      formula: context.decode(sc.formula) ?? sc.formula,
+    })),
+  }));
+
+  return c.json(decodedSections);
 }

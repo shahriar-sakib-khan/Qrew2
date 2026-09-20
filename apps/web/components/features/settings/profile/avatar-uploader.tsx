@@ -1,23 +1,35 @@
 "use client";
 
-import { useRef, useState, useEffect, useCallback } from "react";
-import { Camera, User, Trash2, Loader2, Image as ImageIcon, Crop } from "lucide-react";
+import { Camera, Crop, Image as ImageIcon, Loader2, Trash2, User } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Cropper from "react-easy-crop";
-import { getCroppedImg } from "@/lib/crop-image";
-import { useSession } from "@/lib/auth-client";
 import { useFormContext } from "react-hook-form";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { useSession } from "@/lib/auth-client";
+import { getCroppedImg } from "@/lib/crop-image";
 
 export function AvatarUploader() {
   const { data: session } = useSession();
-  const { setValue, watch, formState: { isSubmitting } } = useFormContext();
+  const {
+    setValue,
+    watch,
+    formState: { isSubmitting },
+  } = useFormContext();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const [avatarMsg, setAvatarMsg] = useState<{ type: "error" | "success", text: string } | null>(null);
+  const [avatarMsg, setAvatarMsg] = useState<{ type: "error" | "success"; text: string } | null>(
+    null,
+  );
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [showMobileActions, setShowMobileActions] = useState(false);
 
@@ -80,7 +92,7 @@ export function AvatarUploader() {
   const handleRemoveAvatar = () => {
     setValue("avatarFile", null, { shouldDirty: true });
     setValue("avatarDeleted", true, { shouldDirty: true });
-    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (fileInputRef.current) fileInputRef.current.value = "";
     setIsViewerOpen(false);
     setShowMobileActions(false);
   };
@@ -90,7 +102,10 @@ export function AvatarUploader() {
     if (!originalFile) return;
 
     if (originalFile.size > 5 * 1024 * 1024) {
-      setAvatarMsg({ type: "error", text: "File exceeds 5MB limit. Please choose a smaller image." });
+      setAvatarMsg({
+        type: "error",
+        text: "File exceeds 5MB limit. Please choose a smaller image.",
+      });
       return;
     }
 
@@ -101,7 +116,7 @@ export function AvatarUploader() {
       setIsViewerOpen(true);
     };
     reader.readAsDataURL(originalFile);
-    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const onCropComplete = useCallback((croppedArea: any, croppedAreaPixels: any) => {
@@ -132,11 +147,13 @@ export function AvatarUploader() {
   return (
     <div className="flex flex-col items-center gap-4 shrink-0">
       {avatarMsg && (
-        <div className={`p-2.5 text-xs text-center rounded-md border font-medium w-full ${
-          avatarMsg.type === "success"
-            ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-            : "bg-destructive/15 text-destructive border-destructive/20"
-        }`}>
+        <div
+          className={`p-2.5 text-xs text-center rounded-md border font-medium w-full ${
+            avatarMsg.type === "success"
+              ? "bg-primary/10 text-primary border-primary/20"
+              : "bg-destructive/15 text-destructive border-destructive/20"
+          }`}
+        >
           {avatarMsg.text}
         </div>
       )}
@@ -145,9 +162,7 @@ export function AvatarUploader() {
         <div
           ref={containerRef}
           className={`relative group size-28 rounded-full overflow-hidden ring-2 transition-all will-change-transform transform-gpu cursor-pointer ${
-            avatarFile || avatarDeleted
-              ? 'ring-primary'
-              : 'ring-border/50 hover:ring-primary'
+            avatarFile || avatarDeleted ? "ring-primary" : "ring-border/50 hover:ring-primary"
           }`}
           onClick={() => {
             // Toggle the menu on mobile, or just open file picker if no image exists
@@ -161,7 +176,9 @@ export function AvatarUploader() {
           <Avatar className="size-full pointer-events-none">
             <AvatarImage src={displayImage || undefined} alt="Avatar" className="object-cover" />
             <AvatarFallback className="bg-muted text-2xl font-medium text-foreground">
-              {session?.user?.name?.charAt(0)?.toUpperCase() || <User className="h-10 w-10 text-muted-foreground" />}
+              {session?.user?.name?.charAt(0)?.toUpperCase() || (
+                <User className="h-10 w-10 text-muted-foreground" />
+              )}
             </AvatarFallback>
           </Avatar>
 
@@ -174,27 +191,57 @@ export function AvatarUploader() {
 
           {/* Action Overlay - FIX: Uses pointer-events-none to prevent phantom clicks when hidden */}
           {!isSubmitting && (
-            <div className={`absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-sm transition-opacity duration-200 rounded-full ${
-              showMobileActions
-                ? 'opacity-100 pointer-events-auto'
-                : 'opacity-0 pointer-events-none md:group-hover:opacity-100 md:group-hover:pointer-events-auto'
-            }`}>
+            <div
+              className={`absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-sm transition-opacity duration-200 rounded-full ${
+                showMobileActions
+                  ? "opacity-100 pointer-events-auto"
+                  : "opacity-0 pointer-events-none md:group-hover:opacity-100 md:group-hover:pointer-events-auto"
+              }`}
+            >
               {displayImage ? (
                 <div className="flex gap-2">
                   <DialogTrigger asChild>
-                    <button type="button" onClick={(e) => e.stopPropagation()} className="p-2 bg-white/20 rounded-full hover:bg-white/40 transition-colors">
+                    <button
+                      type="button"
+                      onClick={(e) => e.stopPropagation()}
+                      className="p-2 bg-white/20 rounded-full hover:bg-white/40 transition-colors"
+                    >
                       <ImageIcon className="size-4 text-white" />
                     </button>
                   </DialogTrigger>
-                  <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleAvatarClick(); }} className="p-2 bg-white/20 rounded-full hover:bg-white/40 transition-colors">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleAvatarClick();
+                    }}
+                    className="p-2 bg-white/20 rounded-full hover:bg-white/40 transition-colors"
+                  >
                     <Camera className="size-4 text-white" />
                   </button>
-                  <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleRemoveAvatar(); }} className="p-2 bg-destructive/80 rounded-full hover:bg-destructive transition-colors">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleRemoveAvatar();
+                    }}
+                    className="p-2 bg-destructive/80 rounded-full hover:bg-destructive transition-colors"
+                  >
                     <Trash2 className="size-4 text-white" />
                   </button>
                 </div>
               ) : (
-                <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleAvatarClick(); }} className="h-full w-full flex items-center justify-center">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleAvatarClick();
+                  }}
+                  className="h-full w-full flex items-center justify-center"
+                >
                   <Camera className="size-8 text-white/80" />
                 </button>
               )}
@@ -237,11 +284,20 @@ export function AvatarUploader() {
                 <ImageIcon className="size-5 text-muted-foreground shrink-0" />
               </div>
               <div className="flex w-full gap-3 pt-2">
-                <Button variant="outline" className="flex-1" onClick={() => setRawImageSrc(null)} disabled={isProcessingCrop}>
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setRawImageSrc(null)}
+                  disabled={isProcessingCrop}
+                >
                   Cancel
                 </Button>
                 <Button className="flex-1" onClick={confirmCrop} disabled={isProcessingCrop}>
-                  {isProcessingCrop ? <Loader2 className="size-4 mr-2 animate-spin" /> : <Crop className="size-4 mr-2" />}
+                  {isProcessingCrop ? (
+                    <Loader2 className="size-4 mr-2 animate-spin" />
+                  ) : (
+                    <Crop className="size-4 mr-2" />
+                  )}
                   Crop & Save
                 </Button>
               </div>
@@ -255,10 +311,24 @@ export function AvatarUploader() {
                 </AvatarFallback>
               </Avatar>
               <div className="flex w-full gap-3">
-                <Button variant="outline" className="flex-1" onClick={() => { setIsViewerOpen(false); handleAvatarClick(); }}>
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => {
+                    setIsViewerOpen(false);
+                    handleAvatarClick();
+                  }}
+                >
                   <ImageIcon className="size-4 mr-2" /> Change
                 </Button>
-                <Button variant="destructive" className="flex-1" onClick={() => { setIsViewerOpen(false); handleRemoveAvatar(); }}>
+                <Button
+                  variant="destructive"
+                  className="flex-1"
+                  onClick={() => {
+                    setIsViewerOpen(false);
+                    handleRemoveAvatar();
+                  }}
+                >
                   <Trash2 className="size-4 mr-2" /> Remove
                 </Button>
               </div>
@@ -267,8 +337,18 @@ export function AvatarUploader() {
         </DialogContent>
       </Dialog>
 
-      <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleAvatarChange} />
-      <p className="text-[11px] text-muted-foreground text-center uppercase tracking-wider">JPEG, PNG, WebP<br/>Max 5MB</p>
+      <input
+        type="file"
+        ref={fileInputRef}
+        className="hidden"
+        accept="image/*"
+        onChange={handleAvatarChange}
+      />
+      <p className="text-[11px] text-muted-foreground text-center uppercase tracking-wider">
+        JPEG, PNG, WebP
+        <br />
+        Max 5MB
+      </p>
     </div>
   );
 }

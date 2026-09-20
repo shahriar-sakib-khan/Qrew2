@@ -1,5 +1,5 @@
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Card, CardHeader, CardContent } from "@/components/ui/card";
 
 export default function DashboardGenericLoading() {
   return (
@@ -89,4 +89,3 @@ export default function DashboardGenericLoading() {
     </div>
   );
 }
-

@@ -2,9 +2,9 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { apiUrl } from "@/lib/constants";
-import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
+import { use } from "react";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -13,8 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
-import { use } from "react";
+import { apiUrl } from "@/lib/constants";
 
 export default function ProjectDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: projectId } = use(params);
@@ -22,7 +21,9 @@ export default function ProjectDetailsPage({ params }: { params: Promise<{ id: s
   const { data: expenses, isLoading } = useQuery({
     queryKey: ["expenses", projectId],
     queryFn: async () => {
-      const res = await fetch(`${apiUrl}/api/expenses?projectId=${projectId}`, { credentials: "include" });
+      const res = await fetch(`${apiUrl}/api/expenses?projectId=${projectId}`, {
+        credentials: "include",
+      });
       if (!res.ok) throw new Error("Failed to fetch expenses for this file");
       return res.json();
     },
@@ -56,9 +57,17 @@ export default function ProjectDetailsPage({ params }: { params: Promise<{ id: s
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={5} className="text-center h-24">Loading expenses...</TableCell></TableRow>
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center h-24">
+                    Loading expenses...
+                  </TableCell>
+                </TableRow>
               ) : expenses?.length === 0 ? (
-                <TableRow><TableCell colSpan={5} className="text-center h-24">No expenses logged for this file.</TableCell></TableRow>
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center h-24">
+                    No expenses logged for this file.
+                  </TableCell>
+                </TableRow>
               ) : (
                 expenses?.map((ex: any) => (
                   <TableRow key={ex.id}>

@@ -1,12 +1,20 @@
+import {
+  db,
+  decodeFormula,
+  encodeFormula,
+  invoiceTemplates,
+  templateRowCharges,
+  templateRows,
+} from "@starter/db";
+import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
-import { db, templateRows, templateRowCharges, invoiceTemplates, encodeFormula, decodeFormula } from "@starter/db";
-import { buildRowIndex } from "../services/row-index.service";
-import { buildSectionIndex } from "../../sections/services/section-index.service";
-import { buildConstantIndex } from "../../metadata/services/constant-index.service";
-import { validateFormulaChars } from "../../validation/formula-validator";
-import { validateTemplateDag } from "../../../invoices/engine/engine-utils";
-import { eq, and } from "drizzle-orm";
 import { z } from "zod";
+import { validateTemplateDag } from "../../../invoices/engine/engine-utils";
+import { getTemplateFormulaContext } from "../../services/template-formula-context.service";
+import {
+  validateFormulaChars,
+  validateRateChargeFormula,
+} from "../../validation/formula-validator";
 
 function validateFormula(formula: string | null | undefined): boolean {
   if (!formula || !formula.trim()) return false;
@@ -39,10 +47,7 @@ export async function updateCharge(c: Context) {
     .innerJoin(templateRows, eq(templateRowCharges.rowId, templateRows.id))
     .innerJoin(invoiceTemplates, eq(templateRows.templateId, invoiceTemplates.id))
     .where(
-      and(
-        eq(templateRowCharges.id, chargeId),
-        eq(invoiceTemplates.organizationId, organizationId)
-      )
+      and(eq(templateRowCharges.id, chargeId), eq(invoiceTemplates.organizationId, organizationId)),
     )
     .limit(1);
   if (chargeCheck.length === 0) return c.json({ error: "Row charge not found" }, 404);
@@ -54,22 +59,22 @@ export async function updateCharge(c: Context) {
   const existing = chargeCheck[0].charge;
   const templateId = chargeCheck[0].row.templateId;
 
-  let encodedFormula: string | undefined = undefined;
+  const context = await getTemplateFormulaContext(templateId, organizationId);
+  let encodedFormula: string | undefined;
 
   if (parsed.data.formula !== undefined) {
-    const { tokenToId } = await buildRowIndex(templateId);
-    const { tokenToId: secTokenToId } = await buildSectionIndex(templateId);
-    const { tplTokenToId } = await buildConstantIndex(templateId);
-    encodedFormula = encodeFormula(parsed.data.formula, tokenToId, secTokenToId, tplTokenToId) ?? parsed.data.formula;
+    encodedFormula = context.encode(parsed.data.formula) ?? parsed.data.formula;
   }
 
-  const nextFormula = encodedFormula ?? existing.formula;
-  if (!validateFormula(nextFormula)) {
-    return c.json({ error: `Invalid formula syntax: "${nextFormula}"` }, 422);
-  }
-  
   if (parsed.data.formula !== undefined) {
-    const charVal = validateFormulaChars(parsed.data.formula, parsed.data.chargeToken ?? existing.chargeToken);
+    const rateVal = validateRateChargeFormula(parsed.data.formula, chargeCheck[0].row.rowToken);
+    if (!rateVal.valid) {
+      return c.json({ error: rateVal.error }, 422);
+    }
+    const charVal = validateFormulaChars(
+      parsed.data.formula,
+      parsed.data.chargeToken ?? existing.chargeToken,
+    );
     if (!charVal.valid) {
       return c.json({ error: charVal.error }, 422);
     }
@@ -79,13 +84,13 @@ export async function updateCharge(c: Context) {
     const dup = await db.query.templateRowCharges.findFirst({
       where: and(
         eq(templateRowCharges.rowId, existing.rowId),
-        eq(templateRowCharges.chargeToken, parsed.data.chargeToken)
+        eq(templateRowCharges.chargeToken, parsed.data.chargeToken),
       ),
     });
     if (dup) {
       return c.json(
         { error: `Row charge token "${parsed.data.chargeToken}" already exists on this row.` },
-        409
+        409,
       );
     }
   }
@@ -97,7 +102,9 @@ export async function updateCharge(c: Context) {
         .set({
           ...(parsed.data.chargeToken !== undefined && { chargeToken: parsed.data.chargeToken }),
           ...(parsed.data.label !== undefined && { label: parsed.data.label }),
-          ...(parsed.data.subDescription !== undefined && { subDescription: parsed.data.subDescription }),
+          ...(parsed.data.subDescription !== undefined && {
+            subDescription: parsed.data.subDescription,
+          }),
           ...(parsed.data.qualifier !== undefined && { qualifier: parsed.data.qualifier }),
           ...(parsed.data.tags !== undefined && { tags: parsed.data.tags }),
           ...(encodedFormula !== undefined && { formula: encodedFormula }),
@@ -113,13 +120,9 @@ export async function updateCharge(c: Context) {
         }
       }
 
-      const { idToToken } = await buildRowIndex(templateId);
-      const { idToToken: secIdToToken } = await buildSectionIndex(templateId);
-      const { tplIdToToken } = await buildConstantIndex(templateId);
-
       return {
         ...updated,
-        formula: decodeFormula(updated.formula, idToToken, secIdToToken, tplIdToToken) ?? updated.formula,
+        formula: context.decode(updated.formula) ?? updated.formula,
       };
     });
 

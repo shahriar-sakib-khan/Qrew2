@@ -14,10 +14,13 @@
  * Out of scope: Circular reference validation → invoices/engine/dag-validator.service.ts
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  makeCtx, makeHeaderField,
-  ORG_ID, TEMPLATE_ID, HEADER_FIELD_ID,
+  HEADER_FIELD_ID,
+  makeCtx,
+  makeHeaderField,
+  ORG_ID,
+  TEMPLATE_ID,
 } from "../invoice-templates.fixtures";
 
 const { hoistedChain } = vi.hoisted(() => ({
@@ -56,14 +59,20 @@ vi.mock("@starter/db", () => {
 
   return {
     db,
-    eq, and,
-    templateHeaderFields: { id: "id", templateId: "templateId", sortOrder: "sortOrder", columnPosition: "columnPosition" },
+    eq,
+    and,
+    templateHeaderFields: {
+      id: "id",
+      templateId: "templateId",
+      sortOrder: "sortOrder",
+      columnPosition: "columnPosition",
+    },
     invoiceTemplates: { id: "id", organizationId: "organizationId" },
   };
 });
 
-import { TemplateHeaderFieldsController } from "./template-header-fields.controller";
 import { db } from "@starter/db";
+import { TemplateHeaderFieldsController } from "./template-header-fields.controller";
 
 // ─── Mock helpers ─────────────────────────────────────────────────────────────
 
@@ -88,7 +97,6 @@ function mockDeleteReturns(value: any) {
 // ─── TESTS ────────────────────────────────────────────────────────────────────
 
 describe("TemplateHeaderFieldsController", () => {
-
   beforeEach(() => {
     vi.resetAllMocks();
     (db.transaction as any).mockImplementation(async (fn: any) => fn(db));
@@ -128,19 +136,29 @@ describe("TemplateHeaderFieldsController", () => {
 
   describe("createHeaderField", () => {
     it("returns 401 when unauthenticated", async () => {
-      const ctx = makeCtx({ orgId: null, params: { templateId: TEMPLATE_ID }, body: { label: "Client", fieldType: "file_field" } });
+      const ctx = makeCtx({
+        orgId: null,
+        params: { templateId: TEMPLATE_ID },
+        body: { label: "Client", fieldType: "file_field" },
+      });
       const res = await TemplateHeaderFieldsController.createHeaderField(ctx);
       expect(res.status).toBe(401);
     });
 
     it("returns 400 when label is empty string", async () => {
-      const ctx = makeCtx({ params: { templateId: TEMPLATE_ID }, body: { label: "", fieldType: "file_field" } });
+      const ctx = makeCtx({
+        params: { templateId: TEMPLATE_ID },
+        body: { label: "", fieldType: "file_field" },
+      });
       const res = await TemplateHeaderFieldsController.createHeaderField(ctx);
       expect(res.status).toBe(400);
     });
 
     it("returns 400 when fieldType is invalid enum value", async () => {
-      const ctx = makeCtx({ params: { templateId: TEMPLATE_ID }, body: { label: "Client", fieldType: "invalid_type" } });
+      const ctx = makeCtx({
+        params: { templateId: TEMPLATE_ID },
+        body: { label: "Client", fieldType: "invalid_type" },
+      });
       const res = await TemplateHeaderFieldsController.createHeaderField(ctx);
       expect(res.status).toBe(400);
     });
@@ -180,7 +198,7 @@ describe("TemplateHeaderFieldsController", () => {
       mockInsertReturns(newField);
       const ctx = makeCtx({
         params: { templateId: TEMPLATE_ID },
-        body: { label: "Amount", fieldType: "file_field" },  // no isFormulaInjectable
+        body: { label: "Amount", fieldType: "file_field" }, // no isFormulaInjectable
       });
       const res = await TemplateHeaderFieldsController.createHeaderField(ctx);
       expect(res.status).toBe(201);
@@ -193,7 +211,7 @@ describe("TemplateHeaderFieldsController", () => {
       mockInsertReturns(newField);
       const ctx = makeCtx({
         params: { templateId: TEMPLATE_ID },
-        body: { label: "Amount", fieldType: "file_field" },  // no columnPosition
+        body: { label: "Amount", fieldType: "file_field" }, // no columnPosition
       });
       const res = await TemplateHeaderFieldsController.createHeaderField(ctx);
       expect(res.status).toBe(201);
@@ -211,7 +229,10 @@ describe("TemplateHeaderFieldsController", () => {
      * The tests assert the ACTUAL current behavior.
      */
     it("returns 401 when unauthenticated", async () => {
-      const ctx = makeCtx({ orgId: null, params: { templateId: TEMPLATE_ID, fieldId: HEADER_FIELD_ID } });
+      const ctx = makeCtx({
+        orgId: null,
+        params: { templateId: TEMPLATE_ID, fieldId: HEADER_FIELD_ID },
+      });
       const res = await TemplateHeaderFieldsController.deleteHeaderField(ctx);
       expect(res.status).toBe(401);
     });
@@ -239,8 +260,10 @@ describe("TemplateHeaderFieldsController", () => {
     it("multi-tenant isolation: cannot delete field from a different template (same fieldId)", async () => {
       // Controller uses AND(id = fieldId, templateId = :templateId) in WHERE
       // If templateId doesn't match, .returning() is empty → 404
-      mockDeleteReturns(null);  // empty because templateId mismatch
-      const ctx = makeCtx({ params: { templateId: "other-template-id", fieldId: HEADER_FIELD_ID } });
+      mockDeleteReturns(null); // empty because templateId mismatch
+      const ctx = makeCtx({
+        params: { templateId: "other-template-id", fieldId: HEADER_FIELD_ID },
+      });
       const res = await TemplateHeaderFieldsController.deleteHeaderField(ctx);
       expect(res.status).toBe(404);
     });
@@ -250,7 +273,11 @@ describe("TemplateHeaderFieldsController", () => {
 
   describe("reorderHeaderFields", () => {
     it("returns 401 when unauthenticated", async () => {
-      const ctx = makeCtx({ orgId: null, params: { templateId: TEMPLATE_ID }, body: { updates: [] } });
+      const ctx = makeCtx({
+        orgId: null,
+        params: { templateId: TEMPLATE_ID },
+        body: { updates: [] },
+      });
       const res = await TemplateHeaderFieldsController.reorderHeaderFields(ctx);
       expect(res.status).toBe(401);
     });
@@ -318,5 +345,4 @@ describe("TemplateHeaderFieldsController", () => {
       expect((res as any).data.success).toBe(true);
     });
   });
-
 });

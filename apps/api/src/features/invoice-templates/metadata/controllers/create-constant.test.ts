@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { makeCtx, makeConstant, TEMPLATE_ID, CONSTANT_ID } from "../../invoice-templates.fixtures";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { CONSTANT_ID, makeConstant, makeCtx, TEMPLATE_ID } from "../../invoice-templates.fixtures";
 
 const { hoistedChain } = vi.hoisted(() => ({
   hoistedChain: (result: any[] = []) => {
@@ -38,9 +38,16 @@ vi.mock("@starter/db", () => {
 
   return {
     db,
-    eq, and,
+    eq,
+    and,
     encodeFormula: vi.fn((f: any) => f),
-    templateConstants: { id: "id", templateId: "templateId", token: "token", defaultValue: "defaultValue", name: "name" },
+    templateConstants: {
+      id: "id",
+      templateId: "templateId",
+      token: "token",
+      defaultValue: "defaultValue",
+      name: "name",
+    },
     templateRows: { id: "id", templateId: "templateId", rowToken: "rowToken", formula: "formula" },
     templateSections: { id: "id", templateId: "templateId", sectionToken: "sectionToken" },
     templateSectionCharges: { id: "id", sectionId: "sectionId", formula: "formula" },
@@ -48,8 +55,8 @@ vi.mock("@starter/db", () => {
   };
 });
 
-import { createConstant } from "./create-constant.controller";
 import { db } from "@starter/db";
+import { createConstant } from "./create-constant.controller";
 
 function mockInsertReturns(value: any) {
   (db.insert as any).mockReturnValue({
@@ -106,7 +113,10 @@ describe("createConstant", () => {
     it("maps 'key' → 'token' in DB insert", async () => {
       let insertedValues: any;
       (db.insert as any).mockReturnValue({
-        values: vi.fn((v: any) => { insertedValues = v; return { returning: vi.fn().mockResolvedValue([makeConstant()]) }; }),
+        values: vi.fn((v: any) => {
+          insertedValues = v;
+          return { returning: vi.fn().mockResolvedValue([makeConstant()]) };
+        }),
       });
       const ctx = makeCtx({
         params: { templateId: TEMPLATE_ID },
@@ -120,7 +130,10 @@ describe("createConstant", () => {
     it("maps 'value' → 'defaultValue' in DB insert", async () => {
       let insertedValues: any;
       (db.insert as any).mockReturnValue({
-        values: vi.fn((v: any) => { insertedValues = v; return { returning: vi.fn().mockResolvedValue([makeConstant()]) }; }),
+        values: vi.fn((v: any) => {
+          insertedValues = v;
+          return { returning: vi.fn().mockResolvedValue([makeConstant()]) };
+        }),
       });
       const ctx = makeCtx({
         params: { templateId: TEMPLATE_ID },
@@ -134,7 +147,10 @@ describe("createConstant", () => {
     it("maps 'description' → 'name' in DB insert", async () => {
       let insertedValues: any;
       (db.insert as any).mockReturnValue({
-        values: vi.fn((v: any) => { insertedValues = v; return { returning: vi.fn().mockResolvedValue([makeConstant()]) }; }),
+        values: vi.fn((v: any) => {
+          insertedValues = v;
+          return { returning: vi.fn().mockResolvedValue([makeConstant()]) };
+        }),
       });
       const ctx = makeCtx({
         params: { templateId: TEMPLATE_ID },

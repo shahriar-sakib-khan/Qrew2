@@ -3,7 +3,7 @@
  * Runs before each test file via vitest setupFiles.
  */
 
-import { beforeEach, afterEach, vi } from "vitest";
+import { afterEach, beforeEach, vi } from "vitest";
 
 // Suppress console.error noise from expected error paths
 beforeEach(() => {

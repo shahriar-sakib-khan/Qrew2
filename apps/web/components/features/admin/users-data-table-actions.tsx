@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { MoreHorizontal, UserCog, Ban, ShieldAlert, RefreshCcw, KeyRound, Eye } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Ban, Eye, KeyRound, MoreHorizontal, RefreshCcw, ShieldAlert, UserCog } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,8 +9,8 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { SecurityActionType, SecurityUserContext } from './security-action-modal';
+} from "@/components/ui/dropdown-menu";
+import { SecurityActionType, SecurityUserContext } from "./security-action-modal";
 
 const ROLE_HIERARCHY: Record<string, number> = {
   user: 1,
@@ -26,7 +26,13 @@ interface UsersDataTableActionsProps {
   onViewDetails?: (user: SecurityUserContext) => void;
 }
 
-export function UsersDataTableActions({ user, currentUserRole, onImpersonate, onSecurityAction, onViewDetails }: UsersDataTableActionsProps) {
+export function UsersDataTableActions({
+  user,
+  currentUserRole,
+  onImpersonate,
+  onSecurityAction,
+  onViewDetails,
+}: UsersDataTableActionsProps) {
   const actorLevel = ROLE_HIERARCHY[currentUserRole] ?? 1;
   const targetLevel = ROLE_HIERARCHY[user.role] ?? 1;
 
@@ -54,18 +60,12 @@ export function UsersDataTableActions({ user, currentUserRole, onImpersonate, on
 
         {/* Support Operations */}
         {onViewDetails && (
-          <DropdownMenuItem
-            onClick={() => onViewDetails(user)}
-            className="cursor-pointer"
-          >
+          <DropdownMenuItem onClick={() => onViewDetails(user)} className="cursor-pointer">
             <Eye className="mr-2 h-4 w-4" />
             View Details
           </DropdownMenuItem>
         )}
-        <DropdownMenuItem
-          onClick={() => onImpersonate(user)}
-          className="cursor-pointer"
-        >
+        <DropdownMenuItem onClick={() => onImpersonate(user)} className="cursor-pointer">
           <UserCog className="mr-2 h-4 w-4" />
           Impersonate
         </DropdownMenuItem>
@@ -75,29 +75,29 @@ export function UsersDataTableActions({ user, currentUserRole, onImpersonate, on
         {/* Security Operations */}
         <DropdownMenuLabel className="text-xs text-muted-foreground">Security</DropdownMenuLabel>
         <DropdownMenuItem
-          onClick={() => onSecurityAction(user, 'require_reset')}
+          onClick={() => onSecurityAction(user, "require_reset")}
           className="cursor-pointer"
         >
           <RefreshCcw className="mr-2 h-4 w-4" />
           Force Password Reset
         </DropdownMenuItem>
         <DropdownMenuItem
-          onClick={() => onSecurityAction(user, 'reset_mfa')}
+          onClick={() => onSecurityAction(user, "reset_mfa")}
           className="cursor-pointer"
         >
           <KeyRound className="mr-2 h-4 w-4" />
           Reset MFA
         </DropdownMenuItem>
         <DropdownMenuItem
-          onClick={() => onSecurityAction(user, 'suspend')}
-          className="cursor-pointer text-amber-600 focus:text-amber-600 focus:bg-amber-50 dark:focus:bg-amber-950"
+          onClick={() => onSecurityAction(user, "suspend")}
+          className="cursor-pointer text-accent-foreground focus:text-accent-foreground focus:bg-amber-50 dark:focus:bg-amber-950"
         >
           <ShieldAlert className="mr-2 h-4 w-4" />
           Suspend Account
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
-          onClick={() => onSecurityAction(user, 'ban')}
+          onClick={() => onSecurityAction(user, "ban")}
           className="cursor-pointer text-destructive focus:text-destructive focus:bg-destructive/10"
         >
           <Ban className="mr-2 h-4 w-4" />

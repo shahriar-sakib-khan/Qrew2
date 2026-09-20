@@ -1,9 +1,8 @@
-import { Context } from 'hono';
-import { eq, and, count, sql } from 'drizzle-orm';
-import { v4 as uuidv4 } from 'uuid';
-import { auth } from '../../infra/lib/auth';
-import { db } from '@starter/db';
-import { permissions, orgRoles, orgRolePermissions, orgMemberRoles } from '@starter/db';
+import { db, orgMemberRoles, orgRolePermissions, orgRoles, permissions } from "@starter/db";
+import { and, count, eq, sql } from "drizzle-orm";
+import { Context } from "hono";
+import { v4 as uuidv4 } from "uuid";
+import { auth } from "../../infra/lib/auth";
 
 export class RolesController {
   /**
@@ -21,8 +20,8 @@ export class RolesController {
 
       return c.json({ permissions: allPermissions }, 200);
     } catch (error) {
-      console.error('[RolesController.getPermissionRegistry] Failed:', error);
-      return c.json({ error: 'Internal Server Error' }, 500);
+      console.error("[RolesController.getPermissionRegistry] Failed:", error);
+      return c.json({ error: "Internal Server Error" }, 500);
     }
   }
 
@@ -32,10 +31,10 @@ export class RolesController {
   static async listRoles(c: Context) {
     try {
       const sessionData = await auth.api.getSession({ headers: c.req.raw.headers });
-      if (!sessionData?.session) return c.json({ error: 'Unauthorized' }, 401);
+      if (!sessionData?.session) return c.json({ error: "Unauthorized" }, 401);
 
       const activeOrgId = sessionData.session.activeOrganizationId;
-      if (!activeOrgId) return c.json({ error: 'No active workspace selected' }, 400);
+      if (!activeOrgId) return c.json({ error: "No active workspace selected" }, 400);
 
       const roles = await db
         .select({
@@ -55,8 +54,8 @@ export class RolesController {
 
       return c.json({ roles }, 200);
     } catch (error) {
-      console.error('[RolesController.listRoles] Failed:', error);
-      return c.json({ error: 'Internal Server Error' }, 500);
+      console.error("[RolesController.listRoles] Failed:", error);
+      return c.json({ error: "Internal Server Error" }, 500);
     }
   }
 
@@ -66,16 +65,21 @@ export class RolesController {
   static async createRole(c: Context) {
     try {
       const sessionData = await auth.api.getSession({ headers: c.req.raw.headers });
-      if (!sessionData?.session) return c.json({ error: 'Unauthorized' }, 401);
+      if (!sessionData?.session) return c.json({ error: "Unauthorized" }, 401);
 
       const activeOrgId = sessionData.session.activeOrganizationId;
-      if (!activeOrgId) return c.json({ error: 'No active workspace selected' }, 400);
+      if (!activeOrgId) return c.json({ error: "No active workspace selected" }, 400);
 
       const body = await c.req.json();
       const { name, description, permissionKeys } = body;
 
-      if (!name || !permissionKeys || !Array.isArray(permissionKeys) || permissionKeys.length === 0) {
-        return c.json({ error: 'Missing required fields (name, permissionKeys)' }, 400);
+      if (
+        !name ||
+        !permissionKeys ||
+        !Array.isArray(permissionKeys) ||
+        permissionKeys.length === 0
+      ) {
+        return c.json({ error: "Missing required fields (name, permissionKeys)" }, 400);
       }
 
       const roleId = uuidv4();
@@ -98,7 +102,7 @@ export class RolesController {
             permissionKeys.map((key: string) => ({
               roleId,
               permissionKey: key,
-            }))
+            })),
           );
         }
 
@@ -107,8 +111,8 @@ export class RolesController {
 
       return c.json({ role: createdRole }, 201);
     } catch (error) {
-      console.error('[RolesController.createRole] Failed:', error);
-      return c.json({ error: 'Internal Server Error' }, 500);
+      console.error("[RolesController.createRole] Failed:", error);
+      return c.json({ error: "Internal Server Error" }, 500);
     }
   }
 
@@ -118,20 +122,20 @@ export class RolesController {
   static async getRole(c: Context) {
     try {
       const sessionData = await auth.api.getSession({ headers: c.req.raw.headers });
-      if (!sessionData?.session) return c.json({ error: 'Unauthorized' }, 401);
+      if (!sessionData?.session) return c.json({ error: "Unauthorized" }, 401);
 
       const activeOrgId = sessionData.session.activeOrganizationId;
-      if (!activeOrgId) return c.json({ error: 'No active workspace selected' }, 400);
+      if (!activeOrgId) return c.json({ error: "No active workspace selected" }, 400);
 
-      const roleId = c.req.param('roleId');
-      if (!roleId) return c.json({ error: 'Role ID required' }, 400);
+      const roleId = c.req.param("roleId");
+      if (!roleId) return c.json({ error: "Role ID required" }, 400);
 
       const role = await db.query.orgRoles.findFirst({
         where: and(eq(orgRoles.id, roleId), eq(orgRoles.organizationId, activeOrgId)),
       });
 
       if (!role) {
-        return c.json({ error: 'Role not found' }, 404);
+        return c.json({ error: "Role not found" }, 404);
       }
 
       const rolePermissions = await db
@@ -141,19 +145,22 @@ export class RolesController {
 
       const permissionKeys = rolePermissions.map((rp) => rp.permissionKey);
 
-      return c.json({
-        role: {
-          id: role.id,
-          name: role.name,
-          description: role.description,
-          isSystem: role.isSystem,
-          permissionKeys,
-          createdAt: role.createdAt,
+      return c.json(
+        {
+          role: {
+            id: role.id,
+            name: role.name,
+            description: role.description,
+            isSystem: role.isSystem,
+            permissionKeys,
+            createdAt: role.createdAt,
+          },
         },
-      }, 200);
+        200,
+      );
     } catch (error) {
-      console.error('[RolesController.getRole] Failed:', error);
-      return c.json({ error: 'Internal Server Error' }, 500);
+      console.error("[RolesController.getRole] Failed:", error);
+      return c.json({ error: "Internal Server Error" }, 500);
     }
   }
 
@@ -164,24 +171,24 @@ export class RolesController {
   static async updateRole(c: Context) {
     try {
       const sessionData = await auth.api.getSession({ headers: c.req.raw.headers });
-      if (!sessionData?.session) return c.json({ error: 'Unauthorized' }, 401);
+      if (!sessionData?.session) return c.json({ error: "Unauthorized" }, 401);
 
       const activeOrgId = sessionData.session.activeOrganizationId;
-      if (!activeOrgId) return c.json({ error: 'No active workspace selected' }, 400);
+      if (!activeOrgId) return c.json({ error: "No active workspace selected" }, 400);
 
-      const roleId = c.req.param('roleId');
-      if (!roleId) return c.json({ error: 'Role ID required' }, 400);
+      const roleId = c.req.param("roleId");
+      if (!roleId) return c.json({ error: "Role ID required" }, 400);
 
       const existingRole = await db.query.orgRoles.findFirst({
         where: and(eq(orgRoles.id, roleId), eq(orgRoles.organizationId, activeOrgId)),
       });
 
       if (!existingRole) {
-        return c.json({ error: 'Role not found' }, 404);
+        return c.json({ error: "Role not found" }, 404);
       }
 
       if (existingRole.isSystem) {
-        return c.json({ error: 'System roles cannot be modified' }, 403);
+        return c.json({ error: "System roles cannot be modified" }, 403);
       }
 
       const body = await c.req.json();
@@ -199,9 +206,7 @@ export class RolesController {
 
         if (permissionKeys && Array.isArray(permissionKeys)) {
           // Remove all existing permission bindings
-          await tx
-            .delete(orgRolePermissions)
-            .where(eq(orgRolePermissions.roleId, roleId));
+          await tx.delete(orgRolePermissions).where(eq(orgRolePermissions.roleId, roleId));
 
           // Insert new permission bindings
           if (permissionKeys.length > 0) {
@@ -209,7 +214,7 @@ export class RolesController {
               permissionKeys.map((key: string) => ({
                 roleId,
                 permissionKey: key,
-              }))
+              })),
             );
           }
         }
@@ -219,8 +224,8 @@ export class RolesController {
 
       return c.json({ role: updatedRole }, 200);
     } catch (error) {
-      console.error('[RolesController.updateRole] Failed:', error);
-      return c.json({ error: 'Internal Server Error' }, 500);
+      console.error("[RolesController.updateRole] Failed:", error);
+      return c.json({ error: "Internal Server Error" }, 500);
     }
   }
 
@@ -230,24 +235,24 @@ export class RolesController {
   static async deleteRole(c: Context) {
     try {
       const sessionData = await auth.api.getSession({ headers: c.req.raw.headers });
-      if (!sessionData?.session) return c.json({ error: 'Unauthorized' }, 401);
+      if (!sessionData?.session) return c.json({ error: "Unauthorized" }, 401);
 
       const activeOrgId = sessionData.session.activeOrganizationId;
-      if (!activeOrgId) return c.json({ error: 'No active workspace selected' }, 400);
+      if (!activeOrgId) return c.json({ error: "No active workspace selected" }, 400);
 
-      const roleId = c.req.param('roleId');
-      if (!roleId) return c.json({ error: 'Role ID required' }, 400);
+      const roleId = c.req.param("roleId");
+      if (!roleId) return c.json({ error: "Role ID required" }, 400);
 
       const existingRole = await db.query.orgRoles.findFirst({
         where: and(eq(orgRoles.id, roleId), eq(orgRoles.organizationId, activeOrgId)),
       });
 
       if (!existingRole) {
-        return c.json({ error: 'Role not found' }, 404);
+        return c.json({ error: "Role not found" }, 404);
       }
 
       if (existingRole.isSystem) {
-        return c.json({ error: 'System roles cannot be deleted' }, 403);
+        return c.json({ error: "System roles cannot be deleted" }, 403);
       }
 
       // Check if any members are currently assigned to this role
@@ -257,15 +262,20 @@ export class RolesController {
         .where(eq(orgMemberRoles.roleId, roleId));
 
       if (memberCount.count > 0) {
-        return c.json({ error: 'Cannot delete a role that has members assigned to it. Reassign members first.' }, 409);
+        return c.json(
+          {
+            error: "Cannot delete a role that has members assigned to it. Reassign members first.",
+          },
+          409,
+        );
       }
 
       await db.delete(orgRoles).where(eq(orgRoles.id, roleId));
 
-      return c.json({ success: true, message: 'Role deleted successfully' }, 200);
+      return c.json({ success: true, message: "Role deleted successfully" }, 200);
     } catch (error) {
-      console.error('[RolesController.deleteRole] Failed:', error);
-      return c.json({ error: 'Internal Server Error' }, 500);
+      console.error("[RolesController.deleteRole] Failed:", error);
+      return c.json({ error: "Internal Server Error" }, 500);
     }
   }
 }

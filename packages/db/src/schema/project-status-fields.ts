@@ -20,34 +20,39 @@
  *   e.g., "Container Number" must be provided before entering "In Port" stage
  *   AND is shown/editable while the file remains in "In Port" stage.
  */
-import { pgTable, text, timestamp, boolean, unique } from "drizzle-orm/pg-core";
-import { organizations } from "./auth";
-import { projectStatuses } from "./project-statuses";
-import { customFieldDefinitions } from "./custom_fields";
+
 import { relations } from "drizzle-orm";
+import { boolean, pgTable, text, timestamp, unique } from "drizzle-orm/pg-core";
+import { organizations } from "./auth";
+import { customFieldDefinitions } from "./custom_fields";
+import { projectStatuses } from "./project-statuses";
 
-export const projectStatusFields = pgTable("project_status_fields", {
-  id: text("id").primaryKey(),
-  organizationId: text("organization_id")
-    .notNull()
-    .references(() => organizations.id, { onDelete: "cascade" }),
-  statusId: text("status_id")
-    .notNull()
-    .references(() => projectStatuses.id, { onDelete: "cascade" }),
-  fieldId: text("field_id")
-    .notNull()
-    .references(() => customFieldDefinitions.id, { onDelete: "cascade" }),
+export const projectStatusFields = pgTable(
+  "project_status_fields",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    statusId: text("status_id")
+      .notNull()
+      .references(() => projectStatuses.id, { onDelete: "cascade" }),
+    fieldId: text("field_id")
+      .notNull()
+      .references(() => customFieldDefinitions.id, { onDelete: "cascade" }),
 
-  // Scenario A: Must fill this field BEFORE the file can be advanced TO this stage
-  isRequiredToEnter: boolean("is_required_to_enter").notNull().default(false),
-  // Scenario B: Field becomes visible/active AFTER the file enters this stage
-  isVisibleInStage: boolean("is_visible_in_stage").notNull().default(true),
+    // Scenario A: Must fill this field BEFORE the file can be advanced TO this stage
+    isRequiredToEnter: boolean("is_required_to_enter").notNull().default(false),
+    // Scenario B: Field becomes visible/active AFTER the file enters this stage
+    isVisibleInStage: boolean("is_visible_in_stage").notNull().default(true),
 
-  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
-}, (table) => [
-  // Only one mapping row per (status, field) pair
-  unique("status_field_unique").on(table.statusId, table.fieldId),
-]);
+    createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => [
+    // Only one mapping row per (status, field) pair
+    unique("status_field_unique").on(table.statusId, table.fieldId),
+  ],
+);
 
 export const projectStatusFieldsRelations = relations(projectStatusFields, ({ one }) => ({
   status: one(projectStatuses, {

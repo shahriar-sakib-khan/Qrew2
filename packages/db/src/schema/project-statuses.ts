@@ -1,6 +1,6 @@
-import { pgTable, text, timestamp, boolean, integer } from "drizzle-orm/pg-core";
-import { organizations } from "./auth";
 import { relations } from "drizzle-orm";
+import { boolean, integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { organizations } from "./auth";
 
 export const projectStatuses = pgTable("project_statuses", {
   id: text("id").primaryKey(),
@@ -25,8 +25,7 @@ export const projectStatuses = pgTable("project_statuses", {
 
   // Persistent Grid Coordinates (Manual Node Drag and Drop)
   gridColumn: integer("grid_column"), // X-axis (0, 1, 2, ...)
-  gridRow: integer("grid_row"),       // Y-axis (..., -2, -1, 0, 1, 2, ...)
-
+  gridRow: integer("grid_row"), // Y-axis (..., -2, -1, 0, 1, 2, ...)
 
   createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { mode: "date" })

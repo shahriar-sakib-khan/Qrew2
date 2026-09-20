@@ -1,16 +1,36 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { apiUrl } from "@/lib/constants";
-import { toast } from "sonner";
-import { useRouter } from "next/navigation";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { apiUrl } from "@/lib/constants";
 
-export function GenerateInvoiceModal({ isOpen, onClose, projectId }: { isOpen: boolean; onClose: () => void; projectId: string }) {
+export function GenerateInvoiceModal({
+  isOpen,
+  onClose,
+  projectId,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  projectId: string;
+}) {
   const router = useRouter();
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   const [isNavigating, setIsNavigating] = useState(false);
@@ -67,7 +87,10 @@ export function GenerateInvoiceModal({ isOpen, onClose, projectId }: { isOpen: b
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && !isNavigating && onClose()}>
-      <DialogContent className="sm:max-w-[400px]" onInteractOutside={(e) => isNavigating && e.preventDefault()}>
+      <DialogContent
+        className="sm:max-w-[400px]"
+        onInteractOutside={(e) => isNavigating && e.preventDefault()}
+      >
         {isNavigating ? (
           // Navigation loading state — shown after Generate succeeds while Next.js transitions
           <div className="flex flex-col items-center justify-center py-10 gap-4">
@@ -90,7 +113,9 @@ export function GenerateInvoiceModal({ isOpen, onClose, projectId }: { isOpen: b
                   <Loader2 className="w-4 h-4 animate-spin" /> Loading templates...
                 </div>
               ) : templates?.length === 0 ? (
-                <div className="text-sm text-destructive">No invoice templates found. Please create one first in Settings.</div>
+                <div className="text-sm text-destructive">
+                  No invoice templates found. Please create one first in Settings.
+                </div>
               ) : (
                 <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
                   <SelectTrigger>
@@ -98,7 +123,9 @@ export function GenerateInvoiceModal({ isOpen, onClose, projectId }: { isOpen: b
                   </SelectTrigger>
                   <SelectContent>
                     {templates?.map((t: any) => (
-                      <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

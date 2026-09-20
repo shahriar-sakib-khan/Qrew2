@@ -1,8 +1,10 @@
 "use client";
 
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Loader2, Plus, ShieldAlert, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Trash2, Plus, ShieldAlert } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -10,7 +12,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -20,7 +21,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { toast } from "sonner";
 import { apiUrl } from "@/lib/constants";
 
 interface WorkspaceMembersModalProps {
@@ -83,12 +83,15 @@ export function WorkspaceMembersModal({ isOpen, onClose, workspace }: WorkspaceM
 
   const removeMutation = useMutation({
     mutationFn: async (memberId: string) => {
-      const res = await fetch(`${apiUrl}/api/super-admin/workspaces/${workspace?.id}/members/${memberId}`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason: actionReason }),
-        credentials: "include",
-      });
+      const res = await fetch(
+        `${apiUrl}/api/super-admin/workspaces/${workspace?.id}/members/${memberId}`,
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reason: actionReason }),
+          credentials: "include",
+        },
+      );
       if (!res.ok) {
         const errorData = await res.json();
         throw new Error(errorData.error || "Failed to remove member");
@@ -186,7 +189,11 @@ export function WorkspaceMembersModal({ isOpen, onClose, workspace }: WorkspaceM
               </div>
             </div>
             <div className="flex justify-end">
-              <Button type="submit" size="sm" disabled={addMutation.isPending || !newUserId || actionReason.length < 10}>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={addMutation.isPending || !newUserId || actionReason.length < 10}
+              >
                 {addMutation.isPending && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
                 Add Member
               </Button>
@@ -207,17 +214,26 @@ export function WorkspaceMembersModal({ isOpen, onClose, workspace }: WorkspaceM
                 </div>
               ) : (
                 members.map((member) => (
-                  <div key={member.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 border rounded-md bg-card/10 gap-4">
+                  <div
+                    key={member.id}
+                    className="flex flex-col sm:flex-row sm:items-center justify-between p-3 border rounded-md bg-card/10 gap-4"
+                  >
                     <div className="flex flex-col gap-1">
                       <div className="font-medium text-sm">
-                        {member.user.name} <span className="text-muted-foreground font-normal">({member.user.email})</span>
+                        {member.user.name}{" "}
+                        <span className="text-muted-foreground font-normal">
+                          ({member.user.email})
+                        </span>
                       </div>
                       <div className="text-xs text-muted-foreground flex items-center gap-2">
-                        Role: <span className="uppercase text-[10px] bg-secondary px-1.5 py-0.5 rounded-sm text-secondary-foreground">{member.role}</span>
+                        Role:{" "}
+                        <span className="uppercase text-[10px] bg-secondary px-1.5 py-0.5 rounded-sm text-secondary-foreground">
+                          {member.role}
+                        </span>
                         | User ID: <span className="font-mono">{member.user.id}</span>
                       </div>
                     </div>
-                    
+
                     {removingMemberId === member.id ? (
                       <div className="flex items-center gap-2 mt-2 sm:mt-0">
                         <Input
@@ -226,21 +242,26 @@ export function WorkspaceMembersModal({ isOpen, onClose, workspace }: WorkspaceM
                           onChange={(e) => setActionReason(e.target.value)}
                           className="h-8 w-[200px] text-xs"
                         />
-                        <Button 
-                          size="sm" 
+                        <Button
+                          size="sm"
                           variant="destructive"
                           className="h-8"
                           onClick={() => handleRemove(member.id)}
                           disabled={removeMutation.isPending || actionReason.length < 10}
                         >
-                          {removeMutation.isPending && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
+                          {removeMutation.isPending && (
+                            <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                          )}
                           Confirm
                         </Button>
                         <Button
                           size="sm"
                           variant="ghost"
                           className="h-8 px-2"
-                          onClick={() => { setRemovingMemberId(null); setActionReason(""); }}
+                          onClick={() => {
+                            setRemovingMemberId(null);
+                            setActionReason("");
+                          }}
                         >
                           Cancel
                         </Button>

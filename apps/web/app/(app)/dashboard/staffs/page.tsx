@@ -7,7 +7,7 @@ export default function StaffsPage() {
         <h1 className="text-2xl font-bold tracking-tight">Office Staff</h1>
         <p className="text-muted-foreground mt-1">Directory of all members in the office.</p>
       </div>
-      
+
       <StaffDataTable isReadOnly={true} />
     </div>
   );

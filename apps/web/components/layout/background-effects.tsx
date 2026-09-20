@@ -48,9 +48,7 @@ export function BackgroundEffects() {
         }
 
         // High contrast for Light Mode, standard white for Dark Mode
-        ctx.fillStyle = isDark
-          ? `rgba(255, 255, 255, ${p.o})`
-          : `rgba(15, 23, 42, ${p.o * 1.5})`; // Slate-900 with boosted opacity
+        ctx.fillStyle = isDark ? `rgba(255, 255, 255, ${p.o})` : `rgba(15, 23, 42, ${p.o * 1.5})`; // Slate-900 with boosted opacity
 
         ctx.fillRect(p.x, p.y, isDark ? 0.7 : 1.2, isDark ? 2.2 : 3); // Slightly thicker in light mode
       });
@@ -110,7 +108,10 @@ export function BackgroundEffects() {
         <div className="vline" /> <div className="vline" /> <div className="vline" />
       </div>
 
-      <canvas ref={canvasRef} className="fixed inset-0 w-full h-full mix-blend-normal pointer-events-none" />
+      <canvas
+        ref={canvasRef}
+        className="fixed inset-0 w-full h-full mix-blend-normal pointer-events-none"
+      />
     </>
   );
 }

@@ -1,13 +1,13 @@
-import { useState, useRef, useEffect, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
-import { cn } from "@/lib/utils";
-import { useBuilderContext, cellFromRow, cellFromRowCharge } from "../../builder-context";
-import { TokenMap, fmt, decodeFormula } from "@/lib/formula-evaluator";
 import { GripVertical } from "lucide-react";
-import { TableRow } from "./table-row";
-import { RowActions, MobileRowActions, UnresolvedNoticeButton } from "./row-context-menu";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import { decodeFormula, fmt, TokenMap } from "@/lib/formula-evaluator";
+import { cn } from "@/lib/utils";
+import { cellFromRow, cellFromRowCharge, useBuilderContext } from "../../builder-context";
 import { RowChargeLine } from "./charge-item";
+import { MobileRowActions, RowActions, UnresolvedNoticeButton } from "./row-context-menu";
+import { TableRow } from "./table-row";
 
 export type SectionColor = { border: string; bg: string };
 
@@ -46,15 +46,12 @@ export function LabelCell({
     setEditing(false);
     if (trimmed === value) return;
     try {
-      const res = await fetch(
-        `${apiBasePath}/sections/${sectionId}/rows/${rowId}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ label: trimmed }),
-        }
-      );
+      const res = await fetch(`${apiBasePath}/sections/${sectionId}/rows/${rowId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ label: trimmed }),
+      });
       if (!res.ok) throw new Error("Failed to save label");
       queryClient.invalidateQueries({ queryKey: invalidateKey });
     } catch {
@@ -77,20 +74,29 @@ export function LabelCell({
           onChange={(e) => setDraft(e.target.value)}
           onBlur={save}
           onKeyDown={(e) => {
-            if (e.key === "Enter") { e.preventDefault(); save(); }
-            if (e.key === "Escape") { setDraft(value); setEditing(false); }
+            if (e.key === "Enter") {
+              e.preventDefault();
+              save();
+            }
+            if (e.key === "Escape") {
+              setDraft(value);
+              setEditing(false);
+            }
           }}
           className={cn(
             "w-full bg-transparent border-none outline-none focus:outline-none",
             "font-medium text-foreground leading-snug caret-primary",
-            "placeholder:text-muted-foreground/40"
+            "placeholder:text-muted-foreground/40",
           )}
           style={{ fontSize: 14 + zoomLevel }}
           placeholder="Enter row label…"
         />
       ) : (
-        <span 
-          className={cn("font-medium text-foreground leading-snug", !value && "text-muted-foreground/30")}
+        <span
+          className={cn(
+            "font-medium text-foreground leading-snug",
+            !value && "text-muted-foreground/30",
+          )}
           style={{ fontSize: 14 + zoomLevel }}
         >
           {value || "Click to add label…"}
@@ -132,22 +138,22 @@ export function SingleRow({
   zoomLevel?: number;
 }) {
   const { selectedCell, setSelectedCell, mode, validationErrors } = useBuilderContext();
+  const isFormulaMode = !!selectedCell;
   const charges: any[] = row.charges ?? [];
   const hasCharges = charges.length > 0;
 
-  const baseValue  = tokenMap[row.rowToken];
-  const totalValue = tokenMap[`${row.rowToken}_TOTAL`];
+  const baseValue = tokenMap[`${row.rowToken}_BASE`];
+  const totalValue = tokenMap[row.rowToken] ?? tokenMap[`${row.rowToken}_TOTAL`];
 
-  const notices = (validationErrors || []).filter(
-    (e: any) => e.rowToken === row.rowToken
-  );
+  const notices = (validationErrors || []).filter((e: any) => e.rowToken === row.rowToken);
 
-  const displayBase  = baseValue  != null ? fmt(baseValue)  : undefined;
+  const displayBase = baseValue != null ? fmt(baseValue) : undefined;
   const displayTotal = totalValue != null ? fmt(totalValue) : undefined;
 
   const isSelected = selectedCell?.rowId === row.id;
 
-  const decodedFormula = row.valueType === "formula" ? decodeFormula(row.formula, allSections) : undefined;
+  const decodedFormula =
+    row.valueType === "formula" ? decodeFormula(row.formula, allSections) : undefined;
 
   const handleValueClick = () =>
     setSelectedCell(cellFromRow({ templateId, sectionId, row, decodedFormula }));
@@ -162,12 +168,22 @@ export function SingleRow({
         zoomLevel={zoomLevel}
         sl={
           <div className="group/sl relative flex items-center justify-center w-full h-full min-h-[32px]">
-            <span className="group-hover/sl:opacity-0 transition-opacity text-xs font-semibold text-muted-foreground select-none">
+            <span
+              className={cn(
+                "transition-opacity text-xs font-semibold text-muted-foreground select-none",
+                !isFormulaMode && "group-hover/sl:opacity-0",
+              )}
+            >
               {globalSl}
             </span>
             {mode !== "fill" && (
               <div
-                className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/sl:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
+                className={cn(
+                  "absolute inset-0 flex items-center justify-center transition-opacity",
+                  isFormulaMode
+                    ? "opacity-0 pointer-events-none"
+                    : "opacity-0 group-hover/sl:opacity-100 cursor-grab active:cursor-grabbing",
+                )}
                 {...(dragHandleProps ?? {})}
               >
                 <GripVertical className="h-4 w-4 text-muted-foreground/60" />
@@ -175,8 +191,16 @@ export function SingleRow({
             )}
           </div>
         }
-        actions={mode !== "fill" ? <RowActions onEdit={onEdit} onDelete={onDelete} onAddCharge={onAddCharge} /> : undefined}
-        mobileActions={mode !== "fill" ? <MobileRowActions onEdit={onEdit} onDelete={onDelete} onAddCharge={onAddCharge} /> : undefined}
+        actions={
+          mode !== "fill" ? (
+            <RowActions onEdit={onEdit} onDelete={onDelete} onAddCharge={onAddCharge} />
+          ) : undefined
+        }
+        mobileActions={
+          mode !== "fill" ? (
+            <MobileRowActions onEdit={onEdit} onDelete={onDelete} onAddCharge={onAddCharge} />
+          ) : undefined
+        }
         formula={formulaAnnotation}
         onClickFormula={mode !== "fill" && formulaAnnotation ? handleValueClick : undefined}
         labelContent={
@@ -191,11 +215,11 @@ export function SingleRow({
             {notices && notices.length > 0 && <UnresolvedNoticeButton notices={notices} />}
           </div>
         }
-        onClickUsd1={hasCharges  ? handleValueClick : undefined}
+        onClickUsd1={hasCharges ? handleValueClick : undefined}
         onClickUsd2={!hasCharges ? handleValueClick : undefined}
-        isUsd1Selected={hasCharges  && isSelected}
+        isUsd1Selected={hasCharges && isSelected}
         isUsd2Selected={!hasCharges && isSelected}
-        usd1={hasCharges  && displayBase  ? <span>{displayBase}</span>  : undefined}
+        usd1={hasCharges && displayBase ? <span>{displayBase}</span> : undefined}
         usd2={!hasCharges && displayTotal ? <span>{displayTotal}</span> : undefined}
         notices={notices}
       />
@@ -204,9 +228,11 @@ export function SingleRow({
         const isLastCharge = idx === charges.length - 1;
         const chargeVal = charge.chargeToken ? tokenMap[charge.chargeToken] : null;
         const displayCharge = chargeVal != null ? fmt(chargeVal) : undefined;
-        const chargeDecodedFormula = charge.formula ? decodeFormula(charge.formula, allSections) : undefined;
+        const chargeDecodedFormula = charge.formula
+          ? decodeFormula(charge.formula, allSections)
+          : undefined;
         const isChargeSelected = selectedCell?.chargeId === charge.id;
-        
+
         return (
           <RowChargeLine
             key={charge.id}
@@ -217,7 +243,15 @@ export function SingleRow({
             rowTotal={isLastCharge ? displayTotal : undefined}
             onClickUsd1={() => {
               if (mode !== "fill") {
-                setSelectedCell(cellFromRowCharge({ templateId, sectionId, row, charge, decodedFormula: chargeDecodedFormula }));
+                setSelectedCell(
+                  cellFromRowCharge({
+                    templateId,
+                    sectionId,
+                    row,
+                    charge,
+                    decodedFormula: chargeDecodedFormula,
+                  }),
+                );
               }
             }}
             isUsd1Selected={isChargeSelected}

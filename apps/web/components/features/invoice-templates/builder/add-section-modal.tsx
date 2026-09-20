@@ -2,20 +2,20 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { apiUrl } from "@/lib/constants";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { apiUrl } from "@/lib/constants";
 import { useBuilderContext } from "./builder-context";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -96,7 +96,7 @@ export function AddSectionModal({
       setDescription(editSection.description ?? "");
       setTokenSuffix(
         // strip the SECTION_ prefix to display just the suffix
-        (editSection.sectionToken ?? "").replace(/^SECTION_/, "")
+        (editSection.sectionToken ?? "").replace(/^SECTION_/, ""),
       );
     } else {
       const defaultName = nextDefaultName(existingSections ?? []);
@@ -118,18 +118,15 @@ export function AddSectionModal({
   const mutation = useMutation({
     mutationFn: async () => {
       if (isEdit) {
-        const res = await fetch(
-          `${apiBasePath}/sections/${editSection.id}`,
-          {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({
-              label: name || null,
-              description: description || null,
-            }),
-          }
-        );
+        const res = await fetch(`${apiBasePath}/sections/${editSection.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            label: name || null,
+            description: description || null,
+          }),
+        });
         if (!res.ok) {
           const d = await res.json();
           throw new Error(d.error || "Failed to update section");
@@ -138,42 +135,32 @@ export function AddSectionModal({
       }
 
       // Create — shift existing sections at or above insertAtIndex
-      const atIdx = insertAtIndex ?? (existingSections?.length ?? 0);
-      const toShift = (existingSections ?? []).filter(
-        (s: any) => s.sortOrder >= atIdx
-      );
+      const atIdx = insertAtIndex ?? existingSections?.length ?? 0;
+      const toShift = (existingSections ?? []).filter((s: any) => s.sortOrder >= atIdx);
 
-      for (const sec of [...toShift].sort(
-        (a, b) => b.sortOrder - a.sortOrder
-      )) {
-        await fetch(
-          `${apiBasePath}/sections/${sec.id}`,
-          {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({ orderIndex: sec.sortOrder + 1 }),
-          }
-        );
+      for (const sec of [...toShift].sort((a, b) => b.sortOrder - a.sortOrder)) {
+        await fetch(`${apiBasePath}/sections/${sec.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ orderIndex: sec.sortOrder + 1 }),
+        });
       }
 
       // Create new section
-      const res = await fetch(
-        `${apiBasePath}/sections`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            label: name || null,
-            description: description || null,
-            // Send the full SECTION_X token so the server stores it as-is
-            sectionToken: fullToken || null,
-            orderIndex: atIdx,
-            templateId: templateId,
-          }),
-        }
-      );
+      const res = await fetch(`${apiBasePath}/sections`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          label: name || null,
+          description: description || null,
+          // Send the full SECTION_X token so the server stores it as-is
+          sectionToken: fullToken || null,
+          orderIndex: atIdx,
+          templateId: templateId,
+        }),
+      });
       if (!res.ok) {
         const d = await res.json();
         throw new Error(d.error || "Failed to create section");
@@ -221,9 +208,7 @@ export function AddSectionModal({
 
           {/* Token — read-only display */}
           <div className="space-y-1.5">
-            <div
-              className="flex items-center h-9 px-3 rounded-md border border-border bg-muted/30 text-sm font-mono text-muted-foreground select-all"
-            >
+            <div className="flex items-center h-9 px-3 rounded-md border border-border bg-muted/30 text-sm font-mono text-muted-foreground select-all">
               <span className="text-foreground/40 mr-1">Token:</span>
               <span>{fullToken || <span className="italic opacity-50">SECTION_…</span>}</span>
             </div>
@@ -237,8 +222,7 @@ export function AddSectionModal({
           {/* Description (optional) */}
           <div className="space-y-1.5">
             <Label htmlFor="sec-desc" className="text-sm">
-              Description{" "}
-              <span className="text-muted-foreground font-normal">(optional)</span>
+              Description <span className="text-muted-foreground font-normal">(optional)</span>
             </Label>
             <Textarea
               id="sec-desc"
@@ -255,9 +239,7 @@ export function AddSectionModal({
               Cancel
             </Button>
             <Button type="submit" size="sm" disabled={mutation.isPending}>
-              {mutation.isPending && (
-                <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-              )}
+              {mutation.isPending && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
               {isEdit ? "Save" : "Add Section"}
             </Button>
           </DialogFooter>

@@ -1,7 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import {
-  makeCtx, SECTION_ID,
-} from "../../invoice-templates.fixtures";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { makeCtx, SECTION_ID } from "../../invoice-templates.fixtures";
 
 const { makeChain } = vi.hoisted(() => {
   return {
@@ -14,7 +12,7 @@ const { makeChain } = vi.hoisted(() => {
       p.orderBy = vi.fn().mockReturnValue(p);
       p.with = vi.fn().mockReturnValue(p);
       return p;
-    }
+    },
   };
 });
 
@@ -28,7 +26,7 @@ const { makeSelectChain } = vi.hoisted(() => {
       p.limit = vi.fn().mockReturnValue(p);
       p.orderBy = vi.fn().mockReturnValue(p);
       return p;
-    }
+    },
   };
 });
 
@@ -49,13 +47,19 @@ vi.mock("@starter/db", () => {
     eq,
     and,
     asc,
-    templateSections: { id: "id", templateId: "templateId", sectionToken: "sectionToken", sortOrder: "sortOrder", label: "label" },
+    templateSections: {
+      id: "id",
+      templateId: "templateId",
+      sectionToken: "sectionToken",
+      sortOrder: "sortOrder",
+      label: "label",
+    },
     invoiceTemplates: { id: "id", organizationId: "organizationId" },
   };
 });
 
-import { deleteSection } from "./delete-section.controller";
 import { db } from "@starter/db";
+import { deleteSection } from "./delete-section.controller";
 
 function mockSelectReturns(returnValue: any[]) {
   (db.select as any).mockReturnValue(makeSelectChain(returnValue));

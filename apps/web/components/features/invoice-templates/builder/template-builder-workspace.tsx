@@ -1,21 +1,9 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
-import { apiUrl } from "@/lib/constants";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, X, Pencil } from "lucide-react";
-import { TemplateSectionCard } from "./template-section-card";
-import { SectionColor } from "./row-list";
-import { useState } from "react";
-import { AddSectionModal } from "./add-section-modal";
-import { buildTokenMap, fmt } from "@/lib/formula-evaluator";
-import { BuilderProvider, useBuilderContext } from "./builder-context";
-import { TemplateFormulaBar } from "./formula-bar";
+import { Pencil, Plus, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { AddHeaderFieldModal } from "./add-header-field-modal";
-import { cn } from "@/lib/utils";
-import { TemplateTokenPool } from "./token-pool";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,20 +14,29 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Skeleton } from "@/components/ui/skeleton";
+import { apiUrl } from "@/lib/constants";
+import { buildTokenMap, fmt } from "@/lib/formula-evaluator";
+import { cn } from "@/lib/utils";
+import { AddHeaderFieldModal } from "./add-header-field-modal";
+import { AddSectionModal } from "./add-section-modal";
+import { BuilderProvider, useBuilderContext } from "./builder-context";
+import { TemplateFormulaBar } from "./formula-bar";
+import { SectionColor } from "./row-list";
+import { TemplateSectionCard } from "./template-section-card";
+import { TemplateTokenPool } from "./token-pool";
 
 // ─── Section color palette ────────────────────────────────────────────────────
 export const SECTION_PALETTE: SectionColor[] = [
-  { border: "#22c55e", bg: "rgba(34,197,94,0.05)"  },  // green
-  { border: "#3b82f6", bg: "rgba(59,130,246,0.05)" },  // blue
-  { border: "#f59e0b", bg: "rgba(245,158,11,0.05)" },  // amber
-  { border: "#a855f7", bg: "rgba(168,85,247,0.05)" },  // purple
-  { border: "#ef4444", bg: "rgba(239,68,68,0.05)"  },  // red
-  { border: "#14b8a6", bg: "rgba(20,184,166,0.05)" },  // teal
-  { border: "#f97316", bg: "rgba(249,115,22,0.05)" },  // orange
-  { border: "#ec4899", bg: "rgba(236,72,153,0.05)" },  // pink
+  { border: "#22c55e", bg: "rgba(34,197,94,0.05)" }, // green
+  { border: "#3b82f6", bg: "rgba(59,130,246,0.05)" }, // blue
+  { border: "#f59e0b", bg: "rgba(245,158,11,0.05)" }, // amber
+  { border: "#a855f7", bg: "rgba(168,85,247,0.05)" }, // purple
+  { border: "#ef4444", bg: "rgba(239,68,68,0.05)" }, // red
+  { border: "#14b8a6", bg: "rgba(20,184,166,0.05)" }, // teal
+  { border: "#f97316", bg: "rgba(249,115,22,0.05)" }, // orange
+  { border: "#ec4899", bg: "rgba(236,72,153,0.05)" }, // pink
 ];
-
-
 
 // ─── "Add section here" divider ───────────────────────────────────────────────
 function AddSectionDivider({ onClick }: { onClick: () => void }) {
@@ -53,7 +50,7 @@ function AddSectionDivider({ onClick }: { onClick: () => void }) {
           "relative z-10 inline-flex items-center gap-1 px-3 h-5 rounded-full text-[11px] font-medium",
           "border border-dashed border-border bg-background text-muted-foreground",
           "hover:border-primary/60 hover:text-primary hover:bg-primary/5 transition-all duration-150",
-          "shadow-sm"
+          "shadow-sm",
         )}
       >
         <Plus className="h-2.5 w-2.5" />
@@ -99,7 +96,9 @@ function GrandTotalRow({ total }: { total: number | null }) {
       <div className="w-10 shrink-0 border-r border-border" />
       {/* Label — "Total" right-aligned */}
       <div className="flex-1 px-3 flex items-center justify-end border-r border-border min-w-0">
-        <span className="text-base font-extrabold text-foreground uppercase tracking-wide">Total</span>
+        <span className="text-base font-extrabold text-foreground uppercase tracking-wide">
+          Total
+        </span>
       </div>
       {/* USD1 — blank */}
       <div className="w-20 shrink-0 border-r border-border" />
@@ -113,12 +112,7 @@ function GrandTotalRow({ total }: { total: number | null }) {
   );
 }
 
-import {
-  DragDropContext,
-  Droppable,
-  Draggable,
-  DropResult,
-} from "@hello-pangea/dnd";
+import { DragDropContext, Draggable, Droppable, DropResult } from "@hello-pangea/dnd";
 import { GripVertical } from "lucide-react";
 
 export interface FileDetailsHeaderBoxProps {
@@ -138,15 +132,15 @@ export interface FileDetailsHeaderBoxProps {
   isTemplateMode?: boolean;
 }
 
-export function FileDetailsHeaderBox({ 
-  templateHeaderFields = [], 
-  project, 
-  onDelete, 
+export function FileDetailsHeaderBox({
+  templateHeaderFields = [],
+  project,
+  onDelete,
   onEdit,
-  onAdd, 
+  onAdd,
   onReorder,
-  isTemplateMode = false, 
-  zoomLevel = 0 
+  isTemplateMode = false,
+  zoomLevel = 0,
 }: FileDetailsHeaderBoxProps & { zoomLevel?: number }) {
   const { selectedCell } = useBuilderContext();
   const isFormulaMode = !!selectedCell;
@@ -163,16 +157,16 @@ export function FileDetailsHeaderBox({
 
   const renderVal = (field: any) => {
     if (!project) return <span className="text-foreground/20 font-light">—</span>;
-    
+
     let val: any = "—";
     if (field.fileFieldKey === "clientId") {
-       val = project.client?.name || "—";
+      val = project.client?.name || "—";
     } else if (field.fileFieldKey === "name") {
-       val = project.name || "—";
+      val = project.name || "—";
     } else if (field.fileFieldKey === "status") {
-       val = project.statusRelation?.name || project.status || "—";
+      val = project.statusRelation?.name || project.status || "—";
     } else if (project.customFields) {
-       val = project.customFields[field.fileFieldKey] ?? "—";
+      val = project.customFields[field.fileFieldKey] ?? "—";
     }
 
     if (val === "—" || val === null || val === undefined) {
@@ -183,88 +177,105 @@ export function FileDetailsHeaderBox({
 
   const renderFieldRow = (field: any) => {
     const isSelectable = field.isFormulaInjectable;
-    const fullToken = `FILE_${(field.fileFieldKey || "").toUpperCase()}`;
-    
+    const cleanToken = (field.fileFieldKey || "").toUpperCase().replace(/^FILE_/, "");
+
     return (
       <div className="flex justify-between items-center group relative h-6 w-full">
-        <div 
+        <div
           className={cn(
             "flex gap-2 w-full items-center",
             isSelectable && "transition-colors select-none",
-            isSelectable && isFormulaMode && "cursor-pointer text-primary hover:bg-primary/5 rounded-md -ml-1 pl-1",
-            isSelectable && !isFormulaMode && "cursor-pointer hover:text-foreground hover:bg-muted/10 rounded-md -ml-1 pl-1"
+            isSelectable &&
+              isFormulaMode &&
+              "cursor-pointer text-primary hover:bg-primary/5 rounded-md -ml-1 pl-1",
+            isSelectable &&
+              !isFormulaMode &&
+              "cursor-pointer hover:text-foreground hover:bg-muted/10 rounded-md -ml-1 pl-1",
           )}
-          onClick={(e) => isSelectable && field.fileFieldKey && handleTokenClick(e, fullToken)}
-          title={isSelectable ? (isFormulaMode ? `Insert ${fullToken} into formula` : `Copy token ${fullToken}`) : undefined}
+          onClick={(e) => isSelectable && field.fileFieldKey && handleTokenClick(e, cleanToken)}
+          title={
+            isSelectable
+              ? isFormulaMode
+                ? `Insert ${cleanToken} into formula`
+                : `Copy token ${cleanToken}`
+              : undefined
+          }
         >
-          <span 
+          <span
             className={cn(
               "font-semibold uppercase tracking-widest w-28 shrink-0 truncate",
-              isSelectable && isFormulaMode ? "text-primary/70" : "text-muted-foreground"
+              isSelectable && isFormulaMode ? "text-primary/70" : "text-muted-foreground",
             )}
             style={{ fontSize: 12 + zoomLevel }}
           >
             {field.label}
           </span>
           <span className="text-muted-foreground/40 shrink-0">:</span>
-          <span 
-            className="font-medium truncate"
-            style={{ fontSize: 14 + zoomLevel }}
-          >
+          <span className="font-medium truncate" style={{ fontSize: 14 + zoomLevel }}>
             {renderVal(field)}
           </span>
         </div>
-      {isTemplateMode && (
-        <div className="opacity-0 group-hover:opacity-100 absolute -right-9 flex items-center gap-0.5 transition-all">
-          {onEdit && (
-            <button
-              onClick={() => onEdit(field)}
-              className="p-1 text-muted-foreground hover:text-foreground transition-all"
-              title="Edit field"
-            >
-              <Pencil className="w-3 h-3" />
-            </button>
-          )}
-          {onDelete && (
-            <button
-              onClick={() => onDelete(field.id)}
-              className="p-1 text-muted-foreground hover:text-destructive transition-all"
-              title="Remove field from template"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
+        {isTemplateMode && (
+          <div className="opacity-0 group-hover:opacity-100 absolute -right-9 flex items-center gap-0.5 transition-all">
+            {onEdit && (
+              <button
+                onClick={() => onEdit(field)}
+                className="p-1 text-muted-foreground hover:text-foreground transition-all"
+                title="Edit field"
+              >
+                <Pencil className="w-3 h-3" />
+              </button>
+            )}
+            {onDelete && (
+              <button
+                onClick={() => onDelete(field.id)}
+                className="p-1 text-muted-foreground hover:text-destructive transition-all"
+                title="Remove field from template"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const handleDragEnd = (result: DropResult) => {
     if (!result.destination || !onReorder) return;
-    
+
     const sourceCol = result.source.droppableId;
     const destCol = result.destination.droppableId;
-    
-    const leftFields = Array.from(templateHeaderFields.filter(f => f.columnPosition === "left")).sort((a, b) => a.sortOrder - b.sortOrder);
-    const rightFields = Array.from(templateHeaderFields.filter(f => f.columnPosition === "right")).sort((a, b) => a.sortOrder - b.sortOrder);
+
+    const leftFields = Array.from(
+      templateHeaderFields.filter((f) => f.columnPosition === "left"),
+    ).sort((a, b) => a.sortOrder - b.sortOrder);
+    const rightFields = Array.from(
+      templateHeaderFields.filter((f) => f.columnPosition === "right"),
+    ).sort((a, b) => a.sortOrder - b.sortOrder);
 
     const sourceList = sourceCol === "left" ? leftFields : rightFields;
     const destList = destCol === "left" ? leftFields : rightFields;
 
     const [moved] = sourceList.splice(result.source.index, 1);
-    
+
     if (sourceCol !== destCol) {
       moved.columnPosition = destCol as "left" | "right";
     }
-    
+
     destList.splice(result.destination.index, 0, moved);
 
-    leftFields.forEach((f, i) => { f.sortOrder = i; f.columnPosition = "left"; });
-    rightFields.forEach((f, i) => { f.sortOrder = i; f.columnPosition = "right"; });
+    leftFields.forEach((f, i) => {
+      f.sortOrder = i;
+      f.columnPosition = "left";
+    });
+    rightFields.forEach((f, i) => {
+      f.sortOrder = i;
+      f.columnPosition = "right";
+    });
 
     const newState = [...leftFields, ...rightFields];
-    const updates = newState.map(f => ({
+    const updates = newState.map((f) => ({
       fieldId: f.id,
       columnPosition: f.columnPosition,
       sortOrder: f.sortOrder,
@@ -273,22 +284,31 @@ export function FileDetailsHeaderBox({
     onReorder(updates, newState);
   };
 
-  const leftFields = templateHeaderFields.filter(f => f.columnPosition === "left").sort((a, b) => a.sortOrder - b.sortOrder);
-  const rightFields = templateHeaderFields.filter(f => f.columnPosition === "right").sort((a, b) => a.sortOrder - b.sortOrder);
+  const leftFields = templateHeaderFields
+    .filter((f) => f.columnPosition === "left")
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+  const rightFields = templateHeaderFields
+    .filter((f) => f.columnPosition === "right")
+    .sort((a, b) => a.sortOrder - b.sortOrder);
 
   const renderDroppable = (id: string, fields: any[]) => (
     <Droppable droppableId={id} direction="vertical">
       {(provided, snapshot) => (
-        <div 
+        <div
           className={cn(
             "flex flex-col gap-y-4 rounded-lg",
-            snapshot.isDraggingOver && "bg-muted/30 -mx-2 px-2 py-1"
+            snapshot.isDraggingOver && "bg-muted/30 -mx-2 px-2 py-1",
           )}
           ref={provided.innerRef}
           {...provided.droppableProps}
         >
           {fields.map((field, index) => (
-            <Draggable key={field.id} draggableId={field.id} index={index} isDragDisabled={!isTemplateMode || !onReorder}>
+            <Draggable
+              key={field.id}
+              draggableId={field.id}
+              index={index}
+              isDragDisabled={!isTemplateMode || !onReorder}
+            >
               {(provided, snapshot) => (
                 <div
                   ref={provided.innerRef}
@@ -298,11 +318,15 @@ export function FileDetailsHeaderBox({
                   }}
                   className={cn(
                     "flex items-center gap-2",
-                    snapshot.isDragging && "bg-card shadow-md z-10 p-1 -m-1 rounded-md border border-primary/20"
+                    snapshot.isDragging &&
+                      "bg-card shadow-md z-10 p-1 -m-1 rounded-md border border-primary/20",
                   )}
                 >
                   {isTemplateMode && onReorder && (
-                    <div {...provided.dragHandleProps} className="text-muted-foreground/30 hover:text-foreground cursor-grab opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div
+                      {...provided.dragHandleProps}
+                      className="text-muted-foreground/30 hover:text-foreground cursor-grab opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
                       <GripVertical className="h-4 w-4" />
                     </div>
                   )}
@@ -327,7 +351,7 @@ export function FileDetailsHeaderBox({
           </div>
         </DragDropContext>
       </div>
-      
+
       {isTemplateMode && onAdd && (
         <button
           onClick={onAdd}
@@ -343,8 +367,28 @@ export function FileDetailsHeaderBox({
 
 // ─── Inner workspace (inside BuilderProvider) ─────────────────────────────────
 
-function WorkspaceInner({ templateId, draftId, zoomLevel = 0, onZoomChange, project }: { templateId?: string, draftId?: string, zoomLevel?: number, onZoomChange?: React.Dispatch<React.SetStateAction<number>>, project?: any }) {
-  const { setTokenMap, tokenPoolOpen, apiBasePath, invalidateKey, mode } = useBuilderContext();
+function WorkspaceInner({
+  templateId,
+  draftId,
+  zoomLevel = 0,
+  onZoomChange,
+  project,
+}: {
+  templateId?: string;
+  draftId?: string;
+  zoomLevel?: number;
+  onZoomChange?: React.Dispatch<React.SetStateAction<number>>;
+  project?: any;
+}) {
+  const {
+    setTokenMap,
+    tokenPoolOpen,
+    apiBasePath,
+    invalidateKey,
+    mode,
+    setExternalTokens,
+    setSections,
+  } = useBuilderContext();
   const queryClient = useQueryClient();
   const [insertAtIndex, setInsertAtIndex] = useState<number | null>(null);
   const [isAddHeaderModalOpen, setIsAddHeaderModalOpen] = useState(false);
@@ -368,8 +412,8 @@ function WorkspaceInner({ templateId, draftId, zoomLevel = 0, onZoomChange, proj
     const handleWheel = (e: WheelEvent) => {
       if (e.ctrlKey) {
         e.preventDefault();
-        if (e.deltaY < 0) onZoomChange(z => Math.min(z + 1, 8));
-        else if (e.deltaY > 0) onZoomChange(z => Math.max(z - 1, -4));
+        if (e.deltaY < 0) onZoomChange((z) => Math.min(z + 1, 8));
+        else if (e.deltaY > 0) onZoomChange((z) => Math.max(z - 1, -4));
       }
     };
 
@@ -383,10 +427,10 @@ function WorkspaceInner({ templateId, draftId, zoomLevel = 0, onZoomChange, proj
       if (e.ctrlKey) {
         if (e.key === "=" || e.key === "+") {
           e.preventDefault();
-          onZoomChange(z => Math.min(z + 1, 8));
+          onZoomChange((z) => Math.min(z + 1, 8));
         } else if (e.key === "-") {
           e.preventDefault();
-          onZoomChange(z => Math.max(z - 1, -4));
+          onZoomChange((z) => Math.max(z - 1, -4));
         } else if (e.key === "0") {
           e.preventDefault();
           onZoomChange(0);
@@ -400,10 +444,7 @@ function WorkspaceInner({ templateId, draftId, zoomLevel = 0, onZoomChange, proj
   const { data: sections, isLoading } = useQuery({
     queryKey: invalidateKey,
     queryFn: async () => {
-      const res = await fetch(
-        `${apiBasePath}/sections`,
-        { credentials: "include" }
-      );
+      const res = await fetch(`${apiBasePath}/sections`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch sections");
       return res.json();
     },
@@ -424,10 +465,9 @@ function WorkspaceInner({ templateId, draftId, zoomLevel = 0, onZoomChange, proj
   const { data: projectCustomFields } = useQuery({
     queryKey: ["custom-fields", "project"],
     queryFn: async () => {
-      const res = await fetch(
-        `${apiUrl}/api/workspaces/custom-fields?entityType=project`,
-        { credentials: "include" }
-      );
+      const res = await fetch(`${apiUrl}/api/workspaces/custom-fields?entityType=project`, {
+        credentials: "include",
+      });
       if (!res.ok) return [];
       return res.json();
     },
@@ -454,7 +494,7 @@ function WorkspaceInner({ templateId, draftId, zoomLevel = 0, onZoomChange, proj
   const { data: orgConfigs } = useQuery({
     queryKey: ["org-configs"],
     queryFn: async () => {
-      const res = await fetch(`${apiUrl}/api/workspaces/configs`, {
+      const res = await fetch(`${apiUrl}/api/org-configs`, {
         credentials: "include",
       });
       if (!res.ok) return [];
@@ -462,20 +502,74 @@ function WorkspaceInner({ templateId, draftId, zoomLevel = 0, onZoomChange, proj
     },
   });
 
-  const sortedSections = [...(sections || [])].sort(
-    (a: any, b: any) => a.sortOrder - b.sortOrder
-  );
+  const sortedSections = [...(sections || [])].sort((a: any, b: any) => a.sortOrder - b.sortOrder);
 
   // ── Compute token map and push it to context ──────────────────────────────
   // Pass constants and file fields so formula rows that reference them resolve correctly
-  const tokenMap = buildTokenMap(sortedSections, orgConfigs ?? [], constantsData ?? [], templateHeaderFields ?? []);
+  const tokenMap = buildTokenMap(
+    sortedSections,
+    orgConfigs ?? [],
+    constantsData ?? [],
+    templateHeaderFields ?? [],
+  );
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { setTokenMap(tokenMap); }, [JSON.stringify(tokenMap)]);
+  useEffect(() => {
+    setTokenMap(tokenMap);
+  }, [JSON.stringify(tokenMap)]);
 
-  const { setSections } = useBuilderContext();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (setSections) setSections(sortedSections); }, [JSON.stringify(sortedSections)]);
+  useEffect(() => {
+    if (setSections) setSections(sortedSections);
+  }, [JSON.stringify(sortedSections)]);
+
+  useEffect(() => {
+    if (!setExternalTokens) return;
+    const globalSet = new Set<string>();
+    const templateSet = new Set<string>();
+    const fileSet = new Set<string>();
+
+    if (orgConfigs) {
+      for (const config of orgConfigs) {
+        if (config.configKey) {
+          const bare = config.configKey.replace(/^(ORG_|GBL_)/, "");
+          globalSet.add(bare);
+        }
+      }
+    }
+
+    if (constantsData) {
+      const constantsArray = Array.isArray(constantsData)
+        ? constantsData
+        : Object.values(constantsData);
+      for (const constant of constantsArray) {
+        const key = constant.key ?? constant.token;
+        if (key) {
+          const bare = key.replace(/^TPL_/, "");
+          templateSet.add(bare);
+        }
+      }
+    }
+
+    if (templateHeaderFields) {
+      for (const field of templateHeaderFields) {
+        let bareToken = (field.label || "")
+          .toUpperCase()
+          .replace(/[^A-Z0-9_]/g, "_")
+          .replace(/^FILE_/, "");
+        if (field.fieldType === "file_field" && field.fileFieldKey) {
+          bareToken = field.fileFieldKey.toUpperCase().replace(/^FILE_/, "");
+        } else if (field.fieldType === "org_config" && field.orgConfigKey) {
+          bareToken = field.orgConfigKey.toUpperCase().replace(/^(GBL_|ORG_)/, "");
+        }
+        if (bareToken) {
+          fileSet.add(bareToken);
+        }
+      }
+    }
+
+    setExternalTokens({ global: globalSet, template: templateSet, file: fileSet });
+  }, [orgConfigs, constantsData, templateHeaderFields, setExternalTokens]);
 
   // ── Global SL offsets ─────────────────────────────────────────────────────
   const sectionSlOffsets: number[] = [];
@@ -486,12 +580,14 @@ function WorkspaceInner({ templateId, draftId, zoomLevel = 0, onZoomChange, proj
   }
 
   // ── Grand total ───────────────────────────────────────────────────────────
-  const grandTotal = sortedSections.length > 0
-    ? sortedSections.reduce((sum: number, sec: any) => {
-        const v = tokenMap[`SEC_${sec.sectionToken}_TOTAL`];
-        return sum + (v ?? 0);
-      }, 0)
-    : null;
+  const grandTotal =
+    sortedSections.length > 0
+      ? sortedSections.reduce((sum: number, sec: any) => {
+          const v =
+            tokenMap[`SEC_${sec.sectionToken}`] ?? tokenMap[`SEC_${sec.sectionToken}_TOTAL`];
+          return sum + (v ?? 0);
+        }, 0)
+      : null;
 
   const handleConfirmDeleteField = async () => {
     if (!fieldToDelete) return;
@@ -527,15 +623,15 @@ function WorkspaceInner({ templateId, draftId, zoomLevel = 0, onZoomChange, proj
         "px-2 sm:px-4 max-w-5xl mx-auto w-full pb-6 overflow-visible transition-all duration-200 outline-none",
         tokenPoolOpen
           ? "xl:pl-36 xl:pr-32 2xl:pl-40 2xl:pr-52"
-          : "md:pl-36 md:pr-32 lg:pl-40 lg:pr-52"
+          : "md:pl-36 md:pr-32 lg:pl-40 lg:pr-52",
       )}
       tabIndex={0}
     >
       {/* ── File Details Header Box ── */}
-      <FileDetailsHeaderBox 
-        templateHeaderFields={templateHeaderFields || []} 
+      <FileDetailsHeaderBox
+        templateHeaderFields={templateHeaderFields || []}
         project={project}
-        zoomLevel={zoomLevel} 
+        zoomLevel={zoomLevel}
         isTemplateMode={!draftId}
         onDelete={(fieldId) => setFieldToDelete(fieldId)}
         onReorder={async (updates, optimisticState) => {
@@ -546,7 +642,7 @@ function WorkspaceInner({ templateId, draftId, zoomLevel = 0, onZoomChange, proj
               method: "PUT",
               headers: { "Content-Type": "application/json" },
               credentials: "include",
-              body: JSON.stringify({ updates })
+              body: JSON.stringify({ updates }),
             });
             refetchHeaderFields();
           } catch (e) {
@@ -598,9 +694,7 @@ function WorkspaceInner({ templateId, draftId, zoomLevel = 0, onZoomChange, proj
                   tokenMap={tokenMap}
                 />
                 {mode !== "fill" && (
-                  <AddSectionDivider
-                    onClick={() => setInsertAtIndex(section.sortOrder + 1)}
-                  />
+                  <AddSectionDivider onClick={() => setInsertAtIndex(section.sortOrder + 1)} />
                 )}
               </div>
             );
@@ -641,12 +735,17 @@ function WorkspaceInner({ templateId, draftId, zoomLevel = 0, onZoomChange, proj
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action will remove the field from the template. It will not delete the custom field from the global schema, but any formulas relying on this token will become invalid.
+              This action will remove the field from the template. It will not delete the custom
+              field from the global schema, but any formulas relying on this token will become
+              invalid.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmDeleteField} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogAction
+              onClick={handleConfirmDeleteField}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
               Yes, delete
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -670,5 +769,13 @@ export function TemplateBuilderWorkspace({
   onZoomChange?: React.Dispatch<React.SetStateAction<number>>;
   project?: any;
 }) {
-  return <WorkspaceInner templateId={templateId} draftId={draftId} zoomLevel={zoomLevel} onZoomChange={onZoomChange} project={project} />;
+  return (
+    <WorkspaceInner
+      templateId={templateId}
+      draftId={draftId}
+      zoomLevel={zoomLevel}
+      onZoomChange={onZoomChange}
+      project={project}
+    />
+  );
 }

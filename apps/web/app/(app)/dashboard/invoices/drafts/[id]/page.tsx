@@ -1,16 +1,28 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useParams, useRouter } from "next/navigation";
-import { Loader2, ArrowLeft, AlertTriangle, CheckCircle, Save, X, Pencil } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { apiUrl } from "@/lib/constants";
-import { useState, useCallback } from "react";
-import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  CheckCircle,
+  Loader2,
+  PanelRightClose,
+  PanelRightOpen,
+  Pencil,
+  Save,
+  X,
+} from "lucide-react";
 import Link from "next/link";
-import { Input } from "@/components/ui/input";
+import { useParams, useRouter } from "next/navigation";
+import { useCallback, useState } from "react";
+import { toast } from "sonner";
+// --- TEMPLATE BUILDER IMPORTS ---
+import { BuilderProvider } from "@/components/features/invoice-templates/builder/builder-context";
+import {
+  FileDetailsHeaderBox,
+  TemplateBuilderWorkspace,
+} from "@/components/features/invoice-templates/builder/template-builder-workspace";
+import { TemplateTokenPool } from "@/components/features/invoice-templates/builder/token-pool";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,14 +32,13 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-
-// --- TEMPLATE BUILDER IMPORTS ---
-import { BuilderProvider } from "@/components/features/invoice-templates/builder/builder-context";
-import { TemplateBuilderWorkspace, FileDetailsHeaderBox } from "@/components/features/invoice-templates/builder/template-builder-workspace";
-import { TemplateTokenPool } from "@/components/features/invoice-templates/builder/token-pool";
-import { PanelRightClose, PanelRightOpen } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { apiUrl } from "@/lib/constants";
+import { cn } from "@/lib/utils";
 
 export default function DraftBuilderPage() {
   const { id } = useParams() as { id: string };
@@ -56,7 +67,14 @@ export default function DraftBuilderPage() {
   // 2. Preview for read-only mode
   // The draft itself doesn't contain calculated sums. We rely on the engine to calculate the preview.
   const { data: preview, isLoading: previewLoading } = useQuery({
-    queryKey: ["draft-preview", draftId, overrides, draft?.draftSections?.length, draft?.draftConstants, isEditMode],
+    queryKey: [
+      "draft-preview",
+      draftId,
+      overrides,
+      draft?.draftSections?.length,
+      draft?.draftConstants,
+      isEditMode,
+    ],
     queryFn: async () => {
       if (!draft || isEditMode) return null;
 
@@ -163,11 +181,11 @@ export default function DraftBuilderPage() {
   if (!draft.sourceTemplateId) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3 text-center">
-        <AlertTriangle className="w-8 h-8 text-amber-400" />
+        <AlertTriangle className="w-8 h-8 text-accent-foreground" />
         <p className="text-sm font-semibold">No template assigned to this draft.</p>
         <p className="text-xs text-muted-foreground max-w-xs">
-          This draft was created without a template. Go back to the file and click
-          "Generate Invoice" again to assign a template.
+          This draft was created without a template. Go back to the file and click "Generate
+          Invoice" again to assign a template.
         </p>
         <Link href="/dashboard/projects">
           <Button variant="outline" size="sm" className="mt-2">
@@ -200,7 +218,6 @@ export default function DraftBuilderPage() {
     }
   }
 
-
   const updateDraftDetails = async (field: string, value: string) => {
     try {
       const res = await fetch(`${apiUrl}/api/invoices/drafts`, {
@@ -209,7 +226,7 @@ export default function DraftBuilderPage() {
         credentials: "include",
         body: JSON.stringify({
           projectId: draft.projectId,
-          [field]: value
+          [field]: value,
         }),
       });
       if (!res.ok) throw new Error("Failed to update draft");
@@ -245,22 +262,29 @@ export default function DraftBuilderPage() {
                 </h1>
               )}
               {isEditMode && (
-                <Badge variant="outline" className="text-amber-400 border-amber-400/40 bg-amber-400/10 text-[11px]">
+                <Badge
+                  variant="outline"
+                  className="text-accent-foreground border-amber-400/40 bg-accent/10 text-[11px]"
+                >
                   Editing
                 </Badge>
               )}
             </div>
-            
+
             {isEditMode ? (
-              <Input 
+              <Input
                 className="h-5 text-xs text-muted-foreground px-1 py-0 w-96 border-transparent bg-muted/30 hover:bg-muted/50 focus-visible:ring-1 focus-visible:ring-offset-0 mt-0.5"
-                defaultValue={draft?.description || `${draft?.project?.name ?? "-"} - Changes apply only to this draft`}
+                defaultValue={
+                  draft?.description ||
+                  `${draft?.project?.name ?? "-"} - Changes apply only to this draft`
+                }
                 onBlur={(e) => updateDraftDetails("description", e.target.value)}
                 placeholder="Draft Description"
               />
             ) : (
               <p className="text-xs text-muted-foreground mt-0.5">
-                {draft?.description || `${draft?.project?.name ?? "-"} - Read-only preview. Click Edit Draft to make changes.`}
+                {draft?.description ||
+                  `${draft?.project?.name ?? "-"} - Read-only preview. Click Edit Draft to make changes.`}
               </p>
             )}
           </div>
@@ -273,19 +297,22 @@ export default function DraftBuilderPage() {
               variant="ghost"
               size="icon"
               className="h-6 w-6 text-muted-foreground"
-              onClick={() => setZoomLevel(z => Math.max(z - 1, -4))}
+              onClick={() => setZoomLevel((z) => Math.max(z - 1, -4))}
               title="Workspace Zoom Out"
             >
               <span className="text-lg leading-none font-medium mb-1">-</span>
             </Button>
-            <span className="text-xs font-mono w-4 text-center select-none text-muted-foreground" title="Workspace Zoom">
+            <span
+              className="text-xs font-mono w-4 text-center select-none text-muted-foreground"
+              title="Workspace Zoom"
+            >
               {zoomLevel > 0 ? `+${zoomLevel}` : zoomLevel}
             </span>
             <Button
               variant="ghost"
               size="icon"
               className="h-6 w-6 text-muted-foreground"
-              onClick={() => setZoomLevel(z => Math.min(z + 1, 8))}
+              onClick={() => setZoomLevel((z) => Math.min(z + 1, 8))}
               title="Workspace Zoom In"
             >
               <span className="text-lg leading-none font-medium mb-1">+</span>
@@ -325,8 +352,10 @@ export default function DraftBuilderPage() {
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel disabled={deleteMutation.isPending}>Cancel</AlertDialogCancel>
-                    <AlertDialogAction 
+                    <AlertDialogCancel disabled={deleteMutation.isPending}>
+                      Cancel
+                    </AlertDialogCancel>
+                    <AlertDialogAction
                       disabled={deleteMutation.isPending}
                       className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
                       onClick={(e) => {
@@ -376,15 +405,21 @@ export default function DraftBuilderPage() {
       {/* -- Body -------------------------------------------------- */}
       {isEditMode ? (
         <div className="flex-1 flex overflow-hidden relative border-t">
-          <BuilderProvider 
-            mode="draft" 
-            draftId={draftId} 
-            apiBasePath={`${apiUrl}/api/invoices/drafts/${draftId}`} 
+          <BuilderProvider
+            mode="draft"
+            draftId={draftId}
+            apiBasePath={`${apiUrl}/api/invoices/drafts/${draftId}`}
             invalidateKey={["draft-sections", draftId]}
           >
             {/* Main Builder Area */}
             <div className="flex-1 overflow-auto bg-muted/20">
-              <TemplateBuilderWorkspace templateId={draft.sourceTemplateId} draftId={draftId} zoomLevel={zoomLevel} onZoomChange={setZoomLevel} project={draft?.project} />
+              <TemplateBuilderWorkspace
+                templateId={draft.sourceTemplateId}
+                draftId={draftId}
+                zoomLevel={zoomLevel}
+                onZoomChange={setZoomLevel}
+                project={draft?.project}
+              />
             </div>
 
             {/* Sliding Token Pool Panel */}
@@ -392,29 +427,29 @@ export default function DraftBuilderPage() {
               className={cn(
                 "h-full bg-background border-l border-border overflow-visible transition-all duration-200 relative",
                 tokenPoolOpen ? "flex shrink-0" : "hidden",
-                "absolute md:relative inset-y-0 right-0 z-40 md:z-0 shadow-2xl md:shadow-none"
+                "absolute md:relative inset-y-0 right-0 z-40 md:z-0 shadow-2xl md:shadow-none",
               )}
               style={{ width: tokenPoolOpen ? poolWidth : 0 }}
             >
               {tokenPoolOpen && (
-                <div 
+                <div
                   className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-primary/50 transition-colors z-50 -ml-[1px]"
                   onMouseDown={(e) => {
                     e.preventDefault();
                     const startX = e.clientX;
                     const startWidth = poolWidth;
-                    
+
                     const handleMouseMove = (moveEvent: MouseEvent) => {
                       const delta = startX - moveEvent.clientX;
                       const newWidth = Math.min(Math.max(startWidth + delta, 240), 600);
                       setPoolWidth(newWidth);
                     };
-                    
+
                     const handleMouseUp = () => {
                       window.removeEventListener("mousemove", handleMouseMove);
                       window.removeEventListener("mouseup", handleMouseUp);
                     };
-                    
+
                     window.addEventListener("mousemove", handleMouseMove);
                     window.addEventListener("mouseup", handleMouseUp);
                   }}
@@ -429,16 +464,22 @@ export default function DraftBuilderPage() {
       ) : (
         // ── Fill Values Mode ──
         <div className="flex-1 flex overflow-hidden relative border-t">
-          <BuilderProvider 
-            mode="fill" 
-            draftId={draftId} 
-            apiBasePath={`${apiUrl}/api/invoices/drafts/${draftId}`} 
+          <BuilderProvider
+            mode="fill"
+            draftId={draftId}
+            apiBasePath={`${apiUrl}/api/invoices/drafts/${draftId}`}
             invalidateKey={["draft-sections", draftId]}
             validationErrors={preview?.validationErrors ?? []}
           >
             {/* Main Builder Area */}
             <div className="flex-1 overflow-auto bg-muted/20">
-              <TemplateBuilderWorkspace templateId={draft.sourceTemplateId} draftId={draftId} zoomLevel={zoomLevel} onZoomChange={setZoomLevel} project={draft?.project} />
+              <TemplateBuilderWorkspace
+                templateId={draft.sourceTemplateId}
+                draftId={draftId}
+                zoomLevel={zoomLevel}
+                onZoomChange={setZoomLevel}
+                project={draft?.project}
+              />
             </div>
 
             {/* Sliding Token Pool Panel */}
@@ -446,29 +487,29 @@ export default function DraftBuilderPage() {
               className={cn(
                 "h-full bg-background border-l border-border overflow-visible transition-all duration-200 relative",
                 tokenPoolOpen ? "flex shrink-0" : "hidden",
-                "absolute md:relative inset-y-0 right-0 z-40 md:z-0 shadow-2xl md:shadow-none"
+                "absolute md:relative inset-y-0 right-0 z-40 md:z-0 shadow-2xl md:shadow-none",
               )}
               style={{ width: tokenPoolOpen ? poolWidth : 0 }}
             >
               {tokenPoolOpen && (
-                <div 
+                <div
                   className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-primary/50 transition-colors z-50 -ml-[1px]"
                   onMouseDown={(e) => {
                     e.preventDefault();
                     const startX = e.clientX;
                     const startWidth = poolWidth;
-                    
+
                     const handleMouseMove = (moveEvent: MouseEvent) => {
                       const delta = startX - moveEvent.clientX;
                       const newWidth = Math.min(Math.max(startWidth + delta, 240), 600);
                       setPoolWidth(newWidth);
                     };
-                    
+
                     const handleMouseUp = () => {
                       window.removeEventListener("mousemove", handleMouseMove);
                       window.removeEventListener("mouseup", handleMouseUp);
                     };
-                    
+
                     window.addEventListener("mousemove", handleMouseMove);
                     window.addEventListener("mouseup", handleMouseUp);
                   }}

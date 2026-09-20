@@ -1,6 +1,6 @@
+import { db, invoiceTemplates, templateRowCharges, templateRows } from "@starter/db";
+import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
-import { db, templateRows, templateRowCharges, invoiceTemplates } from "@starter/db";
-import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 
 export async function deleteCharge(c: Context) {
@@ -14,10 +14,7 @@ export async function deleteCharge(c: Context) {
     .innerJoin(templateRows, eq(templateRowCharges.rowId, templateRows.id))
     .innerJoin(invoiceTemplates, eq(templateRows.templateId, invoiceTemplates.id))
     .where(
-      and(
-        eq(templateRowCharges.id, chargeId),
-        eq(invoiceTemplates.organizationId, organizationId)
-      )
+      and(eq(templateRowCharges.id, chargeId), eq(invoiceTemplates.organizationId, organizationId)),
     )
     .limit(1);
   if (chargeCheck.length === 0) return c.json({ error: "Row charge not found" }, 404);
@@ -52,13 +49,8 @@ export async function reorderCharges(c: Context) {
         tx
           .update(templateRowCharges)
           .set({ sortOrder: index })
-          .where(
-            and(
-              eq(templateRowCharges.id, id),
-              eq(templateRowCharges.rowId, rowId)
-            )
-          )
-      )
+          .where(and(eq(templateRowCharges.id, id), eq(templateRowCharges.rowId, rowId))),
+      ),
     );
   });
 

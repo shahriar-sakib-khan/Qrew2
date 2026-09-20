@@ -1,12 +1,21 @@
+import {
+  db,
+  decodeFormula,
+  encodeFormula,
+  invoiceTemplates,
+  templateRowCharges,
+  templateRows,
+} from "@starter/db";
+import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
-import { db, templateRows, templateRowCharges, invoiceTemplates, encodeFormula, decodeFormula } from "@starter/db";
-import { buildRowIndex, toSnakeCase } from "../services/row-index.service";
-import { buildSectionIndex } from "../../sections/services/section-index.service";
-import { buildConstantIndex } from "../../metadata/services/constant-index.service";
-import { validateFormulaChars } from "../../validation/formula-validator";
-import { validateTemplateDag } from "../../../invoices/engine/engine-utils";
-import { eq, and } from "drizzle-orm";
 import { z } from "zod";
+import { validateTemplateDag } from "../../../invoices/engine/engine-utils";
+import { getTemplateFormulaContext } from "../../services/template-formula-context.service";
+import {
+  validateFormulaChars,
+  validateRateChargeFormula,
+} from "../../validation/formula-validator";
+import { toSnakeCase } from "../services/row-index.service";
 
 function validateFormula(formula: string | null | undefined): boolean {
   if (!formula || !formula.trim()) return false;
@@ -49,11 +58,11 @@ export async function createCharge(c: Context) {
   const templateId = existingRow.templateId;
 
   const chargeToken =
-    parsed.data.chargeToken ??
-    `${existingRow.rowToken}_${toSnakeCase(parsed.data.label)}`;
+    parsed.data.chargeToken ?? `${existingRow.rowToken}_${toSnakeCase(parsed.data.label)}`;
 
-  if (!validateFormula(parsed.data.formula)) {
-    return c.json({ error: `Invalid formula syntax: "${parsed.data.formula}"` }, 422);
+  const rateVal = validateRateChargeFormula(parsed.data.formula, existingRow.rowToken);
+  if (!rateVal.valid) {
+    return c.json({ error: rateVal.error }, 422);
   }
   const charVal = validateFormulaChars(parsed.data.formula, chargeToken);
   if (!charVal.valid) {
@@ -63,22 +72,18 @@ export async function createCharge(c: Context) {
   const dup = await db.query.templateRowCharges.findFirst({
     where: and(
       eq(templateRowCharges.rowId, rowId),
-      eq(templateRowCharges.chargeToken, chargeToken)
+      eq(templateRowCharges.chargeToken, chargeToken),
     ),
   });
   if (dup) {
-    return c.json(
-      { error: `Row charge token "${chargeToken}" already exists on this row.` },
-      409
-    );
+    return c.json({ error: `Row charge token "${chargeToken}" already exists on this row.` }, 409);
   }
 
-  const { tokenToId, idToToken } = await buildRowIndex(templateId);
-  const { tokenToId: secTokenToId, idToToken: secIdToToken } = await buildSectionIndex(templateId);
-  const { tplTokenToId, tplIdToToken } = await buildConstantIndex(templateId);
+  const context = await getTemplateFormulaContext(templateId, organizationId);
 
   try {
     const result = await db.transaction(async (tx) => {
+      const encoded = context.encode(parsed.data.formula) ?? parsed.data.formula;
       const [newCharge] = await tx
         .insert(templateRowCharges)
         .values({
@@ -89,7 +94,7 @@ export async function createCharge(c: Context) {
           qualifier: parsed.data.qualifier ?? null,
           tags: parsed.data.tags ?? [],
           chargeToken,
-          formula: encodeFormula(parsed.data.formula, tokenToId, secTokenToId, tplTokenToId) ?? parsed.data.formula,
+          formula: encoded,
           sortOrder: parsed.data.orderIndex,
         })
         .returning();
@@ -103,7 +108,7 @@ export async function createCharge(c: Context) {
 
       return {
         ...newCharge,
-        formula: decodeFormula(newCharge.formula, idToToken, secIdToToken, tplIdToToken) ?? newCharge.formula,
+        formula: context.decode(newCharge.formula) ?? newCharge.formula,
       };
     });
 

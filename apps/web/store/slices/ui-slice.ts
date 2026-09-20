@@ -10,5 +10,6 @@ export interface UISlice {
 export const createUISlice: StateCreator<UISlice, [], [], UISlice> = (set) => ({
   isCommandPaletteOpen: false,
   setCommandPaletteOpen: (isOpen) => set({ isCommandPaletteOpen: isOpen }),
-  toggleCommandPalette: () => set((state) => ({ isCommandPaletteOpen: !state.isCommandPaletteOpen })),
+  toggleCommandPalette: () =>
+    set((state) => ({ isCommandPaletteOpen: !state.isCommandPaletteOpen })),
 });

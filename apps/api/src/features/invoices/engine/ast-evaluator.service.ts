@@ -22,21 +22,26 @@
  * text-interpolator.service.ts.
  */
 
-import { create, all, type MathJsInstance, type BigNumber } from "mathjs";
 import {
-  type EvaluatorSection,
-  type EvaluatorRow,
-  type EvaluatorRowCharge,
-  type EvaluatorSectionCharge,
-  type EvaluatedSection,
+  decodeFormulaForEval,
+  type RowIdToTokenMap,
+  type SecIdToTokenMap,
+  type TplIdToTokenMap,
+} from "@starter/db";
+import { all, type BigNumber, create, type MathJsInstance } from "mathjs";
+import { sectionIndexToLetter } from "./dag-validator.service";
+import {
+  type EngineContext,
+  type EngineError,
   type EvaluatedRow,
   type EvaluatedRowCharge,
+  type EvaluatedSection,
   type EvaluatedSectionCharge,
-  type EngineError,
-  type EngineContext,
+  type EvaluatorRow,
+  type EvaluatorRowCharge,
+  type EvaluatorSection,
+  type EvaluatorSectionCharge,
 } from "./types";
-import { decodeFormulaForEval, type RowIdToTokenMap, type SecIdToTokenMap, type TplIdToTokenMap } from "@starter/db";
-import { sectionIndexToLetter } from "./dag-validator.service";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MATHJS CONFIGURATION — BigNumber, precision 20
@@ -77,7 +82,7 @@ function evalFormula(
   formula: string,
   scope: EngineContext,
   contextLabel: string,
-  noticeCollector?: EngineError[]
+  noticeCollector?: EngineError[],
 ): BigNumber {
   const TOKEN_RE = /\b([A-Z_][A-Z0-9_]*)\b/g;
   let resolvedFormula = formula;
@@ -96,10 +101,7 @@ function evalFormula(
         token: tok,
         formula,
       } as EngineError);
-      resolvedFormula = resolvedFormula.replace(
-        new RegExp(`\\b${tok}\\b`, "g"),
-        "0"
-      );
+      resolvedFormula = resolvedFormula.replace(new RegExp(`\\b${tok}\\b`, "g"), "0");
     }
   }
 
@@ -127,7 +129,7 @@ export class AstEvaluatorService {
     idToToken: RowIdToTokenMap = {},
     secIdToToken: SecIdToTokenMap = {},
     tplIdToToken: TplIdToTokenMap = {},
-    topologicalOrder: string[] = []
+    topologicalOrder: string[] = [],
   ): {
     evaluatedSections: EvaluatedSection[];
     grandTotal: string;
@@ -138,33 +140,48 @@ export class AstEvaluatorService {
     const scope: EngineContext = { ...initialScope };
 
     // Initialize tokens and build maps for quick lookup
-    const rowMap = new Map<string, { row: EvaluatorRow, sectionToken: string, label: string }>();
-    const chargeMap = new Map<string, { charge: EvaluatorRowCharge, rowToken: string, label: string }>();
-    const secChargeMap = new Map<string, { sc: EvaluatorSectionCharge, sectionToken: string, sectionLabel: string }>();
+    const rowMap = new Map<string, { row: EvaluatorRow; sectionToken: string; label: string }>();
+    const chargeMap = new Map<
+      string,
+      { charge: EvaluatorRowCharge; rowToken: string; label: string }
+    >();
+    const secChargeMap = new Map<
+      string,
+      { sc: EvaluatorSectionCharge; sectionToken: string; sectionLabel: string }
+    >();
     const sectionMap = new Map<string, EvaluatorSection>();
 
     for (const section of sections) {
       const sectionLetter = sectionIndexToLetter(section.sortOrder);
       const sectionLabel = section.label ?? `Section ${sectionLetter}`;
       sectionMap.set(section.sectionToken, section);
-      
-      const secBase = `SEC_${section.sectionToken}`;
+
+      const secBase = `SEC_${section.sectionToken}_BASE`;
+      const secTotal = `SEC_${section.sectionToken}`;
+      const secCharges = `SEC_${section.sectionToken}_CHARGES`;
       scope[secBase] = "0.000000";
-      scope[`${secBase}_TOTAL`] = "0.000000";
-      scope[`${secBase}_CHARGES`] = "0.000000";
+      scope[secTotal] = "0.000000";
+      scope[`${secTotal}_TOTAL`] = "0.000000";
+      scope[secCharges] = "0.000000";
 
       for (const sc of section.sectionCharges) {
         if (sc.chargeToken) {
           scope[sc.chargeToken] = "0.000000";
-          secChargeMap.set(sc.chargeToken, { sc, sectionToken: section.sectionToken, sectionLabel });
+          secChargeMap.set(sc.chargeToken, {
+            sc,
+            sectionToken: section.sectionToken,
+            sectionLabel,
+          });
         }
       }
 
       for (const row of section.rows) {
+        scope[`${row.rowToken}_BASE`] = "0.000000";
+        scope[`${row.rowToken}_CHARGES`] = "0.000000";
         scope[row.rowToken] = "0.000000";
         scope[`${row.rowToken}_TOTAL`] = "0.000000";
         rowMap.set(row.rowToken, { row, sectionToken: section.sectionToken, label: row.label });
-        
+
         for (const charge of row.charges) {
           if (charge.chargeToken) {
             scope[charge.chargeToken] = "0.000000";
@@ -176,8 +193,9 @@ export class AstEvaluatorService {
 
     // Evaluate nodes in topological order
     for (const token of topologicalOrder) {
-      if (rowMap.has(token)) {
-        const { row } = rowMap.get(token)!;
+      if (token.endsWith("_BASE") && rowMap.has(token.replace("_BASE", ""))) {
+        const rowToken = token.replace("_BASE", "");
+        const { row } = rowMap.get(rowToken)!;
         let baseValue = ZERO;
         if (row.valueType === "formula") {
           if (!row.formula) {
@@ -188,7 +206,12 @@ export class AstEvaluatorService {
             });
           } else {
             try {
-              const decoded = decodeFormulaForEval(row.formula, idToToken, secIdToToken, tplIdToToken);
+              const decoded = decodeFormulaForEval(
+                row.formula,
+                idToToken,
+                secIdToToken,
+                tplIdToToken,
+              );
               baseValue = evalFormula(decoded, scope, `row "${row.label}"`, notices);
             } catch (err: any) {
               errors.push({ ...(err as EngineError), rowToken: row.rowToken });
@@ -201,8 +224,8 @@ export class AstEvaluatorService {
         continue;
       }
 
-      if (token.endsWith("_TOTAL") && rowMap.has(token.replace("_TOTAL", ""))) {
-        const rowToken = token.replace("_TOTAL", "");
+      if (token.endsWith("_CHARGES") && rowMap.has(token.replace("_CHARGES", ""))) {
+        const rowToken = token.replace("_CHARGES", "");
         const { row } = rowMap.get(rowToken)!;
         let chargesSum = ZERO;
         for (const c of row.charges) {
@@ -210,8 +233,18 @@ export class AstEvaluatorService {
             chargesSum = math.add(chargesSum, safeBN(scope[c.chargeToken])) as BigNumber;
           }
         }
-        const total = math.add(safeBN(scope[rowToken]), chargesSum) as BigNumber;
+        scope[token] = toFixed(chargesSum);
+        continue;
+      }
+
+      if (rowMap.has(token)) {
+        const rowToken = token;
+        const total = math.add(
+          safeBN(scope[`${rowToken}_BASE`]),
+          safeBN(scope[`${rowToken}_CHARGES`]),
+        ) as BigNumber;
         scope[token] = toFixed(total);
+        scope[`${token}_TOTAL`] = toFixed(total);
         continue;
       }
 
@@ -226,7 +259,12 @@ export class AstEvaluatorService {
           });
         } else {
           try {
-            const decoded = decodeFormulaForEval(charge.formula, idToToken, secIdToToken, tplIdToToken);
+            const decoded = decodeFormulaForEval(
+              charge.formula,
+              idToToken,
+              secIdToToken,
+              tplIdToToken,
+            );
             val = evalFormula(decoded, scope, `row charge "${charge.label}"`, notices);
           } catch (err: any) {
             errors.push({ ...(err as EngineError), rowToken });
@@ -236,13 +274,13 @@ export class AstEvaluatorService {
         continue;
       }
 
-      if (token.startsWith("SEC_") && !token.endsWith("_TOTAL") && !token.endsWith("_CHARGES") && !secChargeMap.has(token)) {
-        const sectionToken = token.replace("SEC_", "");
+      if (token.startsWith("SEC_") && token.endsWith("_BASE")) {
+        const sectionToken = token.replace("SEC_", "").replace("_BASE", "");
         const section = sectionMap.get(sectionToken);
         if (section) {
           let secBase = ZERO;
           for (const row of section.rows) {
-            secBase = math.add(secBase, safeBN(scope[row.rowToken])) as BigNumber;
+            secBase = math.add(secBase, safeBN(scope[`${row.rowToken}_BASE`])) as BigNumber;
           }
           scope[token] = toFixed(secBase);
         }
@@ -261,25 +299,30 @@ export class AstEvaluatorService {
               }
             }
           }
+          for (const sc of section.sectionCharges) {
+            if (sc.chargeToken) {
+              secChargesSum = math.add(secChargesSum, safeBN(scope[sc.chargeToken])) as BigNumber;
+            }
+          }
           scope[token] = toFixed(secChargesSum);
         }
         continue;
       }
 
-      if (token.endsWith("_TOTAL") && token.startsWith("SEC_")) {
+      if (
+        token.startsWith("SEC_") &&
+        !token.endsWith("_CHARGES") &&
+        !token.endsWith("_BASE") &&
+        !secChargeMap.has(token)
+      ) {
         const sectionToken = token.replace("SEC_", "").replace("_TOTAL", "");
         const section = sectionMap.get(sectionToken);
         if (section) {
-          const secBase = safeBN(scope[`SEC_${sectionToken}`]);
+          const secBase = safeBN(scope[`SEC_${sectionToken}_BASE`]);
           const secChgs = safeBN(scope[`SEC_${sectionToken}_CHARGES`]);
-          let secScSum = ZERO;
-          for (const sc of section.sectionCharges) {
-            if (sc.chargeToken) {
-              secScSum = math.add(secScSum, safeBN(scope[sc.chargeToken])) as BigNumber;
-            }
-          }
-          const total = math.add(math.add(secBase, secChgs), secScSum) as BigNumber;
-          scope[token] = toFixed(total);
+          const total = math.add(secBase, secChgs) as BigNumber;
+          scope[`SEC_${sectionToken}`] = toFixed(total);
+          scope[`SEC_${sectionToken}_TOTAL`] = toFixed(total);
         }
         continue;
       }
@@ -289,12 +332,16 @@ export class AstEvaluatorService {
         let val = ZERO;
         const decoded = decodeFormulaForEval(sc.formula, idToToken, secIdToToken, tplIdToToken);
         try {
-          val = evalFormula(decoded, scope, `section charge "${sc.label}" in "${sectionLabel}"`, notices);
+          val = evalFormula(
+            decoded,
+            scope,
+            `section charge "${sc.label}" in "${sectionLabel}"`,
+            notices,
+          );
         } catch (err: any) {
           errors.push(err as EngineError);
         }
         scope[token] = toFixed(val);
-        continue;
       }
     }
 
@@ -303,18 +350,18 @@ export class AstEvaluatorService {
     let grandTotal = ZERO;
 
     const sortedSections = [...sections].sort((a, b) => a.sortOrder - b.sortOrder);
-    
+
     for (const section of sortedSections) {
       const sectionToken = section.sectionToken;
       const autoName = sectionIndexToLetter(section.sortOrder);
-      
+
       const evaluatedRows: EvaluatedRow[] = [];
       const sortedRows = [...section.rows].sort((a, b) => a.sortOrder - b.sortOrder);
-      
+
       for (const row of sortedRows) {
         const evaluatedRowCharges: EvaluatedRowCharge[] = [];
         let chargesSum = ZERO;
-        
+
         const sortedCharges = [...row.charges].sort((a, b) => a.sortOrder - b.sortOrder);
         for (const c of sortedCharges) {
           const val = scope[c.chargeToken] ?? "0.000000";
@@ -326,13 +373,15 @@ export class AstEvaluatorService {
             subDescription: c.subDescription,
             qualifier: c.qualifier,
             tags: c.tags,
-            formulaSnapshot: c.formula ? decodeFormulaForEval(c.formula, idToToken, secIdToToken, tplIdToToken) : "",
+            formulaSnapshot: c.formula
+              ? decodeFormulaForEval(c.formula, idToToken, secIdToToken, tplIdToToken)
+              : "",
             value: String(val),
             sortOrder: c.sortOrder,
           });
         }
-        
-        const rowNotices = notices.filter(n => n.rowToken === row.rowToken);
+
+        const rowNotices = notices.filter((n) => n.rowToken === row.rowToken);
 
         evaluatedRows.push({
           id: row.id,
@@ -340,16 +389,18 @@ export class AstEvaluatorService {
           label: row.label,
           sectionToken,
           charges: evaluatedRowCharges,
-          baseValue: String(scope[row.rowToken] ?? "0.000000"),
+          baseValue: String(scope[`${row.rowToken}_BASE`] ?? "0.000000"),
           chargesValue: toFixed(chargesSum),
-          totalValue: String(scope[`${row.rowToken}_TOTAL`] ?? "0.000000"),
+          totalValue: String(scope[row.rowToken] ?? "0.000000"),
           sortOrder: row.sortOrder,
           notices: rowNotices.length > 0 ? rowNotices : undefined,
         });
       }
-      
+
       const evaluatedSecCharges: EvaluatedSectionCharge[] = [];
-      const sortedSecCharges = [...section.sectionCharges].sort((a, b) => a.sortOrder - b.sortOrder);
+      const sortedSecCharges = [...section.sectionCharges].sort(
+        (a, b) => a.sortOrder - b.sortOrder,
+      );
       for (const sc of sortedSecCharges) {
         evaluatedSecCharges.push({
           id: sc.id,
@@ -371,12 +422,12 @@ export class AstEvaluatorService {
         autoName,
         rows: evaluatedRows,
         sectionCharges: evaluatedSecCharges,
-        sectionBase: String(scope[`SEC_${sectionToken}`] ?? "0.000000"),
+        sectionBase: String(scope[`SEC_${sectionToken}_BASE`] ?? "0.000000"),
         sectionChargesTotal: String(scope[`SEC_${sectionToken}_CHARGES`] ?? "0.000000"),
-        sectionTotal: String(scope[`SEC_${sectionToken}_TOTAL`] ?? "0.000000"),
+        sectionTotal: String(scope[`SEC_${sectionToken}`] ?? "0.000000"),
       });
 
-      grandTotal = math.add(grandTotal, safeBN(scope[`SEC_${sectionToken}_TOTAL`])) as BigNumber;
+      grandTotal = math.add(grandTotal, safeBN(scope[`SEC_${sectionToken}`])) as BigNumber;
     }
 
     scope["INVOICE_TOTAL"] = toFixed(grandTotal);
@@ -388,4 +439,3 @@ export class AstEvaluatorService {
     };
   }
 }
-

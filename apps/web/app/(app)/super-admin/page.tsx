@@ -1,11 +1,11 @@
 "use client";
 
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { Activity, Database, ServerCrash, Skull, RefreshCcw } from "lucide-react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Activity, Database, RefreshCcw, ServerCrash, Skull } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { toast } from "sonner";
-import { apiUrl } from "@/lib/constants";
 import {
   Dialog,
   DialogContent,
@@ -15,11 +15,15 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { useState } from "react";
 import { Input } from "@/components/ui/input";
+import { apiUrl } from "@/lib/constants";
 
 export default function SuperAdminPage() {
-  const { data: health, isLoading, refetch } = useQuery({
+  const {
+    data: health,
+    isLoading,
+    refetch,
+  } = useQuery({
     queryKey: ["system-health"],
     queryFn: async () => {
       const res = await fetch(`${apiUrl}/api/system/health`);
@@ -62,10 +66,12 @@ export default function SuperAdminPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-destructive">System Core</h1>
-          <p className="text-muted-foreground">Global infrastructure health and emergency controls.</p>
+          <p className="text-muted-foreground">
+            Global infrastructure health and emergency controls.
+          </p>
         </div>
         <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isLoading}>
-          <RefreshCcw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+          <RefreshCcw className={`mr-2 h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
           Refresh Status
         </Button>
       </div>
@@ -75,15 +81,19 @@ export default function SuperAdminPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">PostgreSQL</CardTitle>
-            <Database className={`h-4 w-4 ${health?.database === "connected" ? "text-green-500" : "text-destructive"}`} />
+            <Database
+              className={`h-4 w-4 ${health?.database === "connected" ? "text-green-500" : "text-destructive"}`}
+            />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {isLoading ? "Checking..." : (health?.database === "connected" ? "Operational" : "Offline")}
+              {isLoading
+                ? "Checking..."
+                : health?.database === "connected"
+                  ? "Operational"
+                  : "Offline"}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Primary transactional database.
-            </p>
+            <p className="text-xs text-muted-foreground">Primary transactional database.</p>
           </CardContent>
         </Card>
 
@@ -91,15 +101,19 @@ export default function SuperAdminPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Redis</CardTitle>
-            <ServerCrash className={`h-4 w-4 ${health?.redis === "connected" ? "text-green-500" : "text-destructive"}`} />
+            <ServerCrash
+              className={`h-4 w-4 ${health?.redis === "connected" ? "text-green-500" : "text-destructive"}`}
+            />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {isLoading ? "Checking..." : (health?.redis === "connected" ? "Operational" : "Offline")}
+              {isLoading
+                ? "Checking..."
+                : health?.redis === "connected"
+                  ? "Operational"
+                  : "Offline"}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Rate limiting and session caching.
-            </p>
+            <p className="text-xs text-muted-foreground">Rate limiting and session caching.</p>
           </CardContent>
         </Card>
 
@@ -107,7 +121,9 @@ export default function SuperAdminPage() {
         <Card className={health?.status === "ok" ? "" : "border-destructive bg-destructive/5"}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">System Status</CardTitle>
-            <Activity className={`h-4 w-4 ${health?.status === "ok" ? "text-green-500" : "text-destructive"}`} />
+            <Activity
+              className={`h-4 w-4 ${health?.status === "ok" ? "text-green-500" : "text-destructive"}`}
+            />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold uppercase tracking-wider">
@@ -129,7 +145,8 @@ export default function SuperAdminPage() {
               Global Session Nuke
             </CardTitle>
             <CardDescription className="text-destructive/80 font-medium">
-              Immediately invalidates all active user sessions system-wide. Your current super-admin session will be preserved.
+              Immediately invalidates all active user sessions system-wide. Your current super-admin
+              session will be preserved.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -146,27 +163,35 @@ export default function SuperAdminPage() {
                     CONFIRM GLOBAL NUKE
                   </DialogTitle>
                   <DialogDescription className="font-medium">
-                    This action is <strong className="text-foreground">IRREVERSIBLE</strong>. 
-                    It will force every user in the system to log back in immediately.
+                    This action is <strong className="text-foreground">IRREVERSIBLE</strong>. It
+                    will force every user in the system to log back in immediately.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="py-4">
                   <p className="text-sm text-muted-foreground mb-4">
-                    To confirm, please type <strong className="text-foreground font-mono select-none">NUKE SESSIONS</strong> below.
+                    To confirm, please type{" "}
+                    <strong className="text-foreground font-mono select-none">NUKE SESSIONS</strong>{" "}
+                    below.
                   </p>
-                  <Input 
-                    value={nukeConfirm} 
-                    onChange={(e) => setNukeConfirm(e.target.value)} 
-                    placeholder="NUKE SESSIONS" 
+                  <Input
+                    value={nukeConfirm}
+                    onChange={(e) => setNukeConfirm(e.target.value)}
+                    placeholder="NUKE SESSIONS"
                     className="font-mono uppercase"
                   />
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => { setNukeOpen(false); setNukeConfirm(""); }}>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setNukeOpen(false);
+                      setNukeConfirm("");
+                    }}
+                  >
                     Cancel
                   </Button>
-                  <Button 
-                    variant="destructive" 
+                  <Button
+                    variant="destructive"
                     disabled={nukeConfirm !== "NUKE SESSIONS" || nukeMutation.isPending}
                     onClick={() => nukeMutation.mutate()}
                   >

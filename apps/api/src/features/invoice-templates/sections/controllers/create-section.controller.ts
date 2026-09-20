@@ -1,8 +1,8 @@
+import { db, invoiceTemplates, templateSections } from "@starter/db";
+import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
-import { db, templateSections, invoiceTemplates } from "@starter/db";
-import { nextSectionToken } from "../services/section-index.service";
-import { eq, and } from "drizzle-orm";
 import { z } from "zod";
+import { nextSectionToken } from "../services/section-index.service";
 
 const createSectionSchema = z.object({
   label: z.string().min(1).nullish(),
@@ -23,7 +23,7 @@ export async function createSection(c: Context) {
   const template = await db.query.invoiceTemplates.findFirst({
     where: and(
       eq(invoiceTemplates.id, templateId),
-      eq(invoiceTemplates.organizationId, organizationId)
+      eq(invoiceTemplates.organizationId, organizationId),
     ),
   });
   if (!template) return c.json({ error: "Template not found" }, 404);
@@ -40,13 +40,13 @@ export async function createSection(c: Context) {
   const collision = await db.query.templateSections.findFirst({
     where: and(
       eq(templateSections.templateId, templateId),
-      eq(templateSections.sectionToken, sectionToken)
+      eq(templateSections.sectionToken, sectionToken),
     ),
   });
   if (collision) {
     return c.json(
       { error: `Section token "${sectionToken}" is already in use in this template.` },
-      409
+      409,
     );
   }
 

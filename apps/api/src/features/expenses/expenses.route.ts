@@ -6,14 +6,8 @@ const router = new Hono();
 
 router.use("*", requireAuth);
 
-router.post(
-  "/",
-  expensesController.createExpense
-);
+router.post("/", expensesController.createExpense);
 
-router.get(
-  "/",
-  expensesController.listExpenses
-);
+router.get("/", expensesController.listExpenses);
 
 export { router as expensesRouter };

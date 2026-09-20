@@ -1,38 +1,37 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { format } from "date-fns";
-import {
-  MoreHorizontal,
-  ChevronLeft,
-  ChevronRight,
-  Search,
-  Loader2,
-  Users
-} from "lucide-react";
-
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { ChevronLeft, ChevronRight, Loader2, MoreHorizontal, Search, Users } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { apiUrl } from "@/lib/constants";
-import { useSession } from "@/lib/auth-client";
-import { SecurityActionModal, SecurityActionType, SecurityUserContext } from "./security-action-modal";
-import { UsersDataTableActions } from "./users-data-table-actions";
-import { ImpersonateActionModal } from "./impersonate-action-modal";
-import { UserDetailsModal } from "./user-details-modal";
-import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  FilterableTableCell,
+  FilterableTableHeader,
+} from "@/components/ui/table-filter-components";
 import { useTableCellFilter } from "@/hooks/use-table-cell-filter";
-import { FilterableTableHeader, FilterableTableCell } from "@/components/ui/table-filter-components";
+import { useSession } from "@/lib/auth-client";
+import { apiUrl } from "@/lib/constants";
+import { ImpersonateActionModal } from "./impersonate-action-modal";
+import {
+  SecurityActionModal,
+  SecurityActionType,
+  SecurityUserContext,
+} from "./security-action-modal";
+import { UserDetailsModal } from "./user-details-modal";
+import { UsersDataTableActions } from "./users-data-table-actions";
 
 interface UserRecord {
   id: string;
@@ -70,13 +69,8 @@ export function UsersDataTable() {
   const { data: session } = useSession();
   const currentUserRole = (session?.user as any)?.role ?? "user";
 
-  const {
-    filters,
-    toggleFilter,
-    clearColumnFilter,
-    filterRows,
-    isColumnFiltered,
-  } = useTableCellFilter();
+  const { filters, toggleFilter, clearColumnFilter, filterRows, isColumnFiltered } =
+    useTableCellFilter();
 
   // 1. Parse URL State
   const page = Number(searchParams.get("page") || "1");
@@ -190,19 +184,28 @@ export function UsersDataTable() {
     switch (role) {
       case "super_admin":
         return (
-          <Badge className="bg-destructive/10 text-destructive border-destructive/20 hover:bg-destructive/10 uppercase text-[10px] tracking-wider" variant="outline">
+          <Badge
+            className="bg-destructive/10 text-destructive border-destructive/20 hover:bg-destructive/10 uppercase text-[10px] tracking-wider"
+            variant="outline"
+          >
             Super Admin
           </Badge>
         );
       case "admin":
         return (
-          <Badge className="bg-indigo-500/10 text-indigo-500 border-indigo-500/20 hover:bg-indigo-500/10 uppercase text-[10px] tracking-wider" variant="outline">
+          <Badge
+            className="bg-indigo-500/10 text-indigo-500 border-indigo-500/20 hover:bg-indigo-500/10 uppercase text-[10px] tracking-wider"
+            variant="outline"
+          >
             Admin
           </Badge>
         );
       default:
         return (
-          <Badge className="bg-muted text-muted-foreground border-border hover:bg-muted uppercase text-[10px] tracking-wider" variant="outline">
+          <Badge
+            className="bg-muted text-muted-foreground border-border hover:bg-muted uppercase text-[10px] tracking-wider"
+            variant="outline"
+          >
             User
           </Badge>
         );
@@ -222,11 +225,12 @@ export function UsersDataTable() {
 
   const extractors = useMemo(() => {
     return {
-      'name': (u: UserRecord) => u.name,
-      'email': (u: UserRecord) => u.email,
-      'workspace': (u: UserRecord) => u.primaryWorkspace,
-      'role': (u: UserRecord) => u.role === "super_admin" ? "Super Admin" : u.role === "admin" ? "Admin" : "User",
-      'joined': (u: UserRecord) => u.createdAt ? format(new Date(u.createdAt), "MMM d, yyyy") : "-",
+      name: (u: UserRecord) => u.name,
+      email: (u: UserRecord) => u.email,
+      workspace: (u: UserRecord) => u.primaryWorkspace,
+      role: (u: UserRecord) =>
+        u.role === "super_admin" ? "Super Admin" : u.role === "admin" ? "Admin" : "User",
+      joined: (u: UserRecord) => (u.createdAt ? format(new Date(u.createdAt), "MMM d, yyyy") : "-"),
     };
   }, []);
 
@@ -259,7 +263,7 @@ export function UsersDataTable() {
             onValueChange={(val) => {
               const newId = val === "all" ? undefined : val;
               setSelectedWorkspaceId(newId);
-              
+
               const currentParams = new URLSearchParams(window.location.search);
               if (newId) {
                 currentParams.set("workspaceId", newId);
@@ -333,19 +337,33 @@ export function UsersDataTable() {
                 onClear={() => clearColumnFilter("joined")}
                 className="w-[150px]"
               />
-              <TableCell className="w-[80px] text-right font-medium text-muted-foreground">Actions</TableCell>
+              <TableCell className="w-[80px] text-right font-medium text-muted-foreground">
+                Actions
+              </TableCell>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading && usersList.length === 0 ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i} className="animate-pulse">
-                  <TableCell><div className="h-4 bg-muted/65 rounded w-32" /></TableCell>
-                  <TableCell><div className="h-4 bg-muted/65 rounded w-48" /></TableCell>
-                  <TableCell><div className="h-4 bg-muted/65 rounded w-40" /></TableCell>
-                  <TableCell><div className="h-5 bg-muted/65 rounded w-20" /></TableCell>
-                  <TableCell><div className="h-4 bg-muted/65 rounded w-24" /></TableCell>
-                  <TableCell className="text-right"><div className="h-8 w-8 bg-muted/65 rounded ml-auto" /></TableCell>
+                  <TableCell>
+                    <div className="h-4 bg-muted/65 rounded w-32" />
+                  </TableCell>
+                  <TableCell>
+                    <div className="h-4 bg-muted/65 rounded w-48" />
+                  </TableCell>
+                  <TableCell>
+                    <div className="h-4 bg-muted/65 rounded w-40" />
+                  </TableCell>
+                  <TableCell>
+                    <div className="h-5 bg-muted/65 rounded w-20" />
+                  </TableCell>
+                  <TableCell>
+                    <div className="h-4 bg-muted/65 rounded w-24" />
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="h-8 w-8 bg-muted/65 rounded ml-auto" />
+                  </TableCell>
                 </TableRow>
               ))
             ) : displayUsers.length === 0 ? (
@@ -393,7 +411,7 @@ export function UsersDataTable() {
                     isFiltered={isColumnFiltered("workspace")}
                     onToggleFilter={toggleFilter}
                   >
-                    {user.primaryWorkspace === 'No Workspace' ? (
+                    {user.primaryWorkspace === "No Workspace" ? (
                       <span className="text-sm text-muted-foreground italic">None</span>
                     ) : (
                       <div className="flex items-center gap-2">
@@ -401,7 +419,10 @@ export function UsersDataTable() {
                         {user.additionalWorkspacesCount > 0 && (
                           <HoverCard>
                             <HoverCardTrigger asChild>
-                              <Badge variant="secondary" className="cursor-help text-[10px] h-5 px-1.5 hover:bg-secondary/80">
+                              <Badge
+                                variant="secondary"
+                                className="cursor-help text-[10px] h-5 px-1.5 hover:bg-secondary/80"
+                              >
                                 +{user.additionalWorkspacesCount} more
                               </Badge>
                             </HoverCardTrigger>
@@ -425,7 +446,13 @@ export function UsersDataTable() {
                   </FilterableTableCell>
                   <FilterableTableCell
                     columnKey="role"
-                    value={user.role === "super_admin" ? "Super Admin" : user.role === "admin" ? "Admin" : "User"}
+                    value={
+                      user.role === "super_admin"
+                        ? "Super Admin"
+                        : user.role === "admin"
+                          ? "Admin"
+                          : "User"
+                    }
                     isFiltered={isColumnFiltered("role")}
                     onToggleFilter={toggleFilter}
                   >
@@ -485,12 +512,12 @@ export function UsersDataTable() {
           </div>
         </div>
       )}
-      
-      <SecurityActionModal 
-        isOpen={securityModal.isOpen} 
-        onClose={() => setSecurityModal((prev) => ({ ...prev, isOpen: false }))} 
-        user={securityModal.user} 
-        actionType={securityModal.actionType} 
+
+      <SecurityActionModal
+        isOpen={securityModal.isOpen}
+        onClose={() => setSecurityModal((prev) => ({ ...prev, isOpen: false }))}
+        user={securityModal.user}
+        actionType={securityModal.actionType}
       />
 
       <ImpersonateActionModal

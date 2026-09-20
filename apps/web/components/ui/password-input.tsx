@@ -1,7 +1,7 @@
 "use client";
 
-import * as React from "react";
 import { Eye, EyeOff } from "lucide-react";
+import * as React from "react";
 import { Input } from "@/components/ui/input";
 
 const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
@@ -21,15 +21,11 @@ const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<"i
           onClick={() => setShowPassword(!showPassword)}
           className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none"
         >
-          {showPassword ? (
-            <EyeOff className="h-4 w-4" />
-          ) : (
-            <Eye className="h-4 w-4" />
-          )}
+          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
         </button>
       </div>
     );
-  }
+  },
 );
 PasswordInput.label = "PasswordInput";
 

@@ -1,17 +1,22 @@
-import { eq, inArray } from "drizzle-orm";
-import { 
+import {
   db,
-  templateSections,
+  type RowIdToTokenMap,
+  type SecIdToTokenMap,
+  type TplIdToTokenMap,
+  templateConstants,
+  templateRowCharges,
   templateRows,
   templateSectionCharges,
-  templateRowCharges,
-  templateConstants,
+  templateSections,
 } from "@starter/db";
+import { eq, inArray } from "drizzle-orm";
 import { DagValidatorService } from "./dag-validator.service";
-import { type EvaluatorSection, type DagValidationResult } from "./types";
-import { type RowIdToTokenMap, type SecIdToTokenMap, type TplIdToTokenMap } from "@starter/db";
+import { type DagValidationResult, type EvaluatorSection } from "./types";
 
-export async function validateTemplateDag(templateId: string, tx: any = db): Promise<DagValidationResult> {
+export async function validateTemplateDag(
+  templateId: string,
+  tx: any = db,
+): Promise<DagValidationResult> {
   const [dbSections, dbRows, dbSectionCharges, dbConstants] = await Promise.all([
     tx
       .select()
@@ -28,20 +33,18 @@ export async function validateTemplateDag(templateId: string, tx: any = db): Pro
       .from(templateSectionCharges)
       .where(eq(templateSectionCharges.templateId, templateId))
       .orderBy(templateSectionCharges.sortOrder),
-    tx
-      .select()
-      .from(templateConstants)
-      .where(eq(templateConstants.templateId, templateId)),
+    tx.select().from(templateConstants).where(eq(templateConstants.templateId, templateId)),
   ]);
 
   const rowIds = dbRows.map((r: any) => r.id);
-  const dbRowCharges = rowIds.length > 0
-    ? await tx
-        .select()
-        .from(templateRowCharges)
-        .where(inArray(templateRowCharges.rowId, rowIds))
-        .orderBy(templateRowCharges.sortOrder)
-    : [];
+  const dbRowCharges =
+    rowIds.length > 0
+      ? await tx
+          .select()
+          .from(templateRowCharges)
+          .where(inArray(templateRowCharges.rowId, rowIds))
+          .orderBy(templateRowCharges.sortOrder)
+      : [];
 
   const idToToken: RowIdToTokenMap = {};
   for (const row of dbRows) {
@@ -106,6 +109,6 @@ export async function validateTemplateDag(templateId: string, tx: any = db): Pro
     new Set(),
     idToToken,
     secIdToToken,
-    tplIdToToken
+    tplIdToToken,
   );
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, SubmitEvent } from "react";
+import { SubmitEvent, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { authClient, useSession } from "@/lib/auth-client";
 
@@ -49,12 +49,12 @@ export function useDeleteAccount() {
       setStep("password-verify");
     } else if (authType === "oauth") {
       setIsLoading(true);
-      
+
       try {
         // Execute the real API call
-        const res = await fetch('/api/users/me/otp', { method: 'POST' });
+        const res = await fetch("/api/users/me/otp", { method: "POST" });
         if (!res.ok) throw new Error("Failed to send OTP");
-        
+
         toast.success("A 6-digit confirmation code has been sent to your email.");
         setStep("otp-verify");
       } catch (error) {
@@ -89,7 +89,6 @@ export function useDeleteAccount() {
 
       // Hard redirect purges the Next.js router cache entirely
       window.location.href = "/sign-up";
-
     } catch (error: any) {
       console.error("[Account Deletion Error]:", error);
       toast.error(error.message);
@@ -106,7 +105,7 @@ export function useDeleteAccount() {
       isDeleting,
       password,
       otp,
-      userEmail: session?.user?.email || ""
+      userEmail: session?.user?.email || "",
     },
     actions: {
       setIsOpen: openModal,
@@ -114,7 +113,7 @@ export function useDeleteAccount() {
       setPassword,
       setOtp,
       handleInitiateDeletion,
-      executeDeletion
-    }
+      executeDeletion,
+    },
   };
 }

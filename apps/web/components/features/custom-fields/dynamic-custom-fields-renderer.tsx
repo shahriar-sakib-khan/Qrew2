@@ -1,15 +1,21 @@
 "use client";
 
-import { Controller, Control } from "react-hook-form";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
+import { Control, Controller } from "react-hook-form";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 type CustomFieldDefinition = {
@@ -28,7 +34,12 @@ interface Props {
   errors?: Record<string, any>;
 }
 
-export function DynamicCustomFieldsRenderer({ control, definitions, basePath, errors = {} }: Props) {
+export function DynamicCustomFieldsRenderer({
+  control,
+  definitions,
+  basePath,
+  errors = {},
+}: Props) {
   if (!definitions || definitions.length === 0) return null;
 
   return (
@@ -49,28 +60,36 @@ export function DynamicCustomFieldsRenderer({ control, definitions, basePath, er
               render={({ field }) => {
                 switch (def.fieldType) {
                   case "text":
-                    return <Input placeholder={`Enter ${def.fieldName}`} {...field} value={field.value || ""} />;
-                  
-                  case "number":
                     return (
-                      <Input 
-                        type="number" 
-                        placeholder="0" 
-                        {...field} 
-                        value={field.value || ""} 
-                        onChange={e => field.onChange(e.target.value ? Number(e.target.value) : undefined)} 
+                      <Input
+                        placeholder={`Enter ${def.fieldName}`}
+                        {...field}
+                        value={field.value || ""}
                       />
                     );
-                  
+
+                  case "number":
+                    return (
+                      <Input
+                        type="number"
+                        placeholder="0"
+                        {...field}
+                        value={field.value || ""}
+                        onChange={(e) =>
+                          field.onChange(e.target.value ? Number(e.target.value) : undefined)
+                        }
+                      />
+                    );
+
                   case "boolean":
                     return (
                       <div className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                        <Checkbox
-                          checked={field.value || false}
-                          onCheckedChange={field.onChange}
-                        />
+                        <Checkbox checked={field.value || false} onCheckedChange={field.onChange} />
                         <div className="space-y-1 leading-none">
-                          <Label className="cursor-pointer" onClick={() => field.onChange(!field.value)}>
+                          <Label
+                            className="cursor-pointer"
+                            onClick={() => field.onChange(!field.value)}
+                          >
                             {def.fieldName}
                           </Label>
                         </div>
@@ -85,18 +104,24 @@ export function DynamicCustomFieldsRenderer({ control, definitions, basePath, er
                             variant={"outline"}
                             className={cn(
                               "w-full justify-start text-left font-normal",
-                              !field.value && "text-muted-foreground"
+                              !field.value && "text-muted-foreground",
                             )}
                           >
                             <CalendarIcon className="mr-2 h-4 w-4" />
-                            {field.value ? format(new Date(field.value), "PPP") : <span>Pick a date</span>}
+                            {field.value ? (
+                              format(new Date(field.value), "PPP")
+                            ) : (
+                              <span>Pick a date</span>
+                            )}
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0" align="start">
                           <Calendar
                             mode="single"
                             selected={field.value ? new Date(field.value) : undefined}
-                            onSelect={(date) => field.onChange(date ? date.toISOString() : undefined)}
+                            onSelect={(date) =>
+                              field.onChange(date ? date.toISOString() : undefined)
+                            }
                           />
                         </PopoverContent>
                       </Popover>
@@ -110,7 +135,9 @@ export function DynamicCustomFieldsRenderer({ control, definitions, basePath, er
                         </SelectTrigger>
                         <SelectContent>
                           {def.options?.map((opt) => (
-                            <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                            <SelectItem key={opt} value={opt}>
+                              {opt}
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -120,18 +147,22 @@ export function DynamicCustomFieldsRenderer({ control, definitions, basePath, er
                     // A simple multi-select fallback using a regular select for now if a custom one isn't built
                     // Ideally you'd use a MultiSelect component here.
                     return (
-                      <Select onValueChange={(val) => {
-                        const current = Array.isArray(field.value) ? field.value : [];
-                        if (!current.includes(val)) {
-                          field.onChange([...current, val]);
-                        }
-                      }}>
+                      <Select
+                        onValueChange={(val) => {
+                          const current = Array.isArray(field.value) ? field.value : [];
+                          if (!current.includes(val)) {
+                            field.onChange([...current, val]);
+                          }
+                        }}
+                      >
                         <SelectTrigger>
                           <SelectValue placeholder={`Add ${def.fieldName}`} />
                         </SelectTrigger>
                         <SelectContent>
                           {def.options?.map((opt) => (
-                            <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                            <SelectItem key={opt} value={opt}>
+                              {opt}
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -142,7 +173,7 @@ export function DynamicCustomFieldsRenderer({ control, definitions, basePath, er
                 }
               }}
             />
-            
+
             {/* Multi-select badges display */}
             {def.fieldType === "multi_select" && (
               <Controller
@@ -154,9 +185,12 @@ export function DynamicCustomFieldsRenderer({ control, definitions, basePath, er
                   return (
                     <div className="flex flex-wrap gap-2 mt-2">
                       {items.map((item: string) => (
-                        <div key={item} className="bg-secondary text-secondary-foreground text-xs px-2 py-1 rounded-md flex items-center gap-1">
+                        <div
+                          key={item}
+                          className="bg-secondary text-secondary-foreground text-xs px-2 py-1 rounded-md flex items-center gap-1"
+                        >
                           {item}
-                          <button 
+                          <button
                             type="button"
                             className="hover:text-destructive text-muted-foreground ml-1"
                             onClick={() => field.onChange(items.filter((i: string) => i !== item))}
@@ -166,11 +200,13 @@ export function DynamicCustomFieldsRenderer({ control, definitions, basePath, er
                         </div>
                       ))}
                     </div>
-                  )
+                  );
                 }}
               />
             )}
-            {hasError && <p className="text-[0.8rem] font-medium text-destructive">{errorMessage}</p>}
+            {hasError && (
+              <p className="text-[0.8rem] font-medium text-destructive">{errorMessage}</p>
+            )}
           </div>
         );
       })}

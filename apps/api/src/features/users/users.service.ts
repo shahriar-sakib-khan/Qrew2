@@ -1,28 +1,23 @@
-import { DeleteObjectCommand } from '@aws-sdk/client-s3';
-import { eq } from 'drizzle-orm';
-import { s3Client } from '../../infra/lib/storage';
-import {
-  users,
-  sessions,
-  accounts,
-  twoFactor,
-  passkeys,
-  db
-} from '@starter/db';
-import { logger } from '../../infra/lib/logger';
+import { DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { accounts, db, passkeys, sessions, twoFactor, users } from "@starter/db";
+import { eq } from "drizzle-orm";
+import { logger } from "../../infra/lib/logger";
+import { s3Client } from "../../infra/lib/storage";
 
-const usersServiceLog = logger.child({ module: 'users-service' });
+const usersServiceLog = logger.child({ module: "users-service" });
 
 export const UsersService = {
   async softDeleteAccount(userId: string): Promise<{ success: boolean }> {
     // Storage Cleanup (Fails gracefully)
     try {
-      await s3Client.send(new DeleteObjectCommand({
-        Bucket: process.env.R2_BUCKET_NAME!,
-        Key: `avatars/${userId}.webp`,
-      }));
+      await s3Client.send(
+        new DeleteObjectCommand({
+          Bucket: process.env.R2_BUCKET_NAME!,
+          Key: `avatars/${userId}.webp`,
+        }),
+      );
     } catch (storageError) {
-      usersServiceLog.warn({ userId, err: storageError }, 'Orphaned avatar or R2 failure');
+      usersServiceLog.warn({ userId, err: storageError }, "Orphaned avatar or R2 failure");
     }
 
     // The ACID Database Wipe
@@ -36,21 +31,22 @@ export const UsersService = {
         await tx.delete(passkeys).where(eq(passkeys.userId, userId));
 
         // Soft delete the user
-        await tx.update(users)
+        await tx
+          .update(users)
           .set({
             name: "Deleted User",
             email: anonymizedEmail,
             deletedAt: new Date(),
             banned: true,
-            banReason: "Account deleted by user"
+            banReason: "Account deleted by user",
           })
           .where(eq(users.id, userId));
       });
     } catch (dbError) {
-      usersServiceLog.error({ userId, err: dbError }, 'Database soft-delete failed');
+      usersServiceLog.error({ userId, err: dbError }, "Database soft-delete failed");
       throw new Error("Failed to anonymize database records.");
     }
 
     return { success: true };
-  }
+  },
 };

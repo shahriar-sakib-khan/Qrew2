@@ -1,26 +1,27 @@
-import { Context } from "hono";
 import {
   db,
-  templateRows,
-  templateRowCharges,
-  invoiceTemplates,
-  encodeFormula,
   decodeFormula,
+  encodeFormula,
+  invoiceTemplates,
+  templateRowCharges,
+  templateRows,
 } from "@starter/db";
-import { buildRowIndex } from "../services/row-index.service";
-import { buildSectionIndex } from "../../sections/services/section-index.service";
-import { buildConstantIndex } from "../../metadata/services/constant-index.service";
-import { validateFormulaChars } from "../../validation/formula-validator";
-import { validateTemplateDag } from "../../../invoices/engine/engine-utils";
-import { eq, and, asc } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
+import { Context } from "hono";
 import { z } from "zod";
+import { validateTemplateDag } from "../../../invoices/engine/engine-utils";
+import { getTemplateFormulaContext } from "../../services/template-formula-context.service";
+import { validateFormulaChars } from "../../validation/formula-validator";
 
 const updateRowSchema = z.object({
   label: z.string().optional(),
   rowToken: z
     .string()
     .min(1)
-    .regex(/^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$/, "rowToken must be UPPER_SNAKE_CASE with no leading, trailing, or consecutive underscores")
+    .regex(
+      /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$/,
+      "rowToken must be UPPER_SNAKE_CASE with no leading, trailing, or consecutive underscores",
+    )
     .optional(),
   description: z.string().optional().nullable(),
   orderIndex: z.number().int().min(0).optional(),
@@ -54,17 +55,20 @@ export async function updateRow(c: Context): Promise<any> {
     const dup = await db.query.templateRows.findFirst({
       where: and(
         eq(templateRows.templateId, existingRow.templateId),
-        eq(templateRows.rowToken, parsed.data.rowToken)
+        eq(templateRows.rowToken, parsed.data.rowToken),
       ),
     });
     if (dup) {
-      return c.json({ error: `rowToken "${parsed.data.rowToken}" is already used in this template.` }, 409);
+      return c.json(
+        { error: `rowToken "${parsed.data.rowToken}" is already used in this template.` },
+        409,
+      );
     }
   }
 
-  const { tokenToId, idToToken } = await buildRowIndex(existingRow.templateId);
-  const { tokenToId: secTokenToId, idToToken: secIdToToken } = await buildSectionIndex(existingRow.templateId);
-  const { tplTokenToId, tplIdToToken } = await buildConstantIndex(existingRow.templateId);
+  const context = await getTemplateFormulaContext(existingRow.templateId, organizationId);
+  const tokenToId = { ...context.rowTokenToId };
+  const idToToken = { ...context.rowIdToToken };
 
   if (parsed.data.rowToken && parsed.data.rowToken !== existingRow.rowToken) {
     delete tokenToId[existingRow.rowToken];
@@ -86,13 +90,22 @@ export async function updateRow(c: Context): Promise<any> {
         return c.json({ error: charValidation.error }, 422);
       }
     }
-    updateFields.formula = (parsed.data.valueType === 'formula' || formulaToSave)
-      ? encodeFormula(formulaToSave, tokenToId, secTokenToId)
-      : null;
+    updateFields.formula =
+      parsed.data.valueType === "formula" || formulaToSave
+        ? encodeFormula(
+            formulaToSave,
+            tokenToId,
+            context.secTokenToId,
+            context.tplTokenToId,
+            context.fileFieldTokens,
+            context.globalTokens,
+          )
+        : null;
     if (formulaToSave) updateFields.initialValue = null;
   }
   if (parsed.data.initialValue !== undefined) {
-    updateFields.initialValue = parsed.data.initialValue != null ? String(parsed.data.initialValue) : null;
+    updateFields.initialValue =
+      parsed.data.initialValue != null ? String(parsed.data.initialValue) : null;
     if (parsed.data.initialValue != null) updateFields.formula = null;
   }
 
@@ -122,10 +135,25 @@ export async function updateRow(c: Context): Promise<any> {
 
       return {
         ...updatedRow,
-        formula: decodeFormula(updatedRow.formula, idToToken, secIdToToken, tplIdToToken),
+        formula: decodeFormula(
+          updatedRow.formula,
+          idToToken,
+          context.secIdToToken,
+          context.tplIdToToken,
+          context.fileFieldTokens,
+          context.globalTokens,
+        ),
         charges: charges.map((ch) => ({
           ...ch,
-          formula: decodeFormula(ch.formula, idToToken, secIdToToken, tplIdToToken) ?? ch.formula,
+          formula:
+            decodeFormula(
+              ch.formula,
+              idToToken,
+              context.secIdToToken,
+              context.tplIdToToken,
+              context.fileFieldTokens,
+              context.globalTokens,
+            ) ?? ch.formula,
         })),
       };
     });

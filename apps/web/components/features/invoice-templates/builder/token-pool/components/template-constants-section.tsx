@@ -1,4 +1,5 @@
-import { PoolSectionHeader, ConstantTokenCard } from "../index";
+import { ConstantTokenCard, PoolSectionHeader } from "../index";
+import { TEMPLATE_CONSTANTS_INFO } from "./section-info-popover";
 
 export function TemplateConstantsSection({
   templateConstants,
@@ -30,9 +31,13 @@ export function TemplateConstantsSection({
     <div className="px-2">
       <PoolSectionHeader
         label="Template Constants"
+        info={TEMPLATE_CONSTANTS_INFO}
         action={
           <button
-            onClick={() => { setEditConstant(null); setIsConstantModalOpen(true); }}
+            onClick={() => {
+              setEditConstant(null);
+              setIsConstantModalOpen(true);
+            }}
             className="text-muted-foreground hover:text-foreground p-0.5 rounded transition-colors"
             title="Add Template Constant"
           >
@@ -54,8 +59,15 @@ export function TemplateConstantsSection({
               type="template"
               zoomLevel={tokenZoomLevel}
               onClick={() => handleTokenClick(constant.token)}
-              onEdit={(e) => { e.stopPropagation(); setEditConstant(constant); setIsConstantModalOpen(true); }}
-              onDelete={(e) => { e.stopPropagation(); setConstantToDelete(constant); }}
+              onEdit={(e) => {
+                e.stopPropagation();
+                setEditConstant(constant);
+                setIsConstantModalOpen(true);
+              }}
+              onDelete={(e) => {
+                e.stopPropagation();
+                setConstantToDelete(constant);
+              }}
               onLegendClick={() => setShowLegend(true)}
             />
           ))}

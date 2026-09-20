@@ -1,10 +1,21 @@
-import { Context } from "hono";
-import { db, templateConstants, templateRows, templateSectionCharges, templateSections, encodeFormula } from "@starter/db";
+import {
+  db,
+  templateConstants,
+  templateRows,
+  templateSectionCharges,
+  templateSections,
+} from "@starter/db";
 import { eq } from "drizzle-orm";
+import { Context } from "hono";
 import { z } from "zod";
+import { getTemplateFormulaContext } from "../../services/template-formula-context.service";
 
 const updateConstantSchema = z.object({
-  key: z.string().min(1).regex(/^[A-Z0-9_]+$/).optional(),
+  key: z
+    .string()
+    .min(1)
+    .regex(/^[A-Z0-9_]+$/)
+    .optional(),
   valueType: z.enum(["number", "percentage", "currency_rate", "text"]).optional(),
   value: z.string().optional(),
   description: z.string().optional(),
@@ -12,7 +23,7 @@ const updateConstantSchema = z.object({
 
 export async function updateConstant(c: Context) {
   const id = c.req.param("constantId") as string;
-  
+
   const body = await c.req.json();
   const parsed = updateConstantSchema.safeParse(body);
   if (!parsed.success) return c.json({ error: parsed.error }, 400);
@@ -33,27 +44,18 @@ export async function updateConstant(c: Context) {
 
     if (updated && updateData.token) {
       const templateId = updated.templateId;
-      
-      const rowTokensList = await tx.select({ id: templateRows.id, rowToken: templateRows.rowToken }).from(templateRows).where(eq(templateRows.templateId, templateId));
-      const rowTokenToId: Record<string, string> = {};
-      for (const r of rowTokensList) rowTokenToId[r.rowToken] = r.id;
+      const context = await getTemplateFormulaContext(templateId, undefined, tx);
 
-      const secTokensList = await tx.select({ id: templateSections.id, sectionToken: templateSections.sectionToken }).from(templateSections).where(eq(templateSections.templateId, templateId));
-      const secTokenToId: Record<string, string> = {};
-      for (const s of secTokensList) {
-        if (s.sectionToken) secTokenToId[`SEC_${s.sectionToken}`] = s.id;
-      }
-
-      const constTokensList = await tx.select({ id: templateConstants.id, token: templateConstants.token }).from(templateConstants).where(eq(templateConstants.templateId, templateId));
-      const tplTokenToId: Record<string, string> = {};
-      for (const c of constTokensList) {
-        if (c.token) tplTokenToId[c.token] = c.id;
-      }
-
-      const rowsList = await tx.select({ id: templateRows.id, formula: templateRows.formula }).from(templateRows).where(eq(templateRows.templateId, templateId));
+      const rowsList = await tx
+        .select({ id: templateRows.id, formula: templateRows.formula })
+        .from(templateRows)
+        .where(eq(templateRows.templateId, templateId));
       for (const r of rowsList) {
         if (r.formula) {
-          await tx.update(templateRows).set({ formula: encodeFormula(r.formula, rowTokenToId, secTokenToId, tplTokenToId) }).where(eq(templateRows.id, r.id));
+          await tx
+            .update(templateRows)
+            .set({ formula: context.encode(r.formula) })
+            .where(eq(templateRows.id, r.id));
         }
       }
 
@@ -64,8 +66,11 @@ export async function updateConstant(c: Context) {
         .where(eq(templateSections.templateId, templateId));
       for (const c of secChargesList) {
         if (c.formula) {
-          const encoded = encodeFormula(c.formula, rowTokenToId, secTokenToId, tplTokenToId) ?? c.formula;
-          await tx.update(templateSectionCharges).set({ formula: encoded }).where(eq(templateSectionCharges.id, c.id));
+          const encoded = context.encode(c.formula) ?? c.formula;
+          await tx
+            .update(templateSectionCharges)
+            .set({ formula: encoded })
+            .where(eq(templateSectionCharges.id, c.id));
         }
       }
     }

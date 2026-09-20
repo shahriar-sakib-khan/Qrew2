@@ -1,34 +1,33 @@
-import { betterAuth } from 'better-auth'
-import { drizzleAdapter } from 'better-auth/adapters/drizzle'
-import { admin, magicLink, twoFactor, emailOTP, organization } from 'better-auth/plugins'
-import { db } from '@starter/db'
-import * as schema from '@starter/db'
-
-import { redis } from './redis'
-import { Resend } from 'resend'
-import nodemailer from 'nodemailer'
-import { logger } from './logger'
+import * as schema from "@starter/db";
+import { db } from "@starter/db";
+import { betterAuth } from "better-auth";
+import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { admin, emailOTP, magicLink, organization, twoFactor } from "better-auth/plugins";
+import nodemailer from "nodemailer";
+import { Resend } from "resend";
+import { logger } from "./logger";
+import { redis } from "./redis";
 
 if (!process.env.BETTER_AUTH_SECRET) {
-  throw new Error('BETTER_AUTH_SECRET is not set.')
+  throw new Error("BETTER_AUTH_SECRET is not set.");
 }
 if (!process.env.BETTER_AUTH_URL) {
-  throw new Error('BETTER_AUTH_URL is not set.')
+  throw new Error("BETTER_AUTH_URL is not set.");
 }
 if (!process.env.NEXT_PUBLIC_APP_URL) {
-  throw new Error('NEXT_PUBLIC_APP_URL is not set.')
+  throw new Error("NEXT_PUBLIC_APP_URL is not set.");
 }
 if (!process.env.GOOGLE_CLIENT_ID) {
-  throw new Error('GOOGLE_CLIENT_ID is not set.')
+  throw new Error("GOOGLE_CLIENT_ID is not set.");
 }
 if (!process.env.GOOGLE_CLIENT_SECRET) {
-  throw new Error('GOOGLE_CLIENT_SECRET is not set.')
+  throw new Error("GOOGLE_CLIENT_SECRET is not set.");
 }
 if (!process.env.RESEND_API_KEY) {
-  throw new Error('RESEND_API_KEY is not set.')
+  throw new Error("RESEND_API_KEY is not set.");
 }
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Create a local SMTP transporter pointed at Docker Mailpit
 const localTransporter = nodemailer.createTransport({
@@ -47,7 +46,7 @@ export async function sendSmartEmail(to: string, subject: string, html: string) 
       subject,
       html,
     });
-    logger.child({ module: 'email' }).info({ to }, '[Mailpit] intercepted email');
+    logger.child({ module: "email" }).info({ to }, "[Mailpit] intercepted email");
   } else {
     // PROD: Send via Resend
     await resend.emails.send({
@@ -61,7 +60,7 @@ export async function sendSmartEmail(to: string, subject: string, html: string) 
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
-    provider: 'pg',
+    provider: "pg",
     schema: {
       user: schema.users,
       session: schema.sessions,
@@ -71,14 +70,16 @@ export const auth = betterAuth({
       organization: schema.organizations,
       member: schema.members,
       invitation: schema.invitations,
-    }
+    },
   }),
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BETTER_AUTH_URL,
   trustedOrigins: [
-    process.env.NEXT_PUBLIC_APP_URL ? process.env.NEXT_PUBLIC_APP_URL.replace(/['"]/g, '').replace(/\/+$/, '') : '',
-    'http://localhost:5002',
-    'https://qrew-six.vercel.app'
+    process.env.NEXT_PUBLIC_APP_URL
+      ? process.env.NEXT_PUBLIC_APP_URL.replace(/['"]/g, "").replace(/\/+$/, "")
+      : "",
+    "http://localhost:5002",
+    "https://qrew-six.vercel.app",
   ].filter(Boolean),
   session: {
     expiresIn: 60 * 60 * 24 * 7,
@@ -90,18 +91,18 @@ export const auth = betterAuth({
   },
   secondaryStorage: {
     get: async (key) => {
-      const value = await redis.get(key)
-      return value ?? null
+      const value = await redis.get(key);
+      return value ?? null;
     },
     set: async (key, value, ttl) => {
       if (ttl) {
-        await redis.set(key, value, 'EX', ttl)
+        await redis.set(key, value, "EX", ttl);
       } else {
-        await redis.set(key, value)
+        await redis.set(key, value);
       }
     },
     delete: async (key) => {
-      await redis.del(key)
+      await redis.del(key);
     },
   },
   socialProviders: {
@@ -115,17 +116,19 @@ export const auth = betterAuth({
     requireEmailVerification: false,
     sendResetPassword: async ({ user, url, token }) => {
       // Point DIRECTLY to the Next.js frontend, bypassing the intermediate API
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL ? process.env.NEXT_PUBLIC_APP_URL.replace(/['"]/g, '').replace(/\/+$/, '') : 'http://localhost:5002';
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL
+        ? process.env.NEXT_PUBLIC_APP_URL.replace(/['"]/g, "").replace(/\/+$/, "")
+        : "http://localhost:5002";
       const frontendUrl = `${appUrl}/reset-password?token=${token}`;
       await sendSmartEmail(
         user.email,
         "Reset your Qrew password",
-        `<p>Click <a href="${frontendUrl}">here</a> to reset your password. This link expires in 15 minutes.</p>`
+        `<p>Click <a href="${frontendUrl}">here</a> to reset your password. This link expires in 15 minutes.</p>`,
       );
     },
   },
   rateLimit: {
-    storage: 'secondary-storage',
+    storage: "secondary-storage",
     window: 60,
     max: 100,
   },
@@ -141,7 +144,7 @@ export const auth = betterAuth({
 
   plugins: [
     admin({
-      defaultRole: 'user',
+      defaultRole: "user",
     }),
     organization(),
     magicLink({
@@ -149,7 +152,7 @@ export const auth = betterAuth({
         await sendSmartEmail(
           email,
           "Your Qrew Login Link",
-          `<p>Click <a href="${url}">here</a> to log in to your account.</p>`
+          `<p>Click <a href="${url}">here</a> to log in to your account.</p>`,
         );
       },
       expiresIn: 60 * 15,
@@ -164,9 +167,9 @@ export const auth = betterAuth({
              <h2>Security Verification</h2>
              <h1 style="letter-spacing: 5px; background: #f3f4f6; padding: 10px;">${otp}</h1>
              <p>This code expires in 5 minutes.</p>
-           </div>`
+           </div>`,
         );
-      }
+      },
     }),
     twoFactor({
       issuer: "Qrew",
@@ -184,13 +187,13 @@ export const auth = betterAuth({
                 <p>Your one-time passcode is:</p>
                 <h1 style="letter-spacing: 5px; color: #10B981; background: #f3f4f6; padding: 10px; border-radius: 8px;">${otp}</h1>
                 <p>This code expires in 5 minutes. Do not share it with anyone.</p>
-               </div>`
+               </div>`,
             );
-          }
-        }
-      }
+          },
+        },
+      },
     }),
   ],
-})
+});
 
-export type Auth = typeof auth
+export type Auth = typeof auth;

@@ -20,14 +20,19 @@
  */
 
 import {
-  type EvaluatorSection,
-  type EvaluatorRow,
-  type EvaluatorRowCharge,
-  type EvaluatorSectionCharge,
+  decodeFormulaForEval,
+  type RowIdToTokenMap,
+  type SecIdToTokenMap,
+  type TplIdToTokenMap,
+} from "@starter/db";
+import {
   type DagValidationResult,
   type EngineError,
+  type EvaluatorRow,
+  type EvaluatorRowCharge,
+  type EvaluatorSection,
+  type EvaluatorSectionCharge,
 } from "./types";
-import { decodeFormulaForEval, type RowIdToTokenMap, type SecIdToTokenMap, type TplIdToTokenMap } from "@starter/db";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TOKEN EXTRACTION
@@ -72,7 +77,7 @@ export class DagValidatorService {
     externalTokens: Set<string> = new Set(),
     idToToken: RowIdToTokenMap = {},
     secIdToToken: SecIdToTokenMap = {},
-    tplIdToToken: TplIdToTokenMap = {}
+    tplIdToToken: TplIdToTokenMap = {},
   ): DagValidationResult {
     const errors: EngineError[] = [];
     const topologicalOrder: string[] = [];
@@ -97,8 +102,9 @@ export class DagValidatorService {
         } else {
           seenTokens.add(row.rowToken);
           tokenSeen.set(row.rowToken, `row "${row.label}"`);
+          nodeTokens.add(`${row.rowToken}_BASE`);
+          nodeTokens.add(`${row.rowToken}_CHARGES`);
           nodeTokens.add(row.rowToken);
-          nodeTokens.add(`${row.rowToken}_TOTAL`);
         }
 
         for (const charge of row.charges) {
@@ -126,15 +132,20 @@ export class DagValidatorService {
           });
         } else {
           seenTokens.add(sc.chargeToken);
-          tokenSeen.set(sc.chargeToken, `section charge "${sc.label}" in section "${sectionLetter}"`);
+          tokenSeen.set(
+            sc.chargeToken,
+            `section charge "${sc.label}" in section "${sectionLetter}"`,
+          );
           nodeTokens.add(sc.chargeToken);
         }
       }
 
-      const secBase = `SEC_${sectionToken}`;
+      const secBase = `SEC_${sectionToken}_BASE`;
+      const secCharges = `SEC_${sectionToken}_CHARGES`;
+      const secTotal = `SEC_${sectionToken}`;
       nodeTokens.add(secBase);
-      nodeTokens.add(`${secBase}_TOTAL`);
-      nodeTokens.add(`${secBase}_CHARGES`);
+      nodeTokens.add(secCharges);
+      nodeTokens.add(secTotal);
     }
 
     // If duplicate tokens found, abort further validation (results would be unreliable)
@@ -162,44 +173,63 @@ export class DagValidatorService {
       const sectionToken = section.sectionToken;
       const sectionLetter = sectionIndexToLetter(section.sortOrder);
       const sectionLabel = section.label ?? `Section ${sectionLetter}`;
-      const secBase = `SEC_${sectionToken}`;
-      const secTotal = `SEC_${sectionToken}_TOTAL`;
+      const secBase = `SEC_${sectionToken}_BASE`;
+      const secTotal = `SEC_${sectionToken}`;
       const secCharges = `SEC_${sectionToken}_CHARGES`;
 
       addEdge(secBase, secTotal);
       addEdge(secCharges, secTotal);
 
       for (const row of section.rows) {
-        const rowChargeAllowedTokens = new Set<string>([row.rowToken]);
+        const rowBase = `${row.rowToken}_BASE`;
+        const rowChargesToken = `${row.rowToken}_CHARGES`;
+        const rowTotal = row.rowToken;
+        const rowChargeAllowedTokens = new Set<string>([rowBase]);
 
-        addEdge(row.rowToken, `${row.rowToken}_TOTAL`);
-        addEdge(row.rowToken, secBase);
+        // Base and charges sum add to total
+        addEdge(rowBase, rowTotal);
+        addEdge(rowChargesToken, rowTotal);
+        // Base adds to section base
+        addEdge(rowBase, secBase);
 
         if (row.formula) {
-          const decodedFormula = decodeFormulaForEval(row.formula, idToToken, secIdToToken, tplIdToToken);
+          const decodedFormula = decodeFormulaForEval(
+            row.formula,
+            idToToken,
+            secIdToToken,
+            tplIdToToken,
+          );
           const refs = extractTokens(decodedFormula);
           for (const ref of refs) {
-            addEdge(ref, row.rowToken);
+            addEdge(ref, rowBase);
           }
         }
 
         for (const charge of row.charges) {
-          addEdge(charge.chargeToken, `${row.rowToken}_TOTAL`);
+          addEdge(charge.chargeToken, rowChargesToken);
           addEdge(charge.chargeToken, secCharges);
 
           if (charge.formula) {
-            const decodedFormula = decodeFormulaForEval(charge.formula, idToToken, secIdToToken, tplIdToToken);
+            const decodedFormula = decodeFormulaForEval(
+              charge.formula,
+              idToToken,
+              secIdToToken,
+              tplIdToToken,
+            );
             const refs = extractTokens(decodedFormula);
+            const isExternalToken = (ref: string) =>
+              externalTokens.has(ref) || /^(GBL_|FILE_|TPL_|EXP_|CAT_)/.test(ref);
+
             for (const ref of refs) {
               addEdge(ref, charge.chargeToken);
-              
-              if (!rowChargeAllowedTokens.has(ref) && !externalTokens.has(ref)) {
+
+              if (!rowChargeAllowedTokens.has(ref) && !isExternalToken(ref)) {
                 errors.push({
                   code: "CHARGE_SCOPE_VIOLATION",
-                  message: `Row charge "${charge.label}" in row "${row.label}" references "${ref}". Row charges may only reference their parent row's base value (${row.rowToken}) or external constants.`,
+                  message: `Row charge "${charge.label}" in row "${row.label}" references "${ref}". Row charges may only reference their parent row's base value (${rowBase}) or external constants.`,
                   rowToken: row.rowToken,
                   token: ref,
-                  formula: decodedFormula
+                  formula: decodedFormula,
                 });
               }
             }
@@ -211,18 +241,27 @@ export class DagValidatorService {
 
       for (const sc of section.sectionCharges) {
         addEdge(sc.chargeToken, secTotal);
+        addEdge(sc.chargeToken, secCharges);
 
-        const decodedFormula = decodeFormulaForEval(sc.formula, idToToken, secIdToToken, tplIdToToken);
+        const decodedFormula = decodeFormulaForEval(
+          sc.formula,
+          idToToken,
+          secIdToToken,
+          tplIdToToken,
+        );
         const refs = extractTokens(decodedFormula);
+        const isExternalToken = (ref: string) =>
+          externalTokens.has(ref) || /^(GBL_|FILE_|TPL_|EXP_|CAT_)/.test(ref);
+
         for (const ref of refs) {
           addEdge(ref, sc.chargeToken);
-          
-          if (!sectionChargeAllowedTokens.has(ref) && !externalTokens.has(ref)) {
+
+          if (!sectionChargeAllowedTokens.has(ref) && !isExternalToken(ref)) {
             errors.push({
               code: "CHARGE_SCOPE_VIOLATION",
               message: `Section charge "${sc.label}" in section "${sectionLabel}" references "${ref}". Section charges may only reference ${secBase} or external constants.`,
               token: ref,
-              formula: decodedFormula
+              formula: decodedFormula,
             });
           }
         }
@@ -275,14 +314,14 @@ export class DagValidatorService {
     newSortOrder: number,
     newSectionId: string,
     externalTokens: Set<string> = new Set(),
-    idToToken: RowIdToTokenMap = {}
+    idToToken: RowIdToTokenMap = {},
   ): EngineError | null {
     const simulatedSections = sections.map((sec) => ({
       ...sec,
       rows: sec.rows.map((row) =>
         row.rowToken === movedRowToken
           ? { ...row, sortOrder: newSortOrder, sectionId: newSectionId }
-          : row
+          : row,
       ),
     }));
 

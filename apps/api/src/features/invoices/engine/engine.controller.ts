@@ -1,20 +1,25 @@
-import { Context } from "hono";
+import type { RowIdToTokenMap, SecIdToTokenMap, TplIdToTokenMap } from "@starter/db";
 import {
   db,
-  templateRows,
-  templateSections,
+  templateConstants,
   templateHeaderFields,
   templateRowCharges,
+  templateRows,
   templateSectionCharges,
-  templateConstants,
+  templateSections,
 } from "@starter/db";
-import type { RowIdToTokenMap, SecIdToTokenMap, TplIdToTokenMap } from "@starter/db";
 import { eq, inArray } from "drizzle-orm";
+import { Context } from "hono";
 import { z } from "zod";
-import { resolveScope } from "./token-resolver.service";
-import { DagValidatorService } from "./dag-validator.service";
 import { AstEvaluatorService } from "./ast-evaluator.service";
-import type { EvaluatorSection, EvaluatorRow, EvaluatorRowCharge, EvaluatorSectionCharge } from "./types";
+import { DagValidatorService } from "./dag-validator.service";
+import { resolveScope } from "./token-resolver.service";
+import type {
+  EvaluatorRow,
+  EvaluatorRowCharge,
+  EvaluatorSection,
+  EvaluatorSectionCharge,
+} from "./types";
 
 const previewSchema = z.object({
   projectId: z.string(),
@@ -40,8 +45,11 @@ export class EngineController {
       const organizationId = c.get("organizationId") as string;
       if (!organizationId) {
         return c.json(
-          { success: false, error: { code: "UNAUTHORIZED", message: "Organization context required" } },
-          401
+          {
+            success: false,
+            error: { code: "UNAUTHORIZED", message: "Organization context required" },
+          },
+          401,
         );
       }
 
@@ -50,8 +58,15 @@ export class EngineController {
 
       if (!parsed.success) {
         return c.json(
-          { success: false, error: { code: "VALIDATION_ERROR", message: "Invalid payload", details: parsed.error.format() } },
-          400
+          {
+            success: false,
+            error: {
+              code: "VALIDATION_ERROR",
+              message: "Invalid payload",
+              details: parsed.error.format(),
+            },
+          },
+          400,
         );
       }
 
@@ -73,9 +88,9 @@ export class EngineController {
       //    Phase 2 will add: draft-based path (draftRows with overrides)
       // ─────────────────────────────────────────────────────────────────────
       let evaluatorSections: EvaluatorSection[] = [];
-      let secIdToToken: SecIdToTokenMap = {};
-      let tplIdToToken: TplIdToTokenMap = {};
-      let idToToken: RowIdToTokenMap = {};
+      const secIdToToken: SecIdToTokenMap = {};
+      const tplIdToToken: TplIdToTokenMap = {};
+      const idToToken: RowIdToTokenMap = {};
       const { draftSections, overrides, draftConstants } = parsed.data;
 
       if (draftSections && draftSections.length > 0) {
@@ -93,14 +108,14 @@ export class EngineController {
             }
           }
         }
-        
+
         // Inject draft constants into scope as BigNumber-style strings and build tplIdToToken
         if (draftConstants) {
           for (const [key, val] of Object.entries(draftConstants)) {
             if (val?.id) {
               tplIdToToken[val.id] = key;
             }
-            const raw = val?.value ?? val;  // handle both object and primitive
+            const raw = val?.value ?? val; // handle both object and primitive
             const numVal = parseFloat(String(raw));
             if (!isNaN(numVal)) {
               const fixed = numVal.toFixed(6);
@@ -165,21 +180,19 @@ export class EngineController {
             .from(templateSectionCharges)
             .where(eq(templateSectionCharges.templateId, templateId))
             .orderBy(templateSectionCharges.sortOrder),
-          db
-            .select()
-            .from(templateConstants)
-            .where(eq(templateConstants.templateId, templateId)),
+          db.select().from(templateConstants).where(eq(templateConstants.templateId, templateId)),
         ]);
 
         // templateRowCharges has no templateId column — fetch by rowId list
         const rowIds = dbRows.map((r) => r.id);
-        const dbRowCharges = rowIds.length > 0
-          ? await db
-              .select()
-              .from(templateRowCharges)
-              .where(inArray(templateRowCharges.rowId, rowIds))
-              .orderBy(templateRowCharges.sortOrder)
-          : [];
+        const dbRowCharges =
+          rowIds.length > 0
+            ? await db
+                .select()
+                .from(templateRowCharges)
+                .where(inArray(templateRowCharges.rowId, rowIds))
+                .orderBy(templateRowCharges.sortOrder)
+            : [];
 
         // Build idToToken map: rowId -> rowToken (for decoding {{$row:uuid}} refs)
         for (const row of dbRows) {
@@ -192,7 +205,7 @@ export class EngineController {
 
         for (const c of dbConstants) {
           if (c.token) tplIdToToken[c.id] = c.token;
-          
+
           // Publish to scope just like we do for draftConstants
           if (c.defaultValue && c.token) {
             const numVal = parseFloat(c.defaultValue);
@@ -212,26 +225,28 @@ export class EngineController {
           const rows: EvaluatorRow[] = sectionRows.map((r): EvaluatorRow => {
             const rowCharges = dbRowCharges.filter((c) => c.rowId === r.id);
 
-            const charges: EvaluatorRowCharge[] = rowCharges.map((c): EvaluatorRowCharge => ({
-              id: c.id,
-              chargeToken: c.chargeToken,
-              label: c.label,
-              subDescription: c.subDescription ?? undefined,
-              qualifier: c.qualifier ?? undefined,
-              tags: c.tags ?? undefined,
-              formula: c.formula,
-              sortOrder: c.sortOrder,
-            }));
+            const charges: EvaluatorRowCharge[] = rowCharges.map(
+              (c): EvaluatorRowCharge => ({
+                id: c.id,
+                chargeToken: c.chargeToken,
+                label: c.label,
+                subDescription: c.subDescription ?? undefined,
+                qualifier: c.qualifier ?? undefined,
+                tags: c.tags ?? undefined,
+                formula: c.formula,
+                sortOrder: c.sortOrder,
+              }),
+            );
 
             return {
               id: r.id,
               rowToken: r.rowToken,
               label: r.label,
               sectionId: r.sectionId,
-              valueType: r.valueType,       // 'normal' | 'formula'
-              formula: r.formula ?? null,   // stored as {{$row:uuid}}, decoded in evaluator
+              valueType: r.valueType, // 'normal' | 'formula'
+              formula: r.formula ?? null, // stored as {{$row:uuid}}, decoded in evaluator
               initialValue: r.initialValue ?? null,
-              manualValue: null,            // no staff override on fresh template load
+              manualValue: null, // no staff override on fresh template load
               charges,
               sortOrder: r.sortOrder,
             };
@@ -247,7 +262,7 @@ export class EngineController {
               tags: sc.tags ?? undefined,
               formula: sc.formula,
               sortOrder: sc.sortOrder,
-            })
+            }),
           );
 
           return {
@@ -265,7 +280,7 @@ export class EngineController {
       // 3. DAG validation (runs on V2 EvaluatorSection[])
       // ─────────────────────────────────────────────────────────────────────
       const externalTokens = new Set(Object.keys(scope));
-      // We skip rebuilding idToToken if it was already built in the DB path. 
+      // We skip rebuilding idToToken if it was already built in the DB path.
       // But for draft path, we don't have secIdToToken or tplIdToToken because formulas are plaintext!
       const idToTokenForDag: RowIdToTokenMap = Object.keys(idToToken).length > 0 ? idToToken : {};
       if (Object.keys(idToTokenForDag).length === 0) {
@@ -276,7 +291,13 @@ export class EngineController {
         }
       }
 
-      const dagResult = DagValidatorService.validate(evaluatorSections, externalTokens, idToTokenForDag, secIdToToken, tplIdToToken);
+      const dagResult = DagValidatorService.validate(
+        evaluatorSections,
+        externalTokens,
+        idToTokenForDag,
+        secIdToToken,
+        tplIdToToken,
+      );
 
       // ─────────────────────────────────────────────────────────────────────
       // 4. AST evaluation (V2 signature)
@@ -295,7 +316,7 @@ export class EngineController {
           idToTokenForDag,
           secIdToToken,
           tplIdToToken,
-          dagResult.topologicalOrder
+          dagResult.topologicalOrder,
         );
         evaluatedSections = result.evaluatedSections;
         grandTotal = result.grandTotal;
@@ -304,7 +325,7 @@ export class EngineController {
         // ── Collect per-row notices (e.g. UNRESOLVED_REFERENCE from zero-filled tokens) ──
         // These are soft warnings that don't abort evaluation but should be surfaced to the UI.
         for (const sec of evaluatedSections) {
-          for (const row of (sec.rows ?? [])) {
+          for (const row of sec.rows ?? []) {
             if (row.notices && row.notices.length > 0) {
               for (const notice of row.notices) {
                 allValidationErrors.push({
@@ -352,8 +373,15 @@ export class EngineController {
     } catch (err: any) {
       console.error("[EngineController.previewInvoice]", err);
       return c.json(
-        { success: false, error: { code: "INTERNAL_ERROR", message: "Failed to preview invoice", details: err.message } },
-        500
+        {
+          success: false,
+          error: {
+            code: "INTERNAL_ERROR",
+            message: "Failed to preview invoice",
+            details: err.message,
+          },
+        },
+        500,
       );
     }
   }

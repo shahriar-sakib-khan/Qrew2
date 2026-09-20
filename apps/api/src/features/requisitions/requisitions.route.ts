@@ -7,20 +7,14 @@ const router = new Hono();
 
 router.use("*", requireAuth);
 
-router.post(
-  "/",
-  requisitionsController.createRequisition
-);
+router.post("/", requisitionsController.createRequisition);
 
-router.get(
-  "/",
-  requisitionsController.listRequisitions
-);
+router.get("/", requisitionsController.listRequisitions);
 
 router.post(
   "/:id/action",
   requireOrgPermission("finance:approve_requisition"),
-  requisitionsController.actionRequisition
+  requisitionsController.actionRequisition,
 );
 
 export { router as requisitionsRouter };

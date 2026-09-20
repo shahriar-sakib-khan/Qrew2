@@ -1,20 +1,26 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { apiUrl } from "@/lib/constants";
-import { toast } from "sonner";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { useQuery } from "@tanstack/react-query";
 
 interface AddHeaderFieldModalProps {
   isOpen: boolean;
@@ -24,7 +30,13 @@ interface AddHeaderFieldModalProps {
   onSuccess: () => void;
 }
 
-export function AddHeaderFieldModal({ isOpen, onClose, templateId, editField, onSuccess }: AddHeaderFieldModalProps) {
+export function AddHeaderFieldModal({
+  isOpen,
+  onClose,
+  templateId,
+  editField,
+  onSuccess,
+}: AddHeaderFieldModalProps) {
   const isEdit = !!editField;
   const [label, setLabel] = useState("");
   const [fileFieldKey, setFileFieldKey] = useState("");
@@ -78,7 +90,10 @@ export function AddHeaderFieldModal({ isOpen, onClose, templateId, editField, on
     try {
       const finalKey = (
         fileFieldKey.trim() ||
-        label.trim().replace(/[^a-zA-Z0-9]/g, "_").toUpperCase()
+        label
+          .trim()
+          .replace(/[^a-zA-Z0-9]/g, "_")
+          .toUpperCase()
       ).replace(/_+/g, "_");
 
       const payload = {
@@ -122,7 +137,9 @@ export function AddHeaderFieldModal({ isOpen, onClose, templateId, editField, on
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{isEdit ? "Edit File Description Field" : "Add File Description Field"}</DialogTitle>
+          <DialogTitle>
+            {isEdit ? "Edit File Description Field" : "Add File Description Field"}
+          </DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 pt-4">
@@ -172,7 +189,16 @@ export function AddHeaderFieldModal({ isOpen, onClose, templateId, editField, on
               onChange={(e) => setFileFieldKey(e.target.value.toUpperCase().replace(/\s+/g, "_"))}
             />
             <p className="text-[11px] text-muted-foreground">
-              Formulas will reference this field as <code className="font-mono text-primary">FILE_{fileFieldKey || (label.trim().replace(/[^a-zA-Z0-9]/g, "_").toUpperCase() || "KEY")}</code>.
+              Formulas will reference this field as{" "}
+              <code className="font-mono text-primary">
+                {fileFieldKey ||
+                  label
+                    .trim()
+                    .replace(/[^a-zA-Z0-9]/g, "_")
+                    .toUpperCase() ||
+                  "KEY"}
+              </code>
+              .
             </p>
           </div>
 
@@ -192,7 +218,10 @@ export function AddHeaderFieldModal({ isOpen, onClose, templateId, editField, on
 
             <div className="space-y-2">
               <Label>Column Position</Label>
-              <Select value={columnPosition} onValueChange={(v: "left" | "right") => setColumnPosition(v)}>
+              <Select
+                value={columnPosition}
+                onValueChange={(v: "left" | "right") => setColumnPosition(v)}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select column" />
                 </SelectTrigger>
@@ -219,4 +248,3 @@ export function AddHeaderFieldModal({ isOpen, onClose, templateId, editField, on
 }
 
 export { AddHeaderFieldModal as AddEditHeaderFieldModal };
-

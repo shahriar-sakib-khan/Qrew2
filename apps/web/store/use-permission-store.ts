@@ -1,13 +1,13 @@
-import { create } from 'zustand';
+import { create } from "zustand";
 
 interface PermissionState {
   permissions: string[];
   isLoaded: boolean;
-  
+
   // Actions
   loadPermissions: () => Promise<void>;
   clearPermissions: () => void;
-  
+
   // Evaluators
   can: (permission: string) => boolean;
   canAny: (permissions: string[]) => boolean;
@@ -20,12 +20,12 @@ export const usePermissionStore = create<PermissionState>((set, get) => ({
 
   loadPermissions: async () => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
       const res = await fetch(`${apiUrl}/api/workspaces/permissions/me`, {
         // Essential: send the session cookie so Hono knows who is asking
-        credentials: 'include', 
+        credentials: "include",
       });
-      
+
       if (res.ok) {
         const data = await res.json();
         set({ permissions: data.permissions || [], isLoaded: true });
@@ -33,7 +33,7 @@ export const usePermissionStore = create<PermissionState>((set, get) => ({
         set({ permissions: [], isLoaded: true });
       }
     } catch (error) {
-      console.error('Failed to fetch permissions', error);
+      console.error("Failed to fetch permissions", error);
       set({ permissions: [], isLoaded: true });
     }
   },
@@ -43,19 +43,19 @@ export const usePermissionStore = create<PermissionState>((set, get) => ({
   can: (permission: string) => {
     const { permissions } = get();
     // Super admins have the wildcard
-    if (permissions.includes('*')) return true;
+    if (permissions.includes("*")) return true;
     return permissions.includes(permission);
   },
 
   canAny: (checkPermissions: string[]) => {
     const { permissions } = get();
-    if (permissions.includes('*')) return true;
+    if (permissions.includes("*")) return true;
     return checkPermissions.some((p) => permissions.includes(p));
   },
 
   canAll: (checkPermissions: string[]) => {
     const { permissions } = get();
-    if (permissions.includes('*')) return true;
+    if (permissions.includes("*")) return true;
     return checkPermissions.every((p) => permissions.includes(p));
   },
 }));

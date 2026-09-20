@@ -1,7 +1,7 @@
-import { pgTable, text, timestamp, unique } from "drizzle-orm/pg-core";
-import { invoiceTemplates } from "./invoice-templates";
-import { configValueTypeEnum } from "./invoice-enums";
 import { relations } from "drizzle-orm";
+import { pgTable, text, timestamp, unique } from "drizzle-orm/pg-core";
+import { configValueTypeEnum } from "./invoice-enums";
+import { invoiceTemplates } from "./invoice-templates";
 
 export const templateConstants = pgTable(
   "template_constants",
@@ -20,9 +20,7 @@ export const templateConstants = pgTable(
       .notNull()
       .$onUpdate(() => new Date()),
   },
-  (t) => [
-    unique("template_constants_template_token_unique").on(t.templateId, t.token),
-  ]
+  (t) => [unique("template_constants_template_token_unique").on(t.templateId, t.token)],
 );
 
 export const templateConstantsRelations = relations(templateConstants, ({ one }) => ({

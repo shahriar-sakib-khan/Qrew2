@@ -16,7 +16,7 @@
  *   - fieldKey and fieldType immutable after creation
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CustomFieldsController } from "./custom-fields.controller";
 
 // ─── Mocks ────────────────────────────────────────────────────────────────
@@ -40,7 +40,12 @@ vi.mock("@starter/db", () => ({
     delete: (...a: any[]) => mockDbDelete(...a),
     update: (...a: any[]) => mockDbUpdate(...a),
   },
-  customFieldDefinitions: { id: "id", organizationId: "organization_id", entityType: "entity_type", fieldKey: "field_key" },
+  customFieldDefinitions: {
+    id: "id",
+    organizationId: "organization_id",
+    entityType: "entity_type",
+    fieldKey: "field_key",
+  },
   members: { userId: "user_id", organizationId: "organization_id" },
 }));
 
@@ -91,7 +96,11 @@ function makeFieldDef(overrides = {}): any {
   };
 }
 
-function makeCtx(body?: object, params: Record<string, string> = {}, query: Record<string, string> = {}): any {
+function makeCtx(
+  body?: object,
+  params: Record<string, string> = {},
+  query: Record<string, string> = {},
+): any {
   return {
     req: {
       raw: { headers: new Headers() },
@@ -104,7 +113,6 @@ function makeCtx(body?: object, params: Record<string, string> = {}, query: Reco
     json: (data: any, status?: number): any => ({ _data: data, _status: status ?? 200 }),
   };
 }
-
 
 // ─── Tests ────────────────────────────────────────────────────────────────
 
@@ -149,7 +157,10 @@ describe("listDefinitions — isPrivate filtering", () => {
   });
 
   it("returns 401 when no active org", async () => {
-    (auth.api.getSession as any).mockResolvedValueOnce({ session: { activeOrganizationId: null }, user: { id: "u1", role: "member" } });
+    (auth.api.getSession as any).mockResolvedValueOnce({
+      session: { activeOrganizationId: null },
+      user: { id: "u1", role: "member" },
+    });
     const ctx = makeCtx();
     const res = await CustomFieldsController.listDefinitions(ctx as any);
     expect(res._status).toBe(401);
@@ -163,9 +174,16 @@ describe("createDefinition", () => {
     (auth.api.getSession as any).mockResolvedValueOnce(makeSession());
     mockDbQuery.customFieldDefinitions.findFirst.mockResolvedValueOnce(null); // no duplicate
     const created = makeFieldDef({ fieldKey: "VESSEL_NAME" });
-    mockDbInsert.mockReturnValueOnce({ values: () => ({ returning: () => Promise.resolve([created]) }) });
+    mockDbInsert.mockReturnValueOnce({
+      values: () => ({ returning: () => Promise.resolve([created]) }),
+    });
 
-    const ctx = makeCtx({ entityType: "project", fieldName: "Vessel Name", fieldKey: "vessel name", fieldType: "text" });
+    const ctx = makeCtx({
+      entityType: "project",
+      fieldName: "Vessel Name",
+      fieldKey: "vessel name",
+      fieldType: "text",
+    });
     const res = await CustomFieldsController.createDefinition(ctx as any);
     expect(res._status).toBe(201);
     expect(res._data.fieldKey).toBe("VESSEL_NAME");
@@ -175,7 +193,12 @@ describe("createDefinition", () => {
     (auth.api.getSession as any).mockResolvedValueOnce(makeSession());
     mockDbQuery.customFieldDefinitions.findFirst.mockResolvedValueOnce(makeFieldDef()); // duplicate
 
-    const ctx = makeCtx({ entityType: "project", fieldName: "Vessel Name", fieldKey: "VESSEL_NAME", fieldType: "text" });
+    const ctx = makeCtx({
+      entityType: "project",
+      fieldName: "Vessel Name",
+      fieldKey: "VESSEL_NAME",
+      fieldType: "text",
+    });
     const res = await CustomFieldsController.createDefinition(ctx as any);
     expect(res._status).toBe(409);
     expect(res._data.error).toContain("already exists");
@@ -185,9 +208,17 @@ describe("createDefinition", () => {
     (auth.api.getSession as any).mockResolvedValueOnce(makeSession());
     mockDbQuery.customFieldDefinitions.findFirst.mockResolvedValueOnce(null);
     const created = makeFieldDef({ isPrivate: true });
-    mockDbInsert.mockReturnValueOnce({ values: () => ({ returning: () => Promise.resolve([created]) }) });
+    mockDbInsert.mockReturnValueOnce({
+      values: () => ({ returning: () => Promise.resolve([created]) }),
+    });
 
-    const ctx = makeCtx({ entityType: "project", fieldName: "Secret Code", fieldKey: "SECRET_CODE", fieldType: "text", isPrivate: true });
+    const ctx = makeCtx({
+      entityType: "project",
+      fieldName: "Secret Code",
+      fieldKey: "SECRET_CODE",
+      fieldType: "text",
+      isPrivate: true,
+    });
     const res = await CustomFieldsController.createDefinition(ctx as any);
     expect(res._status).toBe(201);
     expect(res._data.isPrivate).toBe(true);
@@ -195,21 +226,36 @@ describe("createDefinition", () => {
 
   it("returns 400 for invalid fieldType", async () => {
     (auth.api.getSession as any).mockResolvedValueOnce(makeSession());
-    const ctx = makeCtx({ entityType: "project", fieldName: "X", fieldKey: "X", fieldType: "invalid_type" });
+    const ctx = makeCtx({
+      entityType: "project",
+      fieldName: "X",
+      fieldKey: "X",
+      fieldType: "invalid_type",
+    });
     const res = await CustomFieldsController.createDefinition(ctx as any);
     expect(res._status).toBe(400);
   });
 
   it("returns 400 for invalid entityType", async () => {
     (auth.api.getSession as any).mockResolvedValueOnce(makeSession());
-    const ctx = makeCtx({ entityType: "invoice", fieldName: "X", fieldKey: "X", fieldType: "text" });
+    const ctx = makeCtx({
+      entityType: "invoice",
+      fieldName: "X",
+      fieldKey: "X",
+      fieldType: "text",
+    });
     const res = await CustomFieldsController.createDefinition(ctx as any);
     expect(res._status).toBe(400);
   });
 
   it("returns 401 when session has no org", async () => {
     (auth.api.getSession as any).mockResolvedValueOnce({ session: {}, user: { id: "u1" } });
-    const ctx = makeCtx({ entityType: "project", fieldName: "X", fieldKey: "X", fieldType: "text" });
+    const ctx = makeCtx({
+      entityType: "project",
+      fieldName: "X",
+      fieldKey: "X",
+      fieldType: "text",
+    });
     const res = await CustomFieldsController.createDefinition(ctx as any);
     expect(res._status).toBe(401);
   });
@@ -223,7 +269,9 @@ describe("updateDefinition", () => {
     const existing = makeFieldDef({ isPrivate: false });
     const updated = makeFieldDef({ isPrivate: true });
     mockDbQuery.customFieldDefinitions.findFirst.mockResolvedValueOnce(existing);
-    mockDbUpdate.mockReturnValueOnce({ set: () => ({ where: () => ({ returning: () => Promise.resolve([updated]) }) }) });
+    mockDbUpdate.mockReturnValueOnce({
+      set: () => ({ where: () => ({ returning: () => Promise.resolve([updated]) }) }),
+    });
 
     const ctx = makeCtx({ isPrivate: true }, { id: FIELD_ID });
     const res = await CustomFieldsController.updateDefinition(ctx as any);
@@ -236,7 +284,9 @@ describe("updateDefinition", () => {
     const existing = makeFieldDef();
     const updated = makeFieldDef({ isDetailed: true, isSensitive: true });
     mockDbQuery.customFieldDefinitions.findFirst.mockResolvedValueOnce(existing);
-    mockDbUpdate.mockReturnValueOnce({ set: () => ({ where: () => ({ returning: () => Promise.resolve([updated]) }) }) });
+    mockDbUpdate.mockReturnValueOnce({
+      set: () => ({ where: () => ({ returning: () => Promise.resolve([updated]) }) }),
+    });
 
     const ctx = makeCtx({ isDetailed: true, isSensitive: true }, { id: FIELD_ID });
     const res = await CustomFieldsController.updateDefinition(ctx as any);
@@ -260,7 +310,9 @@ describe("deleteDefinition", () => {
 
   it("deletes a non-seeded field", async () => {
     (auth.api.getSession as any).mockResolvedValueOnce(makeSession());
-    mockDbQuery.customFieldDefinitions.findFirst.mockResolvedValueOnce(makeFieldDef({ isSeeded: false }));
+    mockDbQuery.customFieldDefinitions.findFirst.mockResolvedValueOnce(
+      makeFieldDef({ isSeeded: false }),
+    );
     mockDbDelete.mockReturnValueOnce({ where: () => Promise.resolve() });
 
     const ctx = makeCtx(undefined, { id: FIELD_ID });
@@ -271,7 +323,9 @@ describe("deleteDefinition", () => {
 
   it("blocks deletion of seeded (system) fields", async () => {
     (auth.api.getSession as any).mockResolvedValueOnce(makeSession());
-    mockDbQuery.customFieldDefinitions.findFirst.mockResolvedValueOnce(makeFieldDef({ isSeeded: true }));
+    mockDbQuery.customFieldDefinitions.findFirst.mockResolvedValueOnce(
+      makeFieldDef({ isSeeded: true }),
+    );
 
     const ctx = makeCtx(undefined, { id: FIELD_ID });
     const res = await CustomFieldsController.deleteDefinition(ctx as any);

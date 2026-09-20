@@ -1,6 +1,6 @@
+import type { TplIdToTokenMap, TplTokenToIdMap } from "@starter/db";
 import { db, templateConstants } from "@starter/db";
 import { eq } from "drizzle-orm";
-import type { TplTokenToIdMap, TplIdToTokenMap } from "@starter/db";
 
 export async function buildConstantIndex(templateId: string): Promise<{
   tplTokenToId: TplTokenToIdMap;

@@ -1,25 +1,20 @@
 "use client";
 
-import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { format } from "date-fns";
-import { ChevronLeft, ChevronRight, Loader2, Building, Users } from "lucide-react";
-
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Building, ChevronLeft, ChevronRight, Loader2, Search, Users } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search } from "lucide-react";
+import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  FilterableTableCell,
+  FilterableTableHeader,
+} from "@/components/ui/table-filter-components";
+import { useTableCellFilter } from "@/hooks/use-table-cell-filter";
 import { apiUrl } from "@/lib/constants";
 import { WorkspaceMembersModal } from "./workspace-members-modal";
-import { useTableCellFilter } from "@/hooks/use-table-cell-filter";
-import { FilterableTableHeader, FilterableTableCell } from "@/components/ui/table-filter-components";
 
 interface Workspace {
   id: string;
@@ -33,19 +28,17 @@ export function WorkspacesTable() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const {
-    filters,
-    toggleFilter,
-    clearColumnFilter,
-    filterRows,
-    isColumnFiltered,
-  } = useTableCellFilter();
+  const { filters, toggleFilter, clearColumnFilter, filterRows, isColumnFiltered } =
+    useTableCellFilter();
 
   const page = Number(searchParams.get("page") || "1");
   const search = searchParams.get("search") || "";
   const limit = 20;
 
-  const [membersModal, setMembersModal] = useState<{ isOpen: boolean; workspace: Workspace | null }>({
+  const [membersModal, setMembersModal] = useState<{
+    isOpen: boolean;
+    workspace: Workspace | null;
+  }>({
     isOpen: false,
     workspace: null,
   });
@@ -85,9 +78,9 @@ export function WorkspacesTable() {
 
   const extractors = useMemo(() => {
     return {
-      'name': (ws: Workspace) => ws.name,
-      'slug': (ws: Workspace) => ws.slug || '-',
-      'createdAt': (ws: Workspace) => format(new Date(ws.createdAt), "MMM d, yyyy"),
+      name: (ws: Workspace) => ws.name,
+      slug: (ws: Workspace) => ws.slug || "-",
+      createdAt: (ws: Workspace) => format(new Date(ws.createdAt), "MMM d, yyyy"),
     };
   }, []);
 
@@ -132,7 +125,9 @@ export function WorkspacesTable() {
                 activeValue={filters["createdAt"]}
                 onClear={() => clearColumnFilter("createdAt")}
               />
-              <TableCell className="text-right font-medium text-muted-foreground">Actions</TableCell>
+              <TableCell className="text-right font-medium text-muted-foreground">
+                Actions
+              </TableCell>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -164,11 +159,11 @@ export function WorkspacesTable() {
                   </FilterableTableCell>
                   <FilterableTableCell
                     columnKey="slug"
-                    value={ws.slug || '-'}
+                    value={ws.slug || "-"}
                     isFiltered={isColumnFiltered("slug")}
                     onToggleFilter={toggleFilter}
                   >
-                    {ws.slug || '-'}
+                    {ws.slug || "-"}
                   </FilterableTableCell>
                   <FilterableTableCell
                     columnKey="createdAt"
@@ -179,9 +174,9 @@ export function WorkspacesTable() {
                     {format(new Date(ws.createdAt), "MMM d, yyyy")}
                   </FilterableTableCell>
                   <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => setMembersModal({ isOpen: true, workspace: ws })}
                       className="gap-2"
                     >
@@ -226,10 +221,10 @@ export function WorkspacesTable() {
         </div>
       )}
 
-      <WorkspaceMembersModal 
-        isOpen={membersModal.isOpen} 
-        onClose={() => setMembersModal({ isOpen: false, workspace: null })} 
-        workspace={membersModal.workspace} 
+      <WorkspaceMembersModal
+        isOpen={membersModal.isOpen}
+        onClose={() => setMembersModal({ isOpen: false, workspace: null })}
+        workspace={membersModal.workspace}
       />
     </div>
   );

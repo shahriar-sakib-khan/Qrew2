@@ -1,4 +1,5 @@
-import { PoolSectionHeader, ConstantTokenCard } from "../index";
+import { ConstantTokenCard, PoolSectionHeader } from "../index";
+import { GLOBAL_CONSTANTS_INFO } from "./section-info-popover";
 
 export function GlobalConstantsSection({
   orgConfigs,
@@ -21,9 +22,13 @@ export function GlobalConstantsSection({
     <div className="px-2">
       <PoolSectionHeader
         label="Global Constants"
+        info={GLOBAL_CONSTANTS_INFO}
         action={
           <button
-            onClick={() => { setEditConfig(null); setIsConfigModalOpen(true); }}
+            onClick={() => {
+              setEditConfig(null);
+              setIsConfigModalOpen(true);
+            }}
             className="text-muted-foreground hover:text-foreground p-0.5 rounded transition-colors"
             title="Add Global Constant"
           >
@@ -37,20 +42,30 @@ export function GlobalConstantsSection({
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-0.5">
-          {orgConfigs.map((config: any) => (
-            <ConstantTokenCard
-              key={config.id}
-              token={config.configKey}
-              value={parseFloat(config.configValue)}
-              isPercentage={config.valueType === 'percentage'}
-              type="global"
-              zoomLevel={tokenZoomLevel}
-              onClick={() => handleTokenClick(config.configKey)}
-              onEdit={(e) => { e.stopPropagation(); setEditConfig(config); setIsConfigModalOpen(true); }}
-              onDelete={(e) => { e.stopPropagation(); setConfigToDelete(config); }}
-              onLegendClick={() => setShowLegend(true)}
-            />
-          ))}
+          {orgConfigs.map((config: any) => {
+            const tokenName = (config.configKey || "").replace(/^(GBL_|ORG_)/, "");
+            return (
+              <ConstantTokenCard
+                key={config.id}
+                token={tokenName}
+                value={parseFloat(config.configValue)}
+                isPercentage={config.valueType === "percentage"}
+                type="global"
+                zoomLevel={tokenZoomLevel}
+                onClick={() => handleTokenClick(tokenName)}
+                onEdit={(e) => {
+                  e.stopPropagation();
+                  setEditConfig(config);
+                  setIsConfigModalOpen(true);
+                }}
+                onDelete={(e) => {
+                  e.stopPropagation();
+                  setConfigToDelete(config);
+                }}
+                onLegendClick={() => setShowLegend(true)}
+              />
+            );
+          })}
         </div>
       )}
     </div>

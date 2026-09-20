@@ -1,10 +1,16 @@
-import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
+import {
+  customFieldDefinitions,
+  db,
+  projectStatuses,
+  projectStatusFields,
+  projectStatusTransitions,
+} from "@starter/db";
+import { and, asc, eq, gte, inArray, not, sql } from "drizzle-orm";
+import { Hono } from "hono";
 import { z } from "zod";
-import { db, projectStatuses, projectStatusTransitions, projectStatusFields, customFieldDefinitions } from "@starter/db";
-import { eq, and, asc, inArray, gte, sql, not } from "drizzle-orm";
-import { requireOrgPermission } from "../../infra/middleware/require-permission";
 import { logger } from "../../infra/lib/logger";
+import { requireOrgPermission } from "../../infra/middleware/require-permission";
 import { computeLayoutSeed } from "./layout-seeder";
 
 const log = logger.child({ module: "project-statuses" });
@@ -15,7 +21,10 @@ const projectStatusesRoute = new Hono<{ Variables: { organizationId: string } }>
 
 export const projectStatusesSchema = z.object({
   name: z.string().min(1, "Name is required"),
-  color: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Must be a valid hex color").optional(),
+  color: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/, "Must be a valid hex color")
+    .optional(),
   order: z.number().int().min(0).optional(),
   isInitial: z.boolean().optional(),
   isTerminal: z.boolean().optional(),
@@ -32,96 +41,105 @@ const transitionsSchema = z.object({
 
 const statusFieldsSchema = z.object({
   // Full replacement list. Each entry maps a field to this stage.
-  fields: z.array(z.object({
-    fieldId: z.string().min(1),
-    isVisibleInStage: z.boolean().default(true),
-    isRequiredToEnter: z.boolean().default(false),
-  })),
+  fields: z.array(
+    z.object({
+      fieldId: z.string().min(1),
+      isVisibleInStage: z.boolean().default(true),
+      isRequiredToEnter: z.boolean().default(false),
+    }),
+  ),
 });
 
 // ─── POST /migrate-defaults — Idempotent: fix Completed + seed transition ──
 
-projectStatusesRoute.post("/migrate-defaults", requireOrgPermission("workflow:manage"), async (c) => {
-  const orgId = c.get("organizationId") as string;
+projectStatusesRoute.post(
+  "/migrate-defaults",
+  requireOrgPermission("workflow:manage"),
+  async (c) => {
+    const orgId = c.get("organizationId") as string;
 
-  const statuses = await db
-    .select()
-    .from(projectStatuses)
-    .where(eq(projectStatuses.organizationId, orgId));
+    const statuses = await db
+      .select()
+      .from(projectStatuses)
+      .where(eq(projectStatuses.organizationId, orgId));
 
-  const completedStatus = statuses.find((s) => s.name === "Completed");
-  const createdStatus = statuses.find((s) => s.isInitial);
+    const completedStatus = statuses.find((s) => s.name === "Completed");
+    const createdStatus = statuses.find((s) => s.isInitial);
 
-  if (completedStatus && !completedStatus.isSystem) {
-    await db.update(projectStatuses)
-      .set({ isSystem: true, color: "#10b981" })
-      .where(eq(projectStatuses.id, completedStatus.id));
-  }
-  if (createdStatus && createdStatus.color !== "#6366f1") {
-    await db.update(projectStatuses)
-      .set({ color: "#6366f1" })
-      .where(eq(projectStatuses.id, createdStatus.id));
-  }
+    if (completedStatus && !completedStatus.isSystem) {
+      await db
+        .update(projectStatuses)
+        .set({ isSystem: true, color: "#10b981" })
+        .where(eq(projectStatuses.id, completedStatus.id));
+    }
+    if (createdStatus && createdStatus.color !== "#6366f1") {
+      await db
+        .update(projectStatuses)
+        .set({ color: "#6366f1" })
+        .where(eq(projectStatuses.id, createdStatus.id));
+    }
 
-  if (createdStatus && completedStatus) {
-    const existing = await db.query.projectStatusTransitions.findFirst({
-      where: and(
-        eq(projectStatusTransitions.organizationId, orgId),
-        eq(projectStatusTransitions.fromStatusId, createdStatus.id),
-        eq(projectStatusTransitions.toStatusId, completedStatus.id)
-      ),
-    });
-    if (!existing) {
-      await db.insert(projectStatusTransitions).values({
-        id: crypto.randomUUID(),
-        organizationId: orgId,
-        fromStatusId: createdStatus.id,
-        toStatusId: completedStatus.id,
+    if (createdStatus && completedStatus) {
+      const existing = await db.query.projectStatusTransitions.findFirst({
+        where: and(
+          eq(projectStatusTransitions.organizationId, orgId),
+          eq(projectStatusTransitions.fromStatusId, createdStatus.id),
+          eq(projectStatusTransitions.toStatusId, completedStatus.id),
+        ),
       });
-    }
-  }
-
-  // Phase 3: Seed Grid Coordinates for nodes with NULL gridColumn
-  const nullNodes = statuses.filter(s => s.gridColumn === null);
-  if (nullNodes.length > 0) {
-    // 1. Fetch transitions for seeding layout
-    const allTransitions = await db
-      .select({
-        fromStatusId: projectStatusTransitions.fromStatusId,
-        toStatusId: projectStatusTransitions.toStatusId,
-      })
-      .from(projectStatusTransitions)
-      .where(eq(projectStatusTransitions.organizationId, orgId));
-
-    // Group transitions by fromStatusId
-    const transitionsByStatus: Record<string, { toStatusId: string }[]> = {};
-    for (const t of allTransitions) {
-      if (!transitionsByStatus[t.fromStatusId]) transitionsByStatus[t.fromStatusId] = [];
-      transitionsByStatus[t.fromStatusId].push({ toStatusId: t.toStatusId });
-    }
-
-    // Attach transitions to statuses
-    const enrichedStatuses = statuses.map(s => ({
-      ...s,
-      transitions: transitionsByStatus[s.id] ?? [],
-    }));
-
-    // 2. Compute seed positions using the algorithm
-    const layoutCoords = computeLayoutSeed(enrichedStatuses);
-
-    // 3. Update the null nodes
-    for (const node of nullNodes) {
-      const coords = layoutCoords[node.id];
-      if (coords) {
-        await db.update(projectStatuses)
-          .set({ gridColumn: coords.col, gridRow: coords.row })
-          .where(eq(projectStatuses.id, node.id));
+      if (!existing) {
+        await db.insert(projectStatusTransitions).values({
+          id: crypto.randomUUID(),
+          organizationId: orgId,
+          fromStatusId: createdStatus.id,
+          toStatusId: completedStatus.id,
+        });
       }
     }
-  }
 
-  return c.json({ success: true });
-});
+    // Phase 3: Seed Grid Coordinates for nodes with NULL gridColumn
+    const nullNodes = statuses.filter((s) => s.gridColumn === null);
+    if (nullNodes.length > 0) {
+      // 1. Fetch transitions for seeding layout
+      const allTransitions = await db
+        .select({
+          fromStatusId: projectStatusTransitions.fromStatusId,
+          toStatusId: projectStatusTransitions.toStatusId,
+        })
+        .from(projectStatusTransitions)
+        .where(eq(projectStatusTransitions.organizationId, orgId));
+
+      // Group transitions by fromStatusId
+      const transitionsByStatus: Record<string, { toStatusId: string }[]> = {};
+      for (const t of allTransitions) {
+        if (!transitionsByStatus[t.fromStatusId]) transitionsByStatus[t.fromStatusId] = [];
+        transitionsByStatus[t.fromStatusId].push({ toStatusId: t.toStatusId });
+      }
+
+      // Attach transitions to statuses
+      const enrichedStatuses = statuses.map((s) => ({
+        ...s,
+        transitions: transitionsByStatus[s.id] ?? [],
+      }));
+
+      // 2. Compute seed positions using the algorithm
+      const layoutCoords = computeLayoutSeed(enrichedStatuses);
+
+      // 3. Update the null nodes
+      for (const node of nullNodes) {
+        const coords = layoutCoords[node.id];
+        if (coords) {
+          await db
+            .update(projectStatuses)
+            .set({ gridColumn: coords.col, gridRow: coords.row })
+            .where(eq(projectStatuses.id, node.id));
+        }
+      }
+    }
+
+    return c.json({ success: true });
+  },
+);
 
 // ─── GET / — List all statuses with their workflow data ───────────────────
 
@@ -149,8 +167,8 @@ projectStatusesRoute.get("/", requireOrgPermission("file:view"), async (c) => {
           .where(
             and(
               eq(projectStatusTransitions.organizationId, orgId),
-              inArray(projectStatusTransitions.fromStatusId, statusIds)
-            )
+              inArray(projectStatusTransitions.fromStatusId, statusIds),
+            ),
           )
       : Promise.resolve([]),
     statusIds.length > 0
@@ -170,13 +188,13 @@ projectStatusesRoute.get("/", requireOrgPermission("file:view"), async (c) => {
           .from(projectStatusFields)
           .innerJoin(
             customFieldDefinitions,
-            eq(projectStatusFields.fieldId, customFieldDefinitions.id)
+            eq(projectStatusFields.fieldId, customFieldDefinitions.id),
           )
           .where(
             and(
               eq(projectStatusFields.organizationId, orgId),
-              inArray(projectStatusFields.statusId, statusIds)
-            )
+              inArray(projectStatusFields.statusId, statusIds),
+            ),
           )
       : Promise.resolve([]),
   ]);
@@ -196,7 +214,6 @@ projectStatusesRoute.get("/", requireOrgPermission("file:view"), async (c) => {
     if (!fieldsByStatus[f.statusId]) fieldsByStatus[f.statusId] = [];
     fieldsByStatus[f.statusId]!.push(f);
   }
-
 
   const enriched = statuses.map((s) => ({
     ...s,
@@ -236,8 +253,8 @@ projectStatusesRoute.post(
         .where(
           and(
             eq(projectStatuses.organizationId, orgId),
-            gte(projectStatuses.gridColumn, data.gridColumn)
-          )
+            gte(projectStatuses.gridColumn, data.gridColumn),
+          ),
         );
     }
 
@@ -261,7 +278,7 @@ projectStatusesRoute.post(
 
     log.info({ orgId, statusId: newId }, "Created new workflow status");
     return c.json(newStatus, 201);
-  }
+  },
 );
 
 // ─── PATCH /:id — Update a status node ───────────────────────────────────
@@ -299,7 +316,9 @@ projectStatusesRoute.patch(
         const [existingName] = await db
           .select({ id: projectStatuses.id })
           .from(projectStatuses)
-          .where(and(eq(projectStatuses.organizationId, orgId), eq(projectStatuses.name, data.name)));
+          .where(
+            and(eq(projectStatuses.organizationId, orgId), eq(projectStatuses.name, data.name)),
+          );
         if (existingName) {
           return c.json({ error: "A stage with this name already exists." }, 400);
         }
@@ -308,7 +327,7 @@ projectStatusesRoute.patch(
       if (data.isInitial !== undefined) updatePayload.isInitial = data.isInitial;
       if (data.isTerminal !== undefined) updatePayload.isTerminal = data.isTerminal;
     }
-    
+
     if (data.gridColumn !== undefined) updatePayload.gridColumn = data.gridColumn;
     if (data.gridRow !== undefined) updatePayload.gridRow = data.gridRow;
 
@@ -319,7 +338,7 @@ projectStatusesRoute.patch(
       .returning();
 
     return c.json(updated);
-  }
+  },
 );
 
 // ─── PATCH /:id/position — Update node grid coordinates ────────────────
@@ -344,17 +363,25 @@ projectStatusesRoute.patch(
 
     if (!existing) return c.json({ error: "Status not found" }, 404);
 
-    const [collision] = await db.select()
+    const [collision] = await db
+      .select()
       .from(projectStatuses)
-      .where(and(
-        eq(projectStatuses.organizationId, orgId),
-        eq(projectStatuses.gridColumn, gridColumn),
-        eq(projectStatuses.gridRow, gridRow),
-        not(eq(projectStatuses.id, id))
-      ));
+      .where(
+        and(
+          eq(projectStatuses.organizationId, orgId),
+          eq(projectStatuses.gridColumn, gridColumn),
+          eq(projectStatuses.gridRow, gridRow),
+          not(eq(projectStatuses.id, id)),
+        ),
+      );
 
     if (collision) {
-      return c.json({ error: `Grid cell [${gridColumn}, ${gridRow}] is already occupied by "${collision.name}".` }, 409);
+      return c.json(
+        {
+          error: `Grid cell [${gridColumn}, ${gridRow}] is already occupied by "${collision.name}".`,
+        },
+        409,
+      );
     }
 
     const [updated] = await db
@@ -364,7 +391,7 @@ projectStatusesRoute.patch(
       .returning();
 
     return c.json(updated);
-  }
+  },
 );
 
 // ─── POST /:id/swap — Atomically swap grid coordinates of two nodes ──────
@@ -383,20 +410,36 @@ projectStatusesRoute.post(
 
     if (sourceId === targetId) return c.json({ error: "Cannot swap node with itself" }, 400);
 
-    const [sourceNode] = await db.select().from(projectStatuses).where(and(eq(projectStatuses.id, sourceId), eq(projectStatuses.organizationId, orgId)));
-    const [targetNode] = await db.select().from(projectStatuses).where(and(eq(projectStatuses.id, targetId), eq(projectStatuses.organizationId, orgId)));
+    const [sourceNode] = await db
+      .select()
+      .from(projectStatuses)
+      .where(and(eq(projectStatuses.id, sourceId), eq(projectStatuses.organizationId, orgId)));
+    const [targetNode] = await db
+      .select()
+      .from(projectStatuses)
+      .where(and(eq(projectStatuses.id, targetId), eq(projectStatuses.organizationId, orgId)));
 
     if (!sourceNode || !targetNode) return c.json({ error: "One or both statuses not found" }, 404);
 
     // Swap in a transaction to ensure atomic execution
     const updatedNodes = await db.transaction(async (tx) => {
-      const [updatedSource] = await tx.update(projectStatuses)
-        .set({ gridColumn: targetNode.gridColumn, gridRow: targetNode.gridRow, updatedAt: new Date() })
+      const [updatedSource] = await tx
+        .update(projectStatuses)
+        .set({
+          gridColumn: targetNode.gridColumn,
+          gridRow: targetNode.gridRow,
+          updatedAt: new Date(),
+        })
         .where(eq(projectStatuses.id, sourceId))
         .returning();
 
-      const [updatedTarget] = await tx.update(projectStatuses)
-        .set({ gridColumn: sourceNode.gridColumn, gridRow: sourceNode.gridRow, updatedAt: new Date() })
+      const [updatedTarget] = await tx
+        .update(projectStatuses)
+        .set({
+          gridColumn: sourceNode.gridColumn,
+          gridRow: sourceNode.gridRow,
+          updatedAt: new Date(),
+        })
         .where(eq(projectStatuses.id, targetId))
         .returning();
 
@@ -404,7 +447,7 @@ projectStatusesRoute.post(
     });
 
     return c.json({ success: true, nodes: updatedNodes });
-  }
+  },
 );
 
 // ─── DELETE /:id — Delete a status node (with splice logic) ──────────────
@@ -432,8 +475,8 @@ projectStatusesRoute.delete("/:id", requireOrgPermission("workflow:manage"), asy
     .where(
       and(
         eq(projectStatusTransitions.organizationId, orgId),
-        eq(projectStatusTransitions.fromStatusId, id)
-      )
+        eq(projectStatusTransitions.fromStatusId, id),
+      ),
     );
   const childIds = outgoing.map((t) => t.toStatusId);
 
@@ -447,8 +490,8 @@ projectStatusesRoute.delete("/:id", requireOrgPermission("workflow:manage"), asy
     .where(
       and(
         eq(projectStatusTransitions.organizationId, orgId),
-        eq(projectStatusTransitions.toStatusId, id)
-      )
+        eq(projectStatusTransitions.toStatusId, id),
+      ),
     );
 
   // 3. For each parent, remove the edge to B and add edges to all of B's children
@@ -461,15 +504,17 @@ projectStatusesRoute.delete("/:id", requireOrgPermission("workflow:manage"), asy
       .where(
         and(
           eq(projectStatusTransitions.organizationId, orgId),
-          eq(projectStatusTransitions.fromStatusId, parentId)
-        )
+          eq(projectStatusTransitions.fromStatusId, parentId),
+        ),
       );
     const currentTargets = parentCurrentTransitions
       .map((t) => t.toStatusId)
       .filter((tid) => tid !== id); // remove the edge to B
 
     // Merge in B's children (no duplicates)
-    const newTargets = [...new Set([...currentTargets, ...childIds])].filter(tid => tid !== parentId);
+    const newTargets = [...new Set([...currentTargets, ...childIds])].filter(
+      (tid) => tid !== parentId,
+    );
 
     // Full-replace parent's transitions
     await db
@@ -477,8 +522,8 @@ projectStatusesRoute.delete("/:id", requireOrgPermission("workflow:manage"), asy
       .where(
         and(
           eq(projectStatusTransitions.organizationId, orgId),
-          eq(projectStatusTransitions.fromStatusId, parentId)
-        )
+          eq(projectStatusTransitions.fromStatusId, parentId),
+        ),
       );
 
     if (newTargets.length > 0) {
@@ -488,7 +533,7 @@ projectStatusesRoute.delete("/:id", requireOrgPermission("workflow:manage"), asy
           organizationId: orgId,
           fromStatusId: parentId,
           toStatusId: toId,
-        }))
+        })),
       );
     }
   }
@@ -506,13 +551,16 @@ projectStatusesRoute.delete("/:id", requireOrgPermission("workflow:manage"), asy
         {
           error: `Stage "${existing.name}" cannot be deleted because one or more files are still assigned to it. Re-assign those files to a different stage first.`,
         },
-        409
+        409,
       );
     }
     throw err; // re-throw unexpected errors
   }
 
-  log.info({ orgId, statusId: id, splicedParents: inbound.length, childIds }, "Deleted workflow status with splice");
+  log.info(
+    { orgId, statusId: id, splicedParents: inbound.length, childIds },
+    "Deleted workflow status with splice",
+  );
   return c.json({ success: true });
 });
 
@@ -544,12 +592,18 @@ projectStatusesRoute.put(
     // 2.5 Ensure Initial stage always connects to Completed stage
     if (source.isInitial) {
       const completedNode = await db.query.projectStatuses.findFirst({
-        where: and(eq(projectStatuses.organizationId, orgId), eq(projectStatuses.isSystem, true))
+        where: and(eq(projectStatuses.organizationId, orgId), eq(projectStatuses.isSystem, true)),
       });
       if (completedNode && !toStatusIds.includes(completedNode.id)) {
         // Wait, we need to know if the connection existed before blocking, but by default it should always exist.
         // If they omit it, re-add it silently to be robust, or block. The user requested "not allowed by the backend".
-        return c.json({ error: "The connection between the Created stage and the Completed stage cannot be deleted." }, 403);
+        return c.json(
+          {
+            error:
+              "The connection between the Created stage and the Completed stage cannot be deleted.",
+          },
+          403,
+        );
       }
     }
 
@@ -558,7 +612,9 @@ projectStatusesRoute.put(
       const targets = await db
         .select({ id: projectStatuses.id })
         .from(projectStatuses)
-        .where(and(eq(projectStatuses.organizationId, orgId), inArray(projectStatuses.id, toStatusIds)));
+        .where(
+          and(eq(projectStatuses.organizationId, orgId), inArray(projectStatuses.id, toStatusIds)),
+        );
 
       if (targets.length !== toStatusIds.length) {
         return c.json({ error: "One or more target statuses not found" }, 400);
@@ -576,8 +632,8 @@ projectStatusesRoute.put(
       .where(
         and(
           eq(projectStatusTransitions.organizationId, orgId),
-          eq(projectStatusTransitions.fromStatusId, id)
-        )
+          eq(projectStatusTransitions.fromStatusId, id),
+        ),
       );
 
     if (toStatusIds.length > 0) {
@@ -587,13 +643,13 @@ projectStatusesRoute.put(
           organizationId: orgId,
           fromStatusId: id,
           toStatusId: toId,
-        }))
+        })),
       );
     }
 
     log.info({ orgId, fromStatusId: id, toStatusIds }, "Updated status transitions");
     return c.json({ success: true, fromStatusId: id, toStatusIds });
-  }
+  },
 );
 
 // ─── PUT /:id/fields — Assign fields to a workflow stage ─────────────────
@@ -626,8 +682,8 @@ projectStatusesRoute.put(
           and(
             eq(customFieldDefinitions.organizationId, orgId),
             eq(customFieldDefinitions.entityType, "project"),
-            inArray(customFieldDefinitions.id, fieldIds)
-          )
+            inArray(customFieldDefinitions.id, fieldIds),
+          ),
         );
 
       if (validFields.length !== fieldIds.length) {
@@ -639,10 +695,7 @@ projectStatusesRoute.put(
     await db
       .delete(projectStatusFields)
       .where(
-        and(
-          eq(projectStatusFields.organizationId, orgId),
-          eq(projectStatusFields.statusId, id)
-        )
+        and(eq(projectStatusFields.organizationId, orgId), eq(projectStatusFields.statusId, id)),
       );
 
     if (fields.length > 0) {
@@ -654,13 +707,13 @@ projectStatusesRoute.put(
           fieldId: f.fieldId,
           isVisibleInStage: f.isVisibleInStage,
           isRequiredToEnter: f.isRequiredToEnter,
-        }))
+        })),
       );
     }
 
     log.info({ orgId, statusId: id, fieldCount: fields.length }, "Updated stage field mappings");
     return c.json({ success: true, statusId: id, fieldCount: fields.length });
-  }
+  },
 );
 
 export { projectStatusesRoute };

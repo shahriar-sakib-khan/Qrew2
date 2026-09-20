@@ -1,17 +1,29 @@
 "use client";
 
-import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Controller, useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { z } from "zod";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { apiUrl } from "@/lib/constants";
-import { toast } from "sonner";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { apiUrl } from "@/lib/constants";
 
 const schema = z.object({
   amount: z.coerce.number().positive("Amount must be positive"),
@@ -36,7 +48,12 @@ export function AddRequisitionModal({ isOpen, onClose }: { isOpen: boolean; onCl
 
   const projects = Array.isArray(projectsData) ? projectsData : [];
 
-  const { control, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<FormValues>({
     resolver: zodResolver(schema as any),
     defaultValues: {
       amount: 0,
@@ -90,7 +107,6 @@ export function AddRequisitionModal({ isOpen, onClose }: { isOpen: boolean; onCl
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-2">
-          
           <div className="space-y-2">
             <Label>Amount *</Label>
             <Controller
@@ -100,7 +116,9 @@ export function AddRequisitionModal({ isOpen, onClose }: { isOpen: boolean; onCl
                 <Input type="number" step="0.01" placeholder="0.00" {...field} />
               )}
             />
-            {errors.amount && <p className="text-[0.8rem] font-medium text-destructive">{errors.amount.message}</p>}
+            {errors.amount && (
+              <p className="text-[0.8rem] font-medium text-destructive">{errors.amount.message}</p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -112,7 +130,9 @@ export function AddRequisitionModal({ isOpen, onClose }: { isOpen: boolean; onCl
                 <Textarea placeholder="What are these funds for?" {...field} />
               )}
             />
-            {errors.purpose && <p className="text-[0.8rem] font-medium text-destructive">{errors.purpose.message}</p>}
+            {errors.purpose && (
+              <p className="text-[0.8rem] font-medium text-destructive">{errors.purpose.message}</p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -128,7 +148,9 @@ export function AddRequisitionModal({ isOpen, onClose }: { isOpen: boolean; onCl
                   <SelectContent>
                     <SelectItem value="none">None</SelectItem>
                     {projects.map((p: any) => (
-                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

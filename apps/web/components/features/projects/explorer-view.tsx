@@ -1,19 +1,19 @@
 "use client";
 
-import { useState, useMemo } from "react";
 import { format, isValid } from "date-fns";
 import {
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
   Folder,
   FolderOpen,
-  ChevronRight,
-  ChevronLeft,
-  Home,
   HardDrive,
-  Calendar,
+  Home,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { ListView } from "./list-view";
 
 interface ExplorerViewProps {
@@ -138,7 +138,7 @@ export function ExplorerView({
             onClick={() => navigateTo([])}
             className={cn(
               "flex items-center gap-1.5 px-2 py-1 rounded hover:bg-muted hover:text-foreground transition-colors",
-              currentPath.length === 0 && "text-foreground font-semibold bg-muted/60"
+              currentPath.length === 0 && "text-foreground font-semibold bg-muted/60",
             )}
           >
             <HardDrive className="h-4 w-4 text-primary" />
@@ -152,7 +152,7 @@ export function ExplorerView({
                 onClick={() => navigateTo([activeYear])}
                 className={cn(
                   "flex items-center gap-1.5 px-2 py-1 rounded hover:bg-muted hover:text-foreground transition-colors truncate",
-                  currentPath.length === 1 && "text-foreground font-semibold bg-muted/60"
+                  currentPath.length === 1 && "text-foreground font-semibold bg-muted/60",
                 )}
               >
                 <Folder className="h-4 w-4 text-blue-500 fill-blue-500/20 shrink-0" />
@@ -168,10 +168,10 @@ export function ExplorerView({
                 onClick={() => navigateTo([activeYear!, activeMonth])}
                 className={cn(
                   "flex items-center gap-1.5 px-2 py-1 rounded hover:bg-muted hover:text-foreground transition-colors truncate",
-                  currentPath.length === 2 && "text-foreground font-semibold bg-muted/60"
+                  currentPath.length === 2 && "text-foreground font-semibold bg-muted/60",
                 )}
               >
-                <Folder className="h-4 w-4 text-amber-500 fill-amber-500/20 shrink-0" />
+                <Folder className="h-4 w-4 text-accent-foreground fill-amber-500/20 shrink-0" />
                 <span>{activeMonth}</span>
               </button>
             </>
@@ -202,7 +202,8 @@ export function ExplorerView({
                     onDoubleClick={() => handleFolderDoubleClick([year])}
                     className={cn(
                       "group flex flex-col items-center justify-center p-4 rounded-xl border bg-background hover:bg-accent/40 cursor-pointer select-none transition-all duration-150 text-center shadow-xs",
-                      isSelected && "border-primary bg-primary/10 dark:bg-primary/20 ring-2 ring-primary/30"
+                      isSelected &&
+                        "border-primary bg-primary/10 dark:bg-primary/20 ring-2 ring-primary/30",
                     )}
                   >
                     <div className="relative mb-2">
@@ -232,32 +233,35 @@ export function ExplorerView({
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-              {Object.keys(groupedData[activeYear]).sort().map((month) => {
-                const monthFileCount = groupedData[activeYear][month].length;
-                const isSelected = selectedItem === `month-${month}`;
+              {Object.keys(groupedData[activeYear])
+                .sort()
+                .map((month) => {
+                  const monthFileCount = groupedData[activeYear][month].length;
+                  const isSelected = selectedItem === `month-${month}`;
 
-                return (
-                  <div
-                    key={`explorer-month-${month}`}
-                    onClick={() => handleFolderClick(`month-${month}`, [activeYear, month])}
-                    onDoubleClick={() => handleFolderDoubleClick([activeYear, month])}
-                    className={cn(
-                      "group flex flex-col items-center justify-center p-4 rounded-xl border bg-background hover:bg-accent/40 cursor-pointer select-none transition-all duration-150 text-center shadow-xs",
-                      isSelected && "border-amber-500 bg-amber-500/10 dark:bg-amber-500/20 ring-2 ring-amber-500/30"
-                    )}
-                  >
-                    <div className="relative mb-2">
-                      <Folder className="h-16 w-16 text-amber-500 fill-amber-500/20 group-hover:scale-105 transition-transform" />
+                  return (
+                    <div
+                      key={`explorer-month-${month}`}
+                      onClick={() => handleFolderClick(`month-${month}`, [activeYear, month])}
+                      onDoubleClick={() => handleFolderDoubleClick([activeYear, month])}
+                      className={cn(
+                        "group flex flex-col items-center justify-center p-4 rounded-xl border bg-background hover:bg-accent/40 cursor-pointer select-none transition-all duration-150 text-center shadow-xs",
+                        isSelected &&
+                          "border-amber-500 bg-accent/10 dark:bg-accent/20 ring-2 ring-amber-500/30",
+                      )}
+                    >
+                      <div className="relative mb-2">
+                        <Folder className="h-16 w-16 text-accent-foreground fill-amber-500/20 group-hover:scale-105 transition-transform" />
+                      </div>
+                      <span className="font-semibold text-sm truncate max-w-full text-foreground">
+                        {month}
+                      </span>
+                      <span className="text-xs text-muted-foreground mt-0.5">
+                        {monthFileCount} {monthFileCount === 1 ? "file" : "files"}
+                      </span>
                     </div>
-                    <span className="font-semibold text-sm truncate max-w-full text-foreground">
-                      {month}
-                    </span>
-                    <span className="text-xs text-muted-foreground mt-0.5">
-                      {monthFileCount} {monthFileCount === 1 ? "file" : "files"}
-                    </span>
-                  </div>
-                );
-              })}
+                  );
+                })}
             </div>
           )}
         </div>

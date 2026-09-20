@@ -1,27 +1,23 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
-import { Plus, ArchiveRestore, ArchiveX, Edit, Trash2 } from "lucide-react";
-import { useState, useMemo } from "react";
-import { AddClientModal } from "@/components/features/clients/add-client-modal";
-import { ArchiveModal } from "@/components/shared/archive-modal";
 import { useQuery } from "@tanstack/react-query";
-import { apiUrl } from "@/lib/constants";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
-import { Can } from "@/components/features/auth/can";
+import { ArchiveRestore, ArchiveX, Edit, Plus, Trash2 } from "lucide-react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { Can } from "@/components/features/auth/can";
+import { AddClientModal } from "@/components/features/clients/add-client-modal";
 import { ClientDetailsModal } from "@/components/features/clients/client-details-modal";
-import { useTableCellFilter } from "@/hooks/use-table-cell-filter";
+import { ArchiveModal } from "@/components/shared/archive-modal";
+import { Button } from "@/components/ui/button";
+import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  FilterableTableCell,
+  FilterableTableHeader,
+} from "@/components/ui/table-filter-components";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useColumnResizable } from "@/hooks/use-column-resizable";
-import { FilterableTableHeader, FilterableTableCell } from "@/components/ui/table-filter-components";
+import { useTableCellFilter } from "@/hooks/use-table-cell-filter";
+import { apiUrl } from "@/lib/constants";
 
 export default function ClientsPage() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -31,13 +27,8 @@ export default function ClientsPage() {
   const [isArchiving, setIsArchiving] = useState(false);
   const [activeTab, setActiveTab] = useState("active");
 
-  const {
-    filters,
-    toggleFilter,
-    clearColumnFilter,
-    filterRows,
-    isColumnFiltered,
-  } = useTableCellFilter();
+  const { filters, toggleFilter, clearColumnFilter, filterRows, isColumnFiltered } =
+    useTableCellFilter();
 
   const { columnWidths, handleResizeStart, resetColumnWidth } = useColumnResizable({
     tableId: "client-directory",
@@ -55,7 +46,9 @@ export default function ClientsPage() {
   const { data: rawCustomFields, isLoading: customFieldsLoading } = useQuery({
     queryKey: ["custom-fields", "client"],
     queryFn: async () => {
-      const res = await fetch(`${apiUrl}/api/workspaces/custom-fields?entityType=client`, { credentials: "include" });
+      const res = await fetch(`${apiUrl}/api/workspaces/custom-fields?entityType=client`, {
+        credentials: "include",
+      });
       if (!res.ok) throw new Error("Failed to fetch custom fields");
       return res.json();
     },
@@ -70,10 +63,17 @@ export default function ClientsPage() {
     return rawCustomFields;
   }, [rawCustomFields, orgSettings]);
 
-  const { data: clients, isLoading: clientsLoading, refetch } = useQuery({
+  const {
+    data: clients,
+    isLoading: clientsLoading,
+    refetch,
+  } = useQuery({
     queryKey: ["clients", activeTab],
     queryFn: async () => {
-      const res = await fetch(`${apiUrl}/api/workspaces/clients?status=${activeTab === 'archived' ? 'archived' : 'active'}`, { credentials: "include" });
+      const res = await fetch(
+        `${apiUrl}/api/workspaces/clients?status=${activeTab === "archived" ? "archived" : "active"}`,
+        { credentials: "include" },
+      );
       if (!res.ok) throw new Error("Failed to fetch clients");
       return res.json();
     },
@@ -81,8 +81,8 @@ export default function ClientsPage() {
 
   const extractors = useMemo(() => {
     const map: Record<string, (c: any) => any> = {
-      'sys-client-name': (c) => c.name,
-      'sys-client-email': (c) => c.email || "-",
+      "sys-client-name": (c) => c.name,
+      "sys-client-email": (c) => c.email || "-",
     };
     customFields?.forEach((field: any) => {
       map[field.id] = (c) => c.customFields?.[field.fieldKey] || "-";
@@ -95,7 +95,12 @@ export default function ClientsPage() {
   }, [clients, filterRows, extractors]);
 
   const handleDelete = async (client: any) => {
-    if (!confirm(`Are you sure you want to permanently delete ${client.name}? This action cannot be undone.`)) return;
+    if (
+      !confirm(
+        `Are you sure you want to permanently delete ${client.name}? This action cannot be undone.`,
+      )
+    )
+      return;
     try {
       const res = await fetch(`${apiUrl}/api/workspaces/clients/${client.id}`, {
         method: "DELETE",
@@ -157,7 +162,7 @@ export default function ClientsPage() {
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/50">
-            {showCol('sys-client-name') && (
+            {showCol("sys-client-name") && (
               <FilterableTableHeader
                 columnKey="sys-client-name"
                 title="Name"
@@ -169,7 +174,7 @@ export default function ClientsPage() {
                 onResetWidth={resetColumnWidth}
               />
             )}
-            {showCol('sys-client-email') && (
+            {showCol("sys-client-email") && (
               <FilterableTableHeader
                 columnKey="sys-client-email"
                 title="Email"
@@ -194,14 +199,21 @@ export default function ClientsPage() {
                 onResetWidth={resetColumnWidth}
               />
             ))}
-            <TableCell className="w-[120px] text-right font-medium text-muted-foreground">Actions</TableCell>
+            <TableCell className="w-[120px] text-right font-medium text-muted-foreground">
+              Actions
+            </TableCell>
           </TableRow>
         </TableHeader>
         <TableBody>
           {clientsLoading || customFieldsLoading ? (
             <TableRow>
-              <TableCell 
-                colSpan={1 + (showCol('sys-client-name') ? 1 : 0) + (showCol('sys-client-email') ? 1 : 0) + (customFields?.length || 0)} 
+              <TableCell
+                colSpan={
+                  1 +
+                  (showCol("sys-client-name") ? 1 : 0) +
+                  (showCol("sys-client-email") ? 1 : 0) +
+                  (customFields?.length || 0)
+                }
                 className="h-24 text-center text-muted-foreground"
               >
                 Loading clients...
@@ -209,8 +221,13 @@ export default function ClientsPage() {
             </TableRow>
           ) : filteredClients?.length === 0 ? (
             <TableRow>
-              <TableCell 
-                colSpan={1 + (showCol('sys-client-name') ? 1 : 0) + (showCol('sys-client-email') ? 1 : 0) + (customFields?.length || 0)} 
+              <TableCell
+                colSpan={
+                  1 +
+                  (showCol("sys-client-name") ? 1 : 0) +
+                  (showCol("sys-client-email") ? 1 : 0) +
+                  (customFields?.length || 0)
+                }
                 className="h-24 text-center text-muted-foreground"
               >
                 No {isArchivedView ? "archived" : "active"} clients found.
@@ -218,11 +235,8 @@ export default function ClientsPage() {
             </TableRow>
           ) : (
             filteredClients?.map((client: any) => (
-              <TableRow 
-                key={client.id}
-                className="hover:bg-muted/30 transition-colors"
-              >
-                {showCol('sys-client-name') && (
+              <TableRow key={client.id} className="hover:bg-muted/30 transition-colors">
+                {showCol("sys-client-name") && (
                   <FilterableTableCell
                     columnKey="sys-client-name"
                     value={client.name}
@@ -234,7 +248,7 @@ export default function ClientsPage() {
                     {client.name}
                   </FilterableTableCell>
                 )}
-                {showCol('sys-client-email') && (
+                {showCol("sys-client-email") && (
                   <FilterableTableCell
                     columnKey="sys-client-email"
                     value={client.email || "-"}
@@ -262,12 +276,27 @@ export default function ClientsPage() {
                     {!isArchivedView ? (
                       <>
                         <Can I="client:edit">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => handleEdit(client)} title="Edit Client">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-primary"
+                            onClick={() => handleEdit(client)}
+                            title="Edit Client"
+                          >
                             <Edit className="h-4 w-4" />
                           </Button>
                         </Can>
                         <Can I="client:edit">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-orange-500" onClick={(e) => { e.stopPropagation(); setClientToArchive(client); }} title="Archive Client">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-orange-500"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setClientToArchive(client);
+                            }}
+                            title="Archive Client"
+                          >
                             <ArchiveX className="h-4 w-4" />
                           </Button>
                         </Can>
@@ -275,12 +304,27 @@ export default function ClientsPage() {
                     ) : (
                       <>
                         <Can I="client:edit">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-green-500" onClick={() => handleUnarchive(client)} title="Unarchive Client">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-green-500"
+                            onClick={() => handleUnarchive(client)}
+                            title="Unarchive Client"
+                          >
                             <ArchiveRestore className="h-4 w-4" />
                           </Button>
                         </Can>
                         <Can I="client:delete">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={(e) => { e.stopPropagation(); handleDelete(client); }} title="Permanently Delete Client">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDelete(client);
+                            }}
+                            title="Permanently Delete Client"
+                          >
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </Can>
@@ -300,7 +344,12 @@ export default function ClientsPage() {
     <div className="flex flex-col gap-4">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold tracking-tight">Client Directory</h1>
-        <Button onClick={() => { setClientToEdit(null); setIsAddModalOpen(true); }}>
+        <Button
+          onClick={() => {
+            setClientToEdit(null);
+            setIsAddModalOpen(true);
+          }}
+        >
           <Plus className="mr-2 h-4 w-4" />
           Add Client
         </Button>
@@ -313,23 +362,19 @@ export default function ClientsPage() {
             <TabsTrigger value="archived">Archived</TabsTrigger>
           </Can>
         </TabsList>
-        <TabsContent value="active">
-          {renderClientsTable(false)}
-        </TabsContent>
-        <TabsContent value="archived">
-          {renderClientsTable(true)}
-        </TabsContent>
+        <TabsContent value="active">{renderClientsTable(false)}</TabsContent>
+        <TabsContent value="archived">{renderClientsTable(true)}</TabsContent>
       </Tabs>
 
-      <AddClientModal 
-        isOpen={isAddModalOpen} 
+      <AddClientModal
+        isOpen={isAddModalOpen}
         onClose={() => {
           setIsAddModalOpen(false);
           setClientToEdit(null);
-        }} 
+        }}
         editClient={clientToEdit}
       />
-      
+
       <ClientDetailsModal
         client={clientToView}
         mode="full"
@@ -340,7 +385,7 @@ export default function ClientsPage() {
         }}
       />
 
-      <ArchiveModal 
+      <ArchiveModal
         isOpen={!!clientToArchive}
         onClose={() => setClientToArchive(null)}
         onConfirm={confirmArchive}

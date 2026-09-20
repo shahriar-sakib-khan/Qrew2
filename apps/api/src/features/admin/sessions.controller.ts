@@ -1,10 +1,10 @@
-import { Context } from 'hono';
-import { db, sessions, auditLogs } from '@starter/db';
-import { eq, desc } from 'drizzle-orm';
-import { z } from 'zod';
-import { logger } from '../../infra/lib/logger';
+import { auditLogs, db, sessions } from "@starter/db";
+import { desc, eq } from "drizzle-orm";
+import { Context } from "hono";
+import { z } from "zod";
+import { logger } from "../../infra/lib/logger";
 
-const sessionsControllerLog = logger.child({ module: 'sessions-controller' });
+const sessionsControllerLog = logger.child({ module: "sessions-controller" });
 
 const RevokeSessionSchema = z.object({
   sessionId: z.string().min(1),
@@ -15,8 +15,8 @@ const RevokeSessionSchema = z.object({
 export class SessionsController {
   static async listUserSessions(c: Context) {
     try {
-      const targetUserId = c.req.param('userId');
-      if (!targetUserId) return c.json({ error: 'User ID is required' }, 400);
+      const targetUserId = c.req.param("userId");
+      if (!targetUserId) return c.json({ error: "User ID is required" }, 400);
 
       const userSessions = await db.query.sessions.findMany({
         where: eq(sessions.userId, targetUserId),
@@ -25,8 +25,8 @@ export class SessionsController {
 
       return c.json({ data: userSessions }, 200);
     } catch (error) {
-      sessionsControllerLog.error({ err: error }, 'Failed to list user sessions');
-      return c.json({ error: 'Internal Server Error' }, 500);
+      sessionsControllerLog.error({ err: error }, "Failed to list user sessions");
+      return c.json({ error: "Internal Server Error" }, 500);
     }
   }
 
@@ -36,14 +36,14 @@ export class SessionsController {
       const parsed = RevokeSessionSchema.safeParse(body);
 
       if (!parsed.success) {
-        return c.json({ error: 'Bad Request', issues: parsed.error.format() }, 400);
+        return c.json({ error: "Bad Request", issues: parsed.error.format() }, 400);
       }
 
       const { sessionId, targetUserId, reason } = parsed.data;
-      const adminUser = c.get('user') as any;
+      const adminUser = c.get("user") as any;
 
       if (!adminUser) {
-        return c.json({ error: 'Unauthorized' }, 401);
+        return c.json({ error: "Unauthorized" }, 401);
       }
 
       // Verify the session belongs to the target user
@@ -52,20 +52,23 @@ export class SessionsController {
       });
 
       if (!session || session.userId !== targetUserId) {
-        return c.json({ error: 'Session not found or belongs to another user' }, 404);
+        return c.json({ error: "Session not found or belongs to another user" }, 404);
       }
 
       // Delete the session
       await db.delete(sessions).where(eq(sessions.id, sessionId));
 
       // Audit Log
-      const auditPromise = db.insert(auditLogs).values({
-        adminId: adminUser.id,
-        targetUserId: targetUserId,
-        action: 'SESSION_REVOKED',
-        reason: reason,
-        ipAddress: c.req.header('x-forwarded-for') || 'unknown',
-      }).catch(err => c.get('logger').error({ err }, 'Failed to write session revoke audit log'));
+      const auditPromise = db
+        .insert(auditLogs)
+        .values({
+          adminId: adminUser.id,
+          targetUserId: targetUserId,
+          action: "SESSION_REVOKED",
+          reason: reason,
+          ipAddress: c.req.header("x-forwarded-for") || "unknown",
+        })
+        .catch((err) => c.get("logger").error({ err }, "Failed to write session revoke audit log"));
 
       try {
         c.executionCtx.waitUntil(auditPromise);
@@ -73,10 +76,10 @@ export class SessionsController {
         Promise.resolve(auditPromise);
       }
 
-      return c.json({ success: true, message: 'Session revoked successfully' }, 200);
+      return c.json({ success: true, message: "Session revoked successfully" }, 200);
     } catch (error) {
-      sessionsControllerLog.error({ err: error }, 'Failed to revoke session');
-      return c.json({ error: 'Internal Server Error' }, 500);
+      sessionsControllerLog.error({ err: error }, "Failed to revoke session");
+      return c.json({ error: "Internal Server Error" }, 500);
     }
   }
 }

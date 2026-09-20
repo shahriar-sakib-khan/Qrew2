@@ -7,11 +7,8 @@
  * Auth cases  : 401 for every endpoint when organizationId is absent
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import {
-  makeCtx, makeTemplate,
-  ORG_ID, TEMPLATE_ID,
-} from "./invoice-templates.fixtures";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { makeCtx, makeTemplate, ORG_ID, TEMPLATE_ID } from "./invoice-templates.fixtures";
 
 // ─── Mock @starter/db ────────────────────────────────────────────────────────
 vi.mock("@starter/db", () => {
@@ -55,16 +52,32 @@ vi.mock("@starter/db", () => {
     db,
     eq,
     and,
-    invoiceTemplates: { id: "id", organizationId: "organizationId", name: "name", description: "description", documentPrefix: "documentPrefix", numberingFormat: "numberingFormat" },
+    invoiceTemplates: {
+      id: "id",
+      organizationId: "organizationId",
+      name: "name",
+      description: "description",
+      documentPrefix: "documentPrefix",
+      numberingFormat: "numberingFormat",
+    },
     templateHeaderFields: { id: "id", templateId: "templateId" },
-    invoiceDocumentSequences: { id: "id", organizationId: "organizationId", currentValue: "currentValue", templateId: "templateId" },
+    invoiceDocumentSequences: {
+      id: "id",
+      organizationId: "organizationId",
+      currentValue: "currentValue",
+      templateId: "templateId",
+    },
     templateSections: { id: "id", templateId: "templateId" },
-    customFieldDefinitions: { id: "id", organizationId: "organizationId", entityType: "entityType" },
+    customFieldDefinitions: {
+      id: "id",
+      organizationId: "organizationId",
+      entityType: "entityType",
+    },
   };
 });
 
-import { InvoiceTemplatesController } from "./invoice-templates.controller";
 import { db } from "@starter/db";
+import { InvoiceTemplatesController } from "./invoice-templates.controller";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -103,7 +116,6 @@ function mockDeleteReturns(value: any) {
 // ─── TESTS ────────────────────────────────────────────────────────────────────
 
 describe("InvoiceTemplatesController", () => {
-
   beforeEach(() => {
     vi.resetAllMocks();
   });
@@ -186,8 +198,8 @@ describe("InvoiceTemplatesController", () => {
     it("creates template with 201 on happy path", async () => {
       const tpl = makeTemplate();
       // createTemplate: select(customFieldDefs) + insert(template) + insert(headerFields)x3 + select(orgCustomFields) + insert(headerFields for custom) + insert(templateSections)
-      mockSelectReturns([]);                    // customFieldDefs query → no custom fields
-      mockInsertReturns(tpl);                   // insert template
+      mockSelectReturns([]); // customFieldDefs query → no custom fields
+      mockInsertReturns(tpl); // insert template
       const ctx = makeCtx({ body: { name: "Standard Port Invoice" } });
       const res = await InvoiceTemplatesController.createTemplate(ctx);
       expect(res.status).toBe(201);
@@ -271,5 +283,4 @@ describe("InvoiceTemplatesController", () => {
       expect((res as any).data.success).toBe(true);
     });
   });
-
 });

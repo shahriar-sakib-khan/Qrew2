@@ -1,20 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Plus, Trash2, AlertTriangle, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiUrl } from "@/lib/constants";
+import { AlertTriangle, Loader2, Plus, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { WorkflowNodeModal } from "./workflow-node-modal";
-import { WorkflowGraph } from "./workflow-graph";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
+import { apiUrl } from "@/lib/constants";
+import { WorkflowGraph } from "./workflow-graph";
+import { WorkflowNodeModal } from "./workflow-node-modal";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 interface Status {
@@ -76,12 +76,15 @@ function DeleteNodeModal({
               <span className="font-semibold text-foreground">{node.name}</span> stage.
             </p>
             {hasSplice && (
-              <div className="flex items-start gap-2 p-3 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400">
+              <div className="flex items-start gap-2 p-3 rounded-md bg-accent/10 border border-amber-500/20 text-accent-foreground dark:text-accent-foreground">
                 <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
                 <p className="text-xs leading-relaxed">
                   This stage has{" "}
-                  <span className="font-semibold">{childCount} outgoing connection{childCount !== 1 ? "s" : ""}</span>.
-                  All parent stages will be automatically re-wired to connect directly to its downstream stage{childCount !== 1 ? "s" : ""}.
+                  <span className="font-semibold">
+                    {childCount} outgoing connection{childCount !== 1 ? "s" : ""}
+                  </span>
+                  . All parent stages will be automatically re-wired to connect directly to its
+                  downstream stage{childCount !== 1 ? "s" : ""}.
                 </p>
               </div>
             )}
@@ -98,7 +101,11 @@ function DeleteNodeModal({
             disabled={isPending}
             className="flex-1 gap-2"
           >
-            {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            {isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Trash2 className="h-4 w-4" />
+            )}
             {isPending ? "Deleting..." : "Delete Stage"}
           </Button>
         </DialogFooter>
@@ -148,7 +155,8 @@ function ClearAllModal({
           <div className="flex items-start gap-2 p-3 rounded-md bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400">
             <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
             <p className="text-xs leading-relaxed">
-              System stages (<strong>Created</strong> and <strong>Completed</strong>) will be kept. Only user-created stages will be removed.
+              System stages (<strong>Created</strong> and <strong>Completed</strong>) will be kept.
+              Only user-created stages will be removed.
             </p>
           </div>
         </div>
@@ -163,8 +171,14 @@ function ClearAllModal({
             disabled={isPending}
             className="flex-1 gap-2"
           >
-            {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-            {isPending ? "Clearing..." : `Clear ${nonSystemCount} Stage${nonSystemCount !== 1 ? "s" : ""}`}
+            {isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Trash2 className="h-4 w-4" />
+            )}
+            {isPending
+              ? "Clearing..."
+              : `Clear ${nonSystemCount} Stage${nonSystemCount !== 1 ? "s" : ""}`}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -200,24 +214,36 @@ export function WorkflowBuilder({
     fetch(`${apiUrl}/api/workspaces/projects/statuses/migrate-defaults`, {
       method: "POST",
       credentials: "include",
-    }).then(() => {
-      queryClient.invalidateQueries({ queryKey: ["project-statuses"] });
-    }).catch(() => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    })
+      .then(() => {
+        queryClient.invalidateQueries({ queryKey: ["project-statuses"] });
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
 
   // ── Move and Swap ──────────────────────────────────────────────────────────
 
   const moveNodeMutation = useMutation({
-    mutationFn: async ({ id, gridColumn, gridRow }: { id: string; gridColumn: number; gridRow: number }) => {
+    mutationFn: async ({
+      id,
+      gridColumn,
+      gridRow,
+    }: {
+      id: string;
+      gridColumn: number;
+      gridRow: number;
+    }) => {
       const res = await fetch(`${apiUrl}/api/workspaces/projects/statuses/${id}/position`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ gridColumn, gridRow }),
       });
-      if (!res.ok) { const data = await res.json(); throw new Error(data.error || "Failed to move node"); }
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to move node");
+      }
       return res.json();
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project-statuses"] }),
@@ -228,9 +254,23 @@ export function WorkflowBuilder({
     moveNodeMutation.mutate({ id, gridColumn: col, gridRow: row });
   };
 
-  const [swapRequest, setSwapRequest] = useState<{ sourceId: string; targetId: string; targetCol: number; targetRow: number; sourceCol: number; sourceRow: number } | null>(null);
+  const [swapRequest, setSwapRequest] = useState<{
+    sourceId: string;
+    targetId: string;
+    targetCol: number;
+    targetRow: number;
+    sourceCol: number;
+    sourceRow: number;
+  } | null>(null);
 
-  const handleSwapNodes = (sourceId: string, targetId: string, targetCol: number, targetRow: number, sourceCol: number, sourceRow: number) => {
+  const handleSwapNodes = (
+    sourceId: string,
+    targetId: string,
+    targetCol: number,
+    targetRow: number,
+    sourceCol: number,
+    sourceRow: number,
+  ) => {
     setSwapRequest({ sourceId, targetId, targetCol, targetRow, sourceCol, sourceRow });
   };
 
@@ -242,7 +282,10 @@ export function WorkflowBuilder({
         credentials: "include",
         body: JSON.stringify({ targetId }),
       });
-      if (!res.ok) { const data = await res.json(); throw new Error(data.error || "Failed to swap nodes"); }
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to swap nodes");
+      }
       return res.json();
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project-statuses"] }),
@@ -252,7 +295,10 @@ export function WorkflowBuilder({
   const confirmSwap = async () => {
     if (!swapRequest) return;
     try {
-      await swapNodesMutation.mutateAsync({ sourceId: swapRequest.sourceId, targetId: swapRequest.targetId });
+      await swapNodesMutation.mutateAsync({
+        sourceId: swapRequest.sourceId,
+        targetId: swapRequest.targetId,
+      });
       toast.success("Nodes swapped successfully");
     } catch (e) {
       // toast error is handled by onError in mutation
@@ -262,7 +308,6 @@ export function WorkflowBuilder({
   };
 
   // ── Delete node ─────────────────────────────────────────────────────────
-
 
   const deleteNodeMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -286,7 +331,10 @@ export function WorkflowBuilder({
 
   const handleDeleteNode = (id: string) => {
     const s = statuses.find((x) => x.id === id);
-    if (s?.isSystem) { toast.error("Cannot delete a system status node."); return; }
+    if (s?.isSystem) {
+      toast.error("Cannot delete a system status node.");
+      return;
+    }
     setDeletingNode(s ?? null);
   };
 
@@ -344,18 +392,30 @@ export function WorkflowBuilder({
         credentials: "include",
         body: JSON.stringify({ toStatusIds: newToIds }),
       });
-      if (!res.ok) { const data = await res.json(); throw new Error(data.error || "Failed to connect nodes"); }
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to connect nodes");
+      }
       return res.json();
     },
-    onSuccess: () => { toast.success("Connection added"); queryClient.invalidateQueries({ queryKey: ["project-statuses"] }); },
+    onSuccess: () => {
+      toast.success("Connection added");
+      queryClient.invalidateQueries({ queryKey: ["project-statuses"] });
+    },
     onError: (err: any) => toast.error(err.message),
   });
 
   const handleConnectNodes = (fromId: string, toId: string) => {
-    if (fromId === toId) { toast.error("A stage cannot connect to itself."); return; }
+    if (fromId === toId) {
+      toast.error("A stage cannot connect to itself.");
+      return;
+    }
     const fromStatus = statuses.find((s) => s.id === fromId);
     const toStatus = statuses.find((s) => s.id === toId);
-    if (toStatus?.isInitial) { toast.error("Nothing can connect back to the starting stage."); return; }
+    if (toStatus?.isInitial) {
+      toast.error("Nothing can connect back to the starting stage.");
+      return;
+    }
     connectNodesMutation.mutate({ fromId, toId });
   };
 
@@ -365,21 +425,31 @@ export function WorkflowBuilder({
     mutationFn: async ({ fromId, toId }: { fromId: string; toId: string }) => {
       const from = statuses.find((s) => s.id === fromId);
       if (!from) throw new Error("Source status not found");
-      const newToIds = (from.transitions ?? []).map((t) => t.toStatusId).filter(id => id !== toId);
+      const newToIds = (from.transitions ?? [])
+        .map((t) => t.toStatusId)
+        .filter((id) => id !== toId);
       const res = await fetch(`${apiUrl}/api/workspaces/projects/statuses/${fromId}/transitions`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ toStatusIds: newToIds }),
       });
-      if (!res.ok) { const data = await res.json(); throw new Error(data.error || "Failed to delete connection"); }
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to delete connection");
+      }
       return res.json();
     },
-    onSuccess: () => { toast.success("Connection deleted"); queryClient.invalidateQueries({ queryKey: ["project-statuses"] }); },
+    onSuccess: () => {
+      toast.success("Connection deleted");
+      queryClient.invalidateQueries({ queryKey: ["project-statuses"] });
+    },
     onError: (err: any) => toast.error(err.message),
   });
 
-  const handleDeleteEdge = (fromId: string, toId: string) => { deleteEdgeMutation.mutate({ fromId, toId }); };
+  const handleDeleteEdge = (fromId: string, toId: string) => {
+    deleteEdgeMutation.mutate({ fromId, toId });
+  };
 
   // ── Close modal ──────────────────────────────────────────────────────────
 
@@ -437,13 +507,12 @@ export function WorkflowBuilder({
         onSwapNodes={handleSwapNodes}
       />
 
-
       {/* Swap Node Modal */}
       <Dialog open={!!swapRequest} onOpenChange={(v) => !v && setSwapRequest(null)}>
         <DialogContent className="max-w-md p-0 overflow-hidden">
-          <div className="bg-amber-500/10 border-b border-amber-500/20 px-6 py-4 flex items-start gap-3">
-            <div className="shrink-0 w-10 h-10 rounded-full bg-amber-500/15 flex items-center justify-center">
-              <AlertTriangle className="h-5 w-5 text-amber-500" />
+          <div className="bg-accent/10 border-b border-amber-500/20 px-6 py-4 flex items-start gap-3">
+            <div className="shrink-0 w-10 h-10 rounded-full bg-accent/15 flex items-center justify-center">
+              <AlertTriangle className="h-5 w-5 text-accent-foreground" />
             </div>
             <div>
               <DialogTitle className="text-base font-semibold text-foreground">
@@ -458,7 +527,12 @@ export function WorkflowBuilder({
             </p>
           </div>
           <DialogFooter className="px-6 py-4 border-t bg-muted/20 flex gap-2">
-            <Button variant="outline" onClick={() => setSwapRequest(null)} disabled={moveNodeMutation.isPending} className="flex-1">
+            <Button
+              variant="outline"
+              onClick={() => setSwapRequest(null)}
+              disabled={moveNodeMutation.isPending}
+              className="flex-1"
+            >
               Cancel
             </Button>
             <Button

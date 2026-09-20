@@ -11,7 +11,7 @@ export function computeLayoutSeed(statuses: any[]): Record<string, { col: number
     (s.transitions ?? []).forEach((t: any) => {
       if (adj[s.id] && ids.includes(t.toStatusId) && t.toStatusId !== s.id)
         adj[s.id].push(t.toStatusId);
-    })
+    }),
   );
 
   // -- Layer Assignment: Shortest-Path BFS
@@ -40,15 +40,18 @@ export function computeLayoutSeed(statuses: any[]): Record<string, { col: number
     });
   }
   let nextFree = Math.max(0, ...Object.values(layer)) + 1;
-  ids.forEach((id) => { if (layer[id] === undefined) layer[id] = nextFree++; });
+  ids.forEach((id) => {
+    if (layer[id] === undefined) layer[id] = nextFree++;
+  });
 
   // -- Forward edges
   const fwdAdj: Record<string, string[]> = {};
   ids.forEach((id) => {
     fwdAdj[id] = (adj[id] ?? []).filter((nxt) => layer[nxt] > layer[id]);
-    fwdAdj[id].sort((a, b) =>
-      new Date(statusMap[a].createdAt || 0).getTime() -
-      new Date(statusMap[b].createdAt || 0).getTime()
+    fwdAdj[id].sort(
+      (a, b) =>
+        new Date(statusMap[a].createdAt || 0).getTime() -
+        new Date(statusMap[b].createdAt || 0).getTime(),
     );
   });
 
@@ -59,11 +62,12 @@ export function computeLayoutSeed(statuses: any[]): Record<string, { col: number
   starts.forEach((id) => treeVisited.add(id));
   const treeQueue = [...starts];
   let treeHead = 0;
-  while(treeHead < treeQueue.length) {
+  while (treeHead < treeQueue.length) {
     const cur = treeQueue[treeHead++];
-    const sortedFwd = [...(fwdAdj[cur] ?? [])].sort((a, b) =>
-      new Date(statusMap[a].createdAt || 0).getTime() -
-      new Date(statusMap[b].createdAt || 0).getTime()
+    const sortedFwd = [...(fwdAdj[cur] ?? [])].sort(
+      (a, b) =>
+        new Date(statusMap[a].createdAt || 0).getTime() -
+        new Date(statusMap[b].createdAt || 0).getTime(),
     );
     sortedFwd.forEach((nxt) => {
       if (!treeVisited.has(nxt)) {
@@ -77,7 +81,7 @@ export function computeLayoutSeed(statuses: any[]): Record<string, { col: number
   // -- Pass 1: Bottom-Up footprint
   const footprint: Record<string, { min: number; max: number }> = {};
   const revOrder = [...treeQueue].reverse();
-  ids.filter(id => !revOrder.includes(id)).forEach(id => revOrder.push(id));
+  ids.filter((id) => !revOrder.includes(id)).forEach((id) => revOrder.push(id));
 
   revOrder.forEach((id) => {
     const children = treeAdj[id] ?? [];
@@ -86,7 +90,8 @@ export function computeLayoutSeed(statuses: any[]): Record<string, { col: number
       return;
     }
 
-    let minF = 0, maxF = 0;
+    let minF = 0,
+      maxF = 0;
     let maxPositive = -1;
     let minNegative = 1;
 
@@ -126,9 +131,10 @@ export function computeLayoutSeed(statuses: any[]): Record<string, { col: number
   let rootMinNegative = 0;
 
   starts
-    .sort((a, b) =>
-      new Date(statusMap[a].createdAt || 0).getTime() -
-      new Date(statusMap[b].createdAt || 0).getTime()
+    .sort(
+      (a, b) =>
+        new Date(statusMap[a].createdAt || 0).getTime() -
+        new Date(statusMap[b].createdAt || 0).getTime(),
     )
     .forEach((id, i) => {
       if (i === 0) {
@@ -185,12 +191,12 @@ export function computeLayoutSeed(statuses: any[]): Record<string, { col: number
         maxPositive = parentTrack + offset + cf.max;
         minNegative = parentTrack + offset + cf.min;
       } else if (desiredOffset >= 0) {
-        const needed = (maxPositive - parentTrack) - cf.min + 1;
+        const needed = maxPositive - parentTrack - cf.min + 1;
         offset = Math.max(desiredOffset, needed);
         maxPositive = parentTrack + offset + cf.max;
         minNegative = Math.min(minNegative, parentTrack + offset + cf.min);
       } else {
-        const needed = (minNegative - parentTrack) - cf.max - 1;
+        const needed = minNegative - parentTrack - cf.max - 1;
         offset = Math.min(desiredOffset, needed);
         minNegative = parentTrack + offset + cf.min;
         maxPositive = Math.max(maxPositive, parentTrack + offset + cf.max);
@@ -201,7 +207,7 @@ export function computeLayoutSeed(statuses: any[]): Record<string, { col: number
     });
   }
 
-  let fallback = (Math.max(0, ...Object.values(trackMap)) + 1);
+  let fallback = Math.max(0, ...Object.values(trackMap)) + 1;
   ids.forEach((id) => {
     if (trackMap[id] === undefined) {
       trackMap[id] = fallback++;

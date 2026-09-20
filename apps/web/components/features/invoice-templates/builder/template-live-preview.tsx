@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { apiUrl } from "@/lib/constants";
+import { AlertCircle, Calculator, Loader2 } from "lucide-react";
+import React, { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Calculator, AlertCircle } from "lucide-react";
+import { apiUrl } from "@/lib/constants";
 
 function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState<T>(value);
@@ -34,7 +34,9 @@ export function TemplateLivePreview({ templateId }: { templateId: string }) {
   const { data: tokens } = useQuery({
     queryKey: ["invoice-tokens", templateId],
     queryFn: async () => {
-      const res = await fetch(`${apiUrl}/api/invoices/tokens?templateId=${templateId}`, { credentials: "include" });
+      const res = await fetch(`${apiUrl}/api/invoices/tokens?templateId=${templateId}`, {
+        credentials: "include",
+      });
       if (!res.ok) {
         const error = new Error("Failed to fetch tokens");
         (error as any).status = res.status;
@@ -48,13 +50,23 @@ export function TemplateLivePreview({ templateId }: { templateId: string }) {
   // Fetch the preview — NO polling. Refetches when:
   // 1. debouncedInputs changes (user types test values)
   // 2. queryClient.invalidateQueries(['invoice-preview', templateId]) is called after any mutation
-  const { data: previewData, isLoading, error, isRefetching } = useQuery({
+  const {
+    data: previewData,
+    isLoading,
+    error,
+    isRefetching,
+  } = useQuery({
     queryKey: ["invoice-preview", templateId, debouncedInputs],
     queryFn: async () => {
       const processedInputs: Record<string, number> = {};
       Object.entries(debouncedInputs).forEach(([k, v]) => {
         if (v && !isNaN(parseFloat(v))) {
-          processedInputs[k] = parseFloat(v);
+          const num = parseFloat(v);
+          processedInputs[k] = num;
+          if (!k.startsWith("GBL_") && !k.startsWith("ORG_") && !k.startsWith("CAT_")) {
+            processedInputs[`GBL_${k}`] = num;
+            processedInputs[`ORG_${k}`] = num;
+          }
         }
       });
 
@@ -84,7 +96,10 @@ export function TemplateLivePreview({ templateId }: { templateId: string }) {
 
   const inputTokens = [
     ...(tokens?.categories || []).map((c: any) => ({ key: `CAT_${c.tokenKey}`, label: c.label })),
-    ...(tokens?.orgConfigs || []).map((o: any) => ({ key: `ORG_${o.configKey}`, label: o.displayLabel })),
+    ...(tokens?.orgConfigs || []).map((o: any) => ({
+      key: (o.configKey || "").replace(/^(GBL_|ORG_)/, ""),
+      label: o.displayLabel,
+    })),
   ];
 
   return (
@@ -94,25 +109,30 @@ export function TemplateLivePreview({ templateId }: { templateId: string }) {
           <Calculator className="h-5 w-5" />
           Live Preview
         </div>
-        {(isLoading || isRefetching) && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+        {(isLoading || isRefetching) && (
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
-
         {/* Test Inputs Panel */}
         {inputTokens.length > 0 && (
           <div className="bg-card border rounded-xl p-4 shadow-sm">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Test Inputs</h3>
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+              Test Inputs
+            </h3>
             <div className="grid grid-cols-2 gap-3">
               {inputTokens.map(({ key, label }: { key: string; label: string }) => (
                 <div key={key} className="space-y-1">
-                  <Label className="text-xs truncate" title={label}>{label}</Label>
+                  <Label className="text-xs truncate" title={label}>
+                    {label}
+                  </Label>
                   <Input
                     className="h-8 text-sm"
                     type="number"
                     placeholder="e.g. 100"
                     value={inputs[key] || ""}
-                    onChange={(e) => setInputs(prev => ({ ...prev, [key]: e.target.value }))}
+                    onChange={(e) => setInputs((prev) => ({ ...prev, [key]: e.target.value }))}
                   />
                 </div>
               ))}
@@ -147,81 +167,88 @@ export function TemplateLivePreview({ templateId }: { templateId: string }) {
             <table className="w-full text-xs border-collapse">
               <thead>
                 <tr className="bg-gray-100 border-b border-gray-300">
-                  <th className="w-8 px-2 py-2 text-center font-bold text-gray-600 border-r border-gray-300">SL</th>
-                  <th className="px-3 py-2 text-left font-bold text-gray-600 border-r border-gray-300">DETAILS</th>
-                  <th className="w-24 px-2 py-2 text-right font-bold text-gray-600 border-r border-gray-300">USD</th>
+                  <th className="w-8 px-2 py-2 text-center font-bold text-gray-600 border-r border-gray-300">
+                    SL
+                  </th>
+                  <th className="px-3 py-2 text-left font-bold text-gray-600 border-r border-gray-300">
+                    DETAILS
+                  </th>
+                  <th className="w-24 px-2 py-2 text-right font-bold text-gray-600 border-r border-gray-300">
+                    USD
+                  </th>
                   <th className="w-24 px-2 py-2 text-right font-bold text-gray-600">USD</th>
                 </tr>
               </thead>
               <tbody>
-              {sections.map((section: any) => (
-                <React.Fragment key={section.sectionToken}>
-                  {/* Section header row */}
-                  {section.name && (
-                    <tr className="bg-gray-50 border-b border-gray-200">
-                      <td className="px-2 py-1 border-r border-gray-200" />
-                      <td
-                        colSpan={3}
-                        className="px-3 py-1.5 font-bold text-gray-700 text-[11px] uppercase tracking-wide"
-                      >
-                        {section.name}
-                      </td>
-                    </tr>
-                  )}
+                {sections.map((section: any) => (
+                  <React.Fragment key={section.sectionToken}>
+                    {/* Section header row */}
+                    {section.name && (
+                      <tr className="bg-gray-50 border-b border-gray-200">
+                        <td className="px-2 py-1 border-r border-gray-200" />
+                        <td
+                          colSpan={3}
+                          className="px-3 py-1.5 font-bold text-gray-700 text-[11px] uppercase tracking-wide"
+                        >
+                          {section.name}
+                        </td>
+                      </tr>
+                    )}
 
-                  {/* Rows */}
-                  {section.rows.map((row: any) => {
-                    if (!row.isVisible) return null;
-                    slCounter++;
-                    const hasSurcharge = row.surchargeLabel && parseFloat(row.surchargeValue || "0") !== 0;
-                    const baseVal = formatCurrency(row.baseValue);
-                    const totalVal = formatCurrency(row.totalValue);
+                    {/* Rows */}
+                    {section.rows.map((row: any) => {
+                      if (!row.isVisible) return null;
+                      slCounter++;
+                      const hasSurcharge =
+                        row.surchargeLabel && parseFloat(row.surchargeValue || "0") !== 0;
+                      const baseVal = formatCurrency(row.baseValue);
+                      const totalVal = formatCurrency(row.totalValue);
 
-                    return (
-                      <React.Fragment key={row.rowToken}>
-                        {/* Main row */}
-                        <tr className="border-b border-gray-100 hover:bg-gray-50/50">
-                          <td className="px-2 py-2 text-center text-gray-500 border-r border-gray-100 align-top leading-tight">
-                            {slCounter < 10 ? `0${slCounter}` : slCounter}
-                          </td>
-                          <td className="px-3 py-2 border-r border-gray-100">
-                            <div className="font-semibold text-gray-800 leading-tight uppercase">
-                              {row.label}
-                            </div>
-                            {row.subDescription && (
-                              <div className="text-gray-500 text-[10px] mt-0.5 leading-tight">
-                                {row.subDescription}
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-2 py-2 text-right text-gray-700 font-mono border-r border-gray-100 align-top">
-                            {hasSurcharge ? baseVal : ""}
-                          </td>
-                          <td className="px-2 py-2 text-right font-mono font-semibold text-gray-800 align-top">
-                            {!hasSurcharge ? baseVal : totalVal}
-                          </td>
-                        </tr>
-
-                        {/* Surcharge sub-row */}
-                        {hasSurcharge && (
-                          <tr className="border-b border-gray-100">
-                            <td className="border-r border-gray-100" />
-                            <td className="px-3 pb-2 border-r border-gray-100">
-                              <div className="text-right text-gray-500 italic text-[10px]">
-                                {row.surchargeLabel}
-                              </div>
+                      return (
+                        <React.Fragment key={row.rowToken}>
+                          {/* Main row */}
+                          <tr className="border-b border-gray-100 hover:bg-gray-50/50">
+                            <td className="px-2 py-2 text-center text-gray-500 border-r border-gray-100 align-top leading-tight">
+                              {slCounter < 10 ? `0${slCounter}` : slCounter}
                             </td>
-                            <td className="border-r border-gray-100" />
-                            <td className="px-2 pb-2 text-right font-mono font-semibold text-gray-800 text-[11px]">
-                              {totalVal}
+                            <td className="px-3 py-2 border-r border-gray-100">
+                              <div className="font-semibold text-gray-800 leading-tight uppercase">
+                                {row.label}
+                              </div>
+                              {row.subDescription && (
+                                <div className="text-gray-500 text-[10px] mt-0.5 leading-tight">
+                                  {row.subDescription}
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-2 py-2 text-right text-gray-700 font-mono border-r border-gray-100 align-top">
+                              {hasSurcharge ? baseVal : ""}
+                            </td>
+                            <td className="px-2 py-2 text-right font-mono font-semibold text-gray-800 align-top">
+                              {!hasSurcharge ? baseVal : totalVal}
                             </td>
                           </tr>
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
-                </React.Fragment>
-              ))}
+
+                          {/* Surcharge sub-row */}
+                          {hasSurcharge && (
+                            <tr className="border-b border-gray-100">
+                              <td className="border-r border-gray-100" />
+                              <td className="px-3 pb-2 border-r border-gray-100">
+                                <div className="text-right text-gray-500 italic text-[10px]">
+                                  {row.surchargeLabel}
+                                </div>
+                              </td>
+                              <td className="border-r border-gray-100" />
+                              <td className="px-2 pb-2 text-right font-mono font-semibold text-gray-800 text-[11px]">
+                                {totalVal}
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </React.Fragment>
+                ))}
 
                 {/* Grand Total */}
                 <tr className="bg-gray-800 text-white">
@@ -238,7 +265,6 @@ export function TemplateLivePreview({ templateId }: { templateId: string }) {
             </table>
           )}
         </div>
-
       </div>
     </div>
   );
@@ -246,7 +272,9 @@ export function TemplateLivePreview({ templateId }: { templateId: string }) {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function groupRowsBySections(rows: any[]): Array<{ name: string; sectionToken: string; rows: any[] }> {
+function groupRowsBySections(
+  rows: any[],
+): Array<{ name: string; sectionToken: string; rows: any[] }> {
   const sectionsMap = new Map<string, { name: string; sectionToken: string; rows: any[] }>();
 
   for (const row of rows) {

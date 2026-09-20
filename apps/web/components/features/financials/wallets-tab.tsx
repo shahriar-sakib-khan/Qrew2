@@ -1,8 +1,11 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { apiUrl } from "@/lib/constants";
 import { format } from "date-fns";
+import { useState } from "react";
+import { Can } from "@/components/features/auth/can";
+import { WalletHistoryModal } from "@/components/features/financials/wallet-history-modal";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -11,11 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { useState } from "react";
-import { Can } from "@/components/features/auth/can";
-
-import { WalletHistoryModal } from "@/components/features/financials/wallet-history-modal";
+import { apiUrl } from "@/lib/constants";
 
 // We'll reuse the staff fetch to show all wallets for admins
 export function WalletsTab() {
@@ -47,7 +46,10 @@ export function WalletsTab() {
   const { data: transactions = [], isLoading: loadingTx } = useQuery({
     queryKey: ["wallet-transactions", targetUserId],
     queryFn: async () => {
-      const res = await fetch(`${apiUrl}/api/wallet/transactions${targetUserId ? `?userId=${targetUserId}` : ''}`, { credentials: "include" });
+      const res = await fetch(
+        `${apiUrl}/api/wallet/transactions${targetUserId ? `?userId=${targetUserId}` : ""}`,
+        { credentials: "include" },
+      );
       if (!res.ok) return [];
       return res.json();
     },
@@ -62,9 +64,7 @@ export function WalletsTab() {
         <p className="text-4xl font-bold tracking-tight text-green-600 dark:text-green-500">
           ${Number(myBalanceData?.balance || 0).toFixed(2)}
         </p>
-        <p className="text-sm text-muted-foreground mt-2">
-          Funds available for office expenses.
-        </p>
+        <p className="text-sm text-muted-foreground mt-2">Funds available for office expenses.</p>
       </div>
 
       {/* Admin View: All Staff Wallets */}
@@ -82,9 +82,17 @@ export function WalletsTab() {
               </TableHeader>
               <TableBody>
                 {loadingStaff ? (
-                  <TableRow><TableCell colSpan={3} className="text-center h-24">Loading...</TableCell></TableRow>
+                  <TableRow>
+                    <TableCell colSpan={3} className="text-center h-24">
+                      Loading...
+                    </TableCell>
+                  </TableRow>
                 ) : staffList.length === 0 ? (
-                  <TableRow><TableCell colSpan={3} className="text-center h-24">No staff found.</TableCell></TableRow>
+                  <TableRow>
+                    <TableCell colSpan={3} className="text-center h-24">
+                      No staff found.
+                    </TableCell>
+                  </TableRow>
                 ) : (
                   staffList.map((staff: any) => (
                     <TableRow
@@ -125,25 +133,38 @@ export function WalletsTab() {
               </TableHeader>
               <TableBody>
                 {loadingTx ? (
-                  <TableRow><TableCell colSpan={4} className="text-center h-24">Loading...</TableCell></TableRow>
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center h-24">
+                      Loading...
+                    </TableCell>
+                  </TableRow>
                 ) : transactions.length === 0 ? (
-                  <TableRow><TableCell colSpan={4} className="text-center h-24">No transactions.</TableCell></TableRow>
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center h-24">
+                      No transactions.
+                    </TableCell>
+                  </TableRow>
                 ) : (
                   transactions.map((tx: any) => (
                     <TableRow key={tx.id}>
                       <TableCell>{format(new Date(tx.createdAt), "MMM d, yyyy")}</TableCell>
                       <TableCell className="capitalize">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          tx.type === 'credit' ? 'bg-green-100 text-green-700' :
-                          tx.type === 'debit' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'
-                        }`}>
+                        <span
+                          className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            tx.type === "credit"
+                              ? "bg-green-100 text-green-700"
+                              : tx.type === "debit"
+                                ? "bg-red-100 text-red-700"
+                                : "bg-gray-100 text-gray-700"
+                          }`}
+                        >
                           {tx.type}
                         </span>
                       </TableCell>
                       <TableCell className="font-medium">
-                        {tx.type === 'debit' ? '-' : ''}${Number(tx.amount).toFixed(2)}
+                        {tx.type === "debit" ? "-" : ""}${Number(tx.amount).toFixed(2)}
                       </TableCell>
-                      <TableCell>{tx.description || '-'}</TableCell>
+                      <TableCell>{tx.description || "-"}</TableCell>
                     </TableRow>
                   ))
                 )}
@@ -154,10 +175,7 @@ export function WalletsTab() {
       </Can>
 
       {/* Admin: View User Transactions Modal */}
-      <WalletHistoryModal
-        viewingUser={viewingUser}
-        onClose={() => setViewingUser(null)}
-      />
+      <WalletHistoryModal viewingUser={viewingUser} onClose={() => setViewingUser(null)} />
     </div>
   );
 }

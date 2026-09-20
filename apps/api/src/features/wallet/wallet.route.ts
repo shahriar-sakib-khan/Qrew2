@@ -6,19 +6,10 @@ const router = new Hono();
 
 router.use("*", requireAuth);
 
-router.get(
-  "/balance",
-  walletController.getWalletBalance
-);
+router.get("/balance", walletController.getWalletBalance);
 
-router.get(
-  "/transactions",
-  walletController.listTransactions
-);
+router.get("/transactions", walletController.listTransactions);
 
-router.post(
-  "/:memberId/adjust",
-  walletController.addManualAdjustment
-);
+router.post("/:memberId/adjust", walletController.addManualAdjustment);
 
 export { router as walletRouter };

@@ -4,7 +4,8 @@
   "private": true,
   "exports": {
     ".": "./src/index.ts",
-    "./schema": "./src/schema/index.ts"
+    "./schema": "./src/schema/index.ts",
+    "./formula-codec": "./src/formula-codec.ts"
   },
   "scripts": {
     "generate": "drizzle-kit generate --config=drizzle.config.ts",

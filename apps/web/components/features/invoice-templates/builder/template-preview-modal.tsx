@@ -2,14 +2,9 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { apiUrl } from "@/lib/constants";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { apiUrl } from "@/lib/constants";
 import { InvoiceTablePreview } from "./invoice-table-preview";
 
 export function TemplatePreviewModal({

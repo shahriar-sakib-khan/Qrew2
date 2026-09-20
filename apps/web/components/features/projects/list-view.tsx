@@ -1,23 +1,28 @@
 "use client";
 
-import { useMemo } from "react";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
-import { Button } from "@/components/ui/button";
-import { Edit, Archive, ArchiveRestore, Trash2, FileText, Lock, CheckCircle2, XCircle } from "lucide-react";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-
+import {
+  Archive,
+  ArchiveRestore,
+  CheckCircle2,
+  Edit,
+  FileText,
+  Lock,
+  Trash2,
+  XCircle,
+} from "lucide-react";
+import { useMemo } from "react";
 import { Can } from "@/components/features/auth/can";
-import { useTableCellFilter } from "@/hooks/use-table-cell-filter";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  FilterableTableCell,
+  FilterableTableHeader,
+} from "@/components/ui/table-filter-components";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useColumnResizable } from "@/hooks/use-column-resizable";
-import { FilterableTableHeader, FilterableTableCell } from "@/components/ui/table-filter-components";
+import { useTableCellFilter } from "@/hooks/use-table-cell-filter";
 
 interface ListViewProps {
   projects: any[];
@@ -37,11 +42,11 @@ interface ListViewProps {
   workflowsEnabled?: boolean;
 }
 
-export function ListView({ 
-  projects, 
-  customFields, 
-  isLoading, 
-  onEdit, 
+export function ListView({
+  projects,
+  customFields,
+  isLoading,
+  onEdit,
   onDelete,
   onView,
   onArchiveToggle,
@@ -53,13 +58,8 @@ export function ListView({
   allStatuses = [],
   workflowsEnabled = false,
 }: ListViewProps) {
-  const {
-    filters,
-    toggleFilter,
-    clearColumnFilter,
-    filterRows,
-    isColumnFiltered,
-  } = useTableCellFilter();
+  const { filters, toggleFilter, clearColumnFilter, filterRows, isColumnFiltered } =
+    useTableCellFilter();
 
   const { columnWidths, handleResizeStart, resetColumnWidth } = useColumnResizable({
     tableId: "files-dashboard",
@@ -92,18 +92,20 @@ export function ListView({
 
   const extractors = useMemo(() => {
     const map: Record<string, (p: any) => any> = {
-      'sys-project-name': (p) => p.name,
-      'sys-project-client': (p) => p.client?.name || "-",
-      'sys-project-status': (p) => p.statusRelation?.name || "Pending",
-      'total_expenses': (p) => formatCurrency(p.totalExpenses),
-      'createdAt': (p) => format(new Date(p.createdAt), "MMM d, yyyy"),
-      'archivedAt': (p) => p.archivedAt ? format(new Date(p.archivedAt), "MMM d, yyyy") : "-",
+      "sys-project-name": (p) => p.name,
+      "sys-project-client": (p) => p.client?.name || "-",
+      "sys-project-status": (p) => p.statusRelation?.name || "Pending",
+      total_expenses: (p) => formatCurrency(p.totalExpenses),
+      createdAt: (p) => format(new Date(p.createdAt), "MMM d, yyyy"),
+      archivedAt: (p) => (p.archivedAt ? format(new Date(p.archivedAt), "MMM d, yyyy") : "-"),
     };
     customFields?.forEach((field: any) => {
       map[field.id] = (p) => {
         const val = p.customFields?.[field.fieldKey];
         if (val && field.fieldType === "date") {
-          try { return format(new Date(val), "MMM d, yyyy"); } catch(e) {}
+          try {
+            return format(new Date(val), "MMM d, yyyy");
+          } catch (e) {}
         }
         return val || "-";
       };
@@ -120,7 +122,7 @@ export function ListView({
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/50">
-            {showCol('sys-project-name', true) && (
+            {showCol("sys-project-name", true) && (
               <FilterableTableHeader
                 columnKey="sys-project-name"
                 title="Name"
@@ -132,7 +134,7 @@ export function ListView({
                 onResetWidth={resetColumnWidth}
               />
             )}
-            {showCol('sys-project-client', true) && (
+            {showCol("sys-project-client", true) && (
               <FilterableTableHeader
                 columnKey="sys-project-client"
                 title="Client"
@@ -144,7 +146,7 @@ export function ListView({
                 onResetWidth={resetColumnWidth}
               />
             )}
-            {showCol('sys-project-status', true) && (
+            {showCol("sys-project-status", true) && (
               <FilterableTableHeader
                 columnKey="sys-project-status"
                 title="Status"
@@ -157,7 +159,7 @@ export function ListView({
               />
             )}
             <Can I="finance:view_expenses">
-              {showCol('total_expenses') && (
+              {showCol("total_expenses") && (
                 <FilterableTableHeader
                   columnKey="total_expenses"
                   title="Total Expenses"
@@ -170,7 +172,7 @@ export function ListView({
                 />
               )}
             </Can>
-            {showCol('createdAt') && (
+            {showCol("createdAt") && (
               <FilterableTableHeader
                 columnKey="createdAt"
                 title="Created At"
@@ -182,7 +184,7 @@ export function ListView({
                 onResetWidth={resetColumnWidth}
               />
             )}
-            {showArchivedAt && showCol('archivedAt') && (
+            {showArchivedAt && showCol("archivedAt") && (
               <FilterableTableHeader
                 columnKey="archivedAt"
                 title="Archived At"
@@ -194,7 +196,7 @@ export function ListView({
                 onResetWidth={resetColumnWidth}
               />
             )}
-            {customFields?.map((field: any) => (
+            {customFields?.map((field: any) =>
               showCol(field.id, true) ? (
                 <FilterableTableHeader
                   key={field.id}
@@ -207,37 +209,30 @@ export function ListView({
                   onResizeStart={handleResizeStart}
                   onResetWidth={resetColumnWidth}
                 />
-              ) : null
-            ))}
-            <TableCell className="w-[120px] text-right font-medium text-muted-foreground">Actions</TableCell>
+              ) : null,
+            )}
+            <TableCell className="w-[120px] text-right font-medium text-muted-foreground">
+              Actions
+            </TableCell>
           </TableRow>
         </TableHeader>
         <TableBody>
           {isLoading ? (
             <TableRow>
-              <TableCell 
-                colSpan={20} 
-                className="h-24 text-center text-muted-foreground"
-              >
+              <TableCell colSpan={20} className="h-24 text-center text-muted-foreground">
                 Loading files...
               </TableCell>
             </TableRow>
           ) : displayProjects?.length === 0 ? (
             <TableRow>
-              <TableCell 
-                colSpan={20} 
-                className="h-24 text-center text-muted-foreground"
-              >
+              <TableCell colSpan={20} className="h-24 text-center text-muted-foreground">
                 No files found.
               </TableCell>
             </TableRow>
           ) : (
             displayProjects?.map((project: any) => (
-              <TableRow 
-                key={project.id} 
-                className="hover:bg-muted/30 transition-colors"
-              >
-                {showCol('sys-project-name', true) && (
+              <TableRow key={project.id} className="hover:bg-muted/30 transition-colors">
+                {showCol("sys-project-name", true) && (
                   <FilterableTableCell
                     columnKey="sys-project-name"
                     value={project.name}
@@ -250,7 +245,7 @@ export function ListView({
                     <span>{project.name}</span>
                   </FilterableTableCell>
                 )}
-                {showCol('sys-project-client', true) && (
+                {showCol("sys-project-client", true) && (
                   <FilterableTableCell
                     columnKey="sys-project-client"
                     value={project.client?.name || "-"}
@@ -262,7 +257,7 @@ export function ListView({
                     {project.client ? project.client.name : "-"}
                   </FilterableTableCell>
                 )}
-                {showCol('sys-project-status', true) && (
+                {showCol("sys-project-status", true) && (
                   <FilterableTableCell
                     columnKey="sys-project-status"
                     value={project.statusRelation?.name || "Pending"}
@@ -272,10 +267,13 @@ export function ListView({
                   >
                     {(() => {
                       const statusNode = allStatuses.find((s: any) => s.id === project.status);
-                      const isTerminal = !statusNode?.isInitial && (statusNode?.transitions?.length === 0);
-                      const isNegative = isTerminal && statusNode?.name?.toLowerCase().match(
-                        /reject|cancel|fail|lost|declin|abort|close/
-                      );
+                      const isTerminal =
+                        !statusNode?.isInitial && statusNode?.transitions?.length === 0;
+                      const isNegative =
+                        isTerminal &&
+                        statusNode?.name
+                          ?.toLowerCase()
+                          .match(/reject|cancel|fail|lost|declin|abort|close/);
                       return (
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <Badge variant="secondary" className="capitalize">
@@ -284,15 +282,23 @@ export function ListView({
                           {isTerminal && (
                             <Badge
                               variant="outline"
-                              className={isNegative
-                                ? "text-rose-500 border-rose-500/30 bg-rose-500/8 text-[10px] px-1.5 py-0"
-                                : "text-emerald-500 border-emerald-500/30 bg-emerald-500/8 text-[10px] px-1.5 py-0"
+                              className={
+                                isNegative
+                                  ? "text-destructive border-destructive/30 bg-destructive/8 text-[10px] px-1.5 py-0"
+                                  : "text-primary border-primary/30 bg-primary/8 text-[10px] px-1.5 py-0"
                               }
                             >
-                              {isNegative
-                                ? <><XCircle className="w-2.5 h-2.5 mr-0.5" />Closed</>
-                                : <><CheckCircle2 className="w-2.5 h-2.5 mr-0.5" />Terminated</>
-                              }
+                              {isNegative ? (
+                                <>
+                                  <XCircle className="w-2.5 h-2.5 mr-0.5" />
+                                  Closed
+                                </>
+                              ) : (
+                                <>
+                                  <CheckCircle2 className="w-2.5 h-2.5 mr-0.5" />
+                                  Terminated
+                                </>
+                              )}
                             </Badge>
                           )}
                         </div>
@@ -301,7 +307,7 @@ export function ListView({
                   </FilterableTableCell>
                 )}
                 <Can I="finance:view_expenses">
-                  {showCol('total_expenses') && (
+                  {showCol("total_expenses") && (
                     <FilterableTableCell
                       columnKey="total_expenses"
                       value={formatCurrency(project.totalExpenses)}
@@ -313,7 +319,7 @@ export function ListView({
                     </FilterableTableCell>
                   )}
                 </Can>
-                {showCol('createdAt') && (
+                {showCol("createdAt") && (
                   <FilterableTableCell
                     columnKey="createdAt"
                     value={format(new Date(project.createdAt), "MMM d, yyyy")}
@@ -324,10 +330,12 @@ export function ListView({
                     {format(new Date(project.createdAt), "MMM d, yyyy")}
                   </FilterableTableCell>
                 )}
-                {showArchivedAt && showCol('archivedAt') && (
+                {showArchivedAt && showCol("archivedAt") && (
                   <FilterableTableCell
                     columnKey="archivedAt"
-                    value={project.archivedAt ? format(new Date(project.archivedAt), "MMM d, yyyy") : "-"}
+                    value={
+                      project.archivedAt ? format(new Date(project.archivedAt), "MMM d, yyyy") : "-"
+                    }
                     isFiltered={isColumnFiltered("archivedAt")}
                     onToggleFilter={toggleFilter}
                     width={columnWidths["archivedAt"]}
@@ -362,11 +370,11 @@ export function ListView({
 
                   const val = project.customFields?.[field.fieldKey];
                   let displayVal = val || "-";
-                  
+
                   if (val && field.fieldType === "date") {
-                     try {
-                       displayVal = format(new Date(val), "MMM d, yyyy");
-                     } catch(e) {}
+                    try {
+                      displayVal = format(new Date(val), "MMM d, yyyy");
+                    } catch (e) {}
                   }
 
                   return (
@@ -387,12 +395,30 @@ export function ListView({
                     {!isArchivedView ? (
                       <>
                         <Can I="projects:edit">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={(e) => { e.stopPropagation(); onEdit?.(project); }} title="Edit File">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-primary"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onEdit?.(project);
+                            }}
+                            title="Edit File"
+                          >
                             <Edit className="h-4 w-4" />
                           </Button>
                         </Can>
                         <Can I="projects:edit">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-orange-500" onClick={(e) => { e.stopPropagation(); onArchiveToggle?.(project); }} title="Archive File">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-orange-500"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onArchiveToggle?.(project);
+                            }}
+                            title="Archive File"
+                          >
                             <Archive className="h-4 w-4" />
                           </Button>
                         </Can>
@@ -400,12 +426,30 @@ export function ListView({
                     ) : (
                       <>
                         <Can I="projects:edit">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-green-500" onClick={(e) => { e.stopPropagation(); onArchiveToggle?.(project); }} title="Unarchive File">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-green-500"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onArchiveToggle?.(project);
+                            }}
+                            title="Unarchive File"
+                          >
                             <ArchiveRestore className="h-4 w-4" />
                           </Button>
                         </Can>
                         <Can I="projects:delete">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={(e) => { e.stopPropagation(); onDelete?.(project); }} title="Permanently Delete File">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDelete?.(project);
+                            }}
+                            title="Permanently Delete File"
+                          >
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </Can>

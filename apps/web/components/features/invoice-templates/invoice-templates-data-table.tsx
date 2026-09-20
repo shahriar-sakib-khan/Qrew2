@@ -1,15 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { Trash2, Edit } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiUrl } from "@/lib/constants";
-import { toast } from "sonner";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useRouter } from "next/navigation";
 import { format } from "date-fns";
+import { Edit, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,14 +17,21 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  FilterableTableCell,
+  FilterableTableHeader,
+} from "@/components/ui/table-filter-components";
 import { useTableCellFilter } from "@/hooks/use-table-cell-filter";
-import { FilterableTableHeader, FilterableTableCell } from "@/components/ui/table-filter-components";
+import { apiUrl } from "@/lib/constants";
 
-export function InvoiceTemplatesDataTable({ 
-  templates, 
+export function InvoiceTemplatesDataTable({
+  templates,
   isLoading,
-  onEdit 
-}: { 
+  onEdit,
+}: {
   templates: any[];
   isLoading: boolean;
   onEdit?: (template: any) => void;
@@ -37,20 +40,28 @@ export function InvoiceTemplatesDataTable({
   const router = useRouter();
   const [templateToDelete, setTemplateToDelete] = useState<any | null>(null);
 
-  const {
-    filters,
-    toggleFilter,
-    clearColumnFilter,
-    filterRows,
-    isColumnFiltered,
-  } = useTableCellFilter();
+  const { filters, toggleFilter, clearColumnFilter, filterRows, isColumnFiltered } =
+    useTableCellFilter();
 
   const getIndexPreview = (template: any) => {
     const now = new Date();
     const YYYY = now.getFullYear().toString();
     const YY = YYYY.slice(-2);
     const MM = (now.getMonth() + 1).toString().padStart(2, "0");
-    const MMM = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"][now.getMonth()];
+    const MMM = [
+      "JAN",
+      "FEB",
+      "MAR",
+      "APR",
+      "MAY",
+      "JUN",
+      "JUL",
+      "AUG",
+      "SEP",
+      "OCT",
+      "NOV",
+      "DEC",
+    ][now.getMonth()];
     const DD = now.getDate().toString().padStart(2, "0");
 
     let docNumber = (template.numberingFormat || "{PREFIX}-{YYYY}-{SEQ:4}")
@@ -71,10 +82,10 @@ export function InvoiceTemplatesDataTable({
 
   const extractors = useMemo(() => {
     return {
-      'name': (t: any) => t.name,
-      'description': (t: any) => t.description || "-",
-      'documentIndexing': (t: any) => getIndexPreview(t),
-      'updatedAt': (t: any) => format(new Date(t.updatedAt), "MMM d, yyyy"),
+      name: (t: any) => t.name,
+      description: (t: any) => t.description || "-",
+      documentIndexing: (t: any) => getIndexPreview(t),
+      updatedAt: (t: any) => format(new Date(t.updatedAt), "MMM d, yyyy"),
     };
   }, []);
 
@@ -102,7 +113,7 @@ export function InvoiceTemplatesDataTable({
     onError: (err: any) => {
       toast.error(err.message);
       setTemplateToDelete(null);
-    }
+    },
   });
 
   if (isLoading) {
@@ -119,8 +130,8 @@ export function InvoiceTemplatesDataTable({
     <>
       <div className="flex flex-col gap-3 md:hidden">
         {filteredTemplates.map((template) => (
-          <div 
-            key={template.id} 
+          <div
+            key={template.id}
             className="border rounded-md bg-card p-3 flex flex-col gap-2 cursor-pointer hover:bg-muted/50 transition-colors"
             onClick={() => router.push(`/org-admin/invoice-templates/${template.id}`)}
           >
@@ -134,10 +145,10 @@ export function InvoiceTemplatesDataTable({
                 )}
               </div>
               <div className="flex -mt-1 -mr-1">
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="h-8 w-8" 
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
                   onClick={(e) => {
                     e.stopPropagation();
                     if (onEdit) onEdit(template);
@@ -145,17 +156,24 @@ export function InvoiceTemplatesDataTable({
                 >
                   <Edit className="h-3.5 w-3.5 text-muted-foreground" />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => {
-                  e.stopPropagation();
-                  setTemplateToDelete(template);
-                }}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setTemplateToDelete(template);
+                  }}
+                >
                   <Trash2 className="h-3.5 w-3.5 text-destructive" />
                 </Button>
               </div>
             </div>
-            
+
             <div className="flex items-center justify-between bg-muted/30 border border-muted p-2 rounded-md mt-2">
-              <Badge variant="outline" className="text-xs font-mono">{getIndexPreview(template)}</Badge>
+              <Badge variant="outline" className="text-xs font-mono">
+                {getIndexPreview(template)}
+              </Badge>
               <span className="text-xs text-muted-foreground">
                 Updated {format(new Date(template.updatedAt), "MMM d, yyyy")}
               </span>
@@ -196,7 +214,9 @@ export function InvoiceTemplatesDataTable({
                 activeValue={filters["updatedAt"]}
                 onClear={() => clearColumnFilter("updatedAt")}
               />
-              <TableCell className="text-right font-medium text-muted-foreground">Actions</TableCell>
+              <TableCell className="text-right font-medium text-muted-foreground">
+                Actions
+              </TableCell>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -208,10 +228,7 @@ export function InvoiceTemplatesDataTable({
               </TableRow>
             ) : (
               filteredTemplates.map((template) => (
-                <TableRow 
-                  key={template.id}
-                  className="hover:bg-muted/30 transition-colors"
-                >
+                <TableRow key={template.id} className="hover:bg-muted/30 transition-colors">
                   <FilterableTableCell
                     columnKey="name"
                     value={template.name}
@@ -235,7 +252,12 @@ export function InvoiceTemplatesDataTable({
                     isFiltered={isColumnFiltered("documentIndexing")}
                     onToggleFilter={toggleFilter}
                   >
-                    <Badge variant="outline" className="font-mono bg-muted/50 text-xs text-muted-foreground">{getIndexPreview(template)}</Badge>
+                    <Badge
+                      variant="outline"
+                      className="font-mono bg-muted/50 text-xs text-muted-foreground"
+                    >
+                      {getIndexPreview(template)}
+                    </Badge>
                   </FilterableTableCell>
                   <FilterableTableCell
                     columnKey="updatedAt"
@@ -247,9 +269,9 @@ export function InvoiceTemplatesDataTable({
                   </FilterableTableCell>
                   <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
                           if (onEdit) onEdit(template);
@@ -258,9 +280,9 @@ export function InvoiceTemplatesDataTable({
                         <Edit className="h-4 w-4 mr-2" />
                         Edit Details
                       </Button>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
                           router.push(`/org-admin/invoice-templates/${template.id}`);
@@ -268,9 +290,9 @@ export function InvoiceTemplatesDataTable({
                       >
                         Builder
                       </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         onClick={(e) => {
                           e.stopPropagation();
                           setTemplateToDelete(template);
@@ -287,18 +309,23 @@ export function InvoiceTemplatesDataTable({
         </Table>
       </div>
 
-      <AlertDialog open={!!templateToDelete} onOpenChange={(open) => !open && setTemplateToDelete(null)}>
+      <AlertDialog
+        open={!!templateToDelete}
+        onOpenChange={(open) => !open && setTemplateToDelete(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Template?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the template <span className="font-semibold text-foreground">"{templateToDelete?.name}"</span>. 
-              This action cannot be undone. Any active invoices using this template structure will retain their snapshot but cannot be regenerated with this template.
+              This will permanently delete the template{" "}
+              <span className="font-semibold text-foreground">"{templateToDelete?.name}"</span>.
+              This action cannot be undone. Any active invoices using this template structure will
+              retain their snapshot but cannot be regenerated with this template.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleteMutation.isPending}>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault();
                 deleteMutation.mutate(templateToDelete?.id);

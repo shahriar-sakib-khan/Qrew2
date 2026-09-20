@@ -1,6 +1,6 @@
+import { db, users, walletTransactions } from "@starter/db";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { type Context } from "hono";
-import { db, walletTransactions, users } from "@starter/db";
-import { eq, and, desc, sql } from "drizzle-orm";
 import { auth } from "../../infra/lib/auth";
 
 export async function getWalletBalance(c: Context) {
@@ -15,14 +15,14 @@ export async function getWalletBalance(c: Context) {
   // Calculate balance: SUM(credits) - SUM(debits)
   const [result] = await db
     .select({
-      balance: sql<number>`SUM(CASE WHEN ${walletTransactions.type} = 'credit' THEN ${walletTransactions.amount} ELSE -${walletTransactions.amount} END)`
+      balance: sql<number>`SUM(CASE WHEN ${walletTransactions.type} = 'credit' THEN ${walletTransactions.amount} ELSE -${walletTransactions.amount} END)`,
     })
     .from(walletTransactions)
     .where(
       and(
         eq(walletTransactions.organizationId, organizationId),
-        eq(walletTransactions.memberId, userId)
-      )
+        eq(walletTransactions.memberId, userId),
+      ),
     );
 
   const balance = result?.balance || 0;
@@ -48,8 +48,8 @@ export async function listTransactions(c: Context) {
     .where(
       and(
         eq(walletTransactions.organizationId, organizationId),
-        eq(walletTransactions.memberId, targetUserId)
-      )
+        eq(walletTransactions.memberId, targetUserId),
+      ),
     )
     .orderBy(desc(walletTransactions.createdAt));
 
@@ -77,7 +77,7 @@ export async function addManualAdjustment(c: Context) {
     if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
       return c.json({ error: "Invalid positive amount required" }, 400);
     }
-    if (type !== 'credit' && type !== 'debit') {
+    if (type !== "credit" && type !== "debit") {
       return c.json({ error: "Type must be credit or debit" }, 400);
     }
 

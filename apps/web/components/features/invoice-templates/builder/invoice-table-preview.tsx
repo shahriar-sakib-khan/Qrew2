@@ -1,13 +1,9 @@
 "use client";
 
-import { FileText, Loader2, AlertTriangle, TriangleAlert } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { AlertTriangle, FileText, Loader2, TriangleAlert } from "lucide-react";
 import { useState } from "react";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 /** Yellow exclamation button that reveals UNRESOLVED_REFERENCE notices in a popover. */
 function UnresolvedNoticeButton({ notices }: { notices: any[] }) {
@@ -18,11 +14,11 @@ function UnresolvedNoticeButton({ notices }: { notices: any[] }) {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
-          className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 transition-colors ml-1.5 shrink-0"
+          className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-accent/20 hover:bg-accent/30 border border-amber-500/40 transition-colors ml-1.5 shrink-0"
           title="This row has unresolved token references"
           onClick={() => setOpen((v) => !v)}
         >
-          <TriangleAlert className="w-3 h-3 text-amber-400" />
+          <TriangleAlert className="w-3 h-3 text-accent-foreground" />
         </button>
       </PopoverTrigger>
       <PopoverContent
@@ -31,14 +27,14 @@ function UnresolvedNoticeButton({ notices }: { notices: any[] }) {
         className="w-80 p-3 bg-popover border border-amber-500/30 shadow-xl"
       >
         <div className="flex items-start gap-2">
-          <TriangleAlert className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+          <TriangleAlert className="w-4 h-4 text-accent-foreground shrink-0 mt-0.5" />
           <div>
-            <p className="text-xs font-semibold text-amber-300 mb-1.5">
+            <p className="text-xs font-semibold text-accent-foreground mb-1.5">
               Unresolved Token References
             </p>
             <p className="text-[11px] text-muted-foreground mb-2">
-              The following tokens were not yet defined when this row was evaluated. They were treated as{" "}
-              <span className="font-mono text-amber-300">0</span> for the calculation.
+              The following tokens were not yet defined when this row was evaluated. They were
+              treated as <span className="font-mono text-accent-foreground">0</span> for the calculation.
             </p>
             <ul className="space-y-1">
               {notices.map((n: any, i: number) => (
@@ -46,7 +42,7 @@ function UnresolvedNoticeButton({ notices }: { notices: any[] }) {
                   key={i}
                   className="text-[11px] font-mono text-foreground/80 bg-muted/40 rounded px-2 py-1"
                 >
-                  <span className="text-amber-300">{n.token || "?"}</span>
+                  <span className="text-accent-foreground">{n.token || "?"}</span>
                   {n.message ? (
                     <span className="text-muted-foreground ml-1">— {n.message}</span>
                   ) : null}
@@ -74,9 +70,7 @@ export function InvoiceTablePreview({
   validationErrors?: any[];
 }) {
   // Separate hard errors from soft notices
-  const hardErrors = validationErrors.filter(
-    (e: any) => e.code !== "UNRESOLVED_REFERENCE"
-  );
+  const hardErrors = validationErrors.filter((e: any) => e.code !== "UNRESOLVED_REFERENCE");
 
   return (
     <>
@@ -150,7 +144,7 @@ export function InvoiceTablePreview({
                     <div
                       className={cn(
                         "grid gap-0 px-4 py-3 border-b border-border/30 last:border-0 transition-colors grid-cols-[2rem_1fr_8rem_8rem]",
-                        rowNotices.length > 0 && "bg-amber-500/[0.03]"
+                        rowNotices.length > 0 && "bg-accent/[0.03]",
                       )}
                     >
                       <span className="text-xs text-muted-foreground/60 font-mono self-center">
@@ -160,9 +154,7 @@ export function InvoiceTablePreview({
                       <div className="flex flex-col gap-0.5 self-center">
                         <div className="flex items-center gap-0">
                           <span className="text-sm font-medium">{row.label}</span>
-                          {rowNotices.length > 0 && (
-                            <UnresolvedNoticeButton notices={rowNotices} />
-                          )}
+                          {rowNotices.length > 0 && <UnresolvedNoticeButton notices={rowNotices} />}
                         </div>
                         {row.sectionToken && (
                           <span className="text-[10px] font-mono text-muted-foreground/40">
@@ -186,7 +178,7 @@ export function InvoiceTablePreview({
                         <span
                           className={cn(
                             "text-sm font-semibold tabular-nums",
-                            rowNotices.length > 0 && "text-amber-300/80"
+                            rowNotices.length > 0 && "text-accent-foreground/80",
                           )}
                         >
                           {effectiveValue.toLocaleString(undefined, {

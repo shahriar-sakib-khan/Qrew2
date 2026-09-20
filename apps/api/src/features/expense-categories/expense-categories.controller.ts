@@ -1,14 +1,17 @@
-import { type Context } from "hono";
-import { z } from "zod";
 import { db, expenseCategories } from "@starter/db";
-import { eq, and } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
+import { type Context } from "hono";
 import { v4 as uuidv4 } from "uuid";
+import { z } from "zod";
 import { auth } from "../../infra/lib/auth";
 
 const createCategorySchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
-  tokenKey: z.string().regex(/^[A-Z0-9_]+$/, "Must be UPPER_SNAKE_CASE").optional(),
+  tokenKey: z
+    .string()
+    .regex(/^[A-Z0-9_]+$/, "Must be UPPER_SNAKE_CASE")
+    .optional(),
 });
 
 const updateCategorySchema = z.object({
@@ -17,13 +20,17 @@ const updateCategorySchema = z.object({
 });
 
 function generateTokenKey(name: string) {
-  return name.toUpperCase().replace(/[^A-Z0-9_]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+  return name
+    .toUpperCase()
+    .replace(/[^A-Z0-9_]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_|_$/g, "");
 }
 
 export async function createCategory(c: Context) {
   const session = await auth.api.getSession({ headers: c.req.raw.headers });
   const organizationId = session?.session?.activeOrganizationId;
-  
+
   if (!organizationId) {
     return c.json({ error: "Missing organization ID" }, 401);
   }
@@ -86,10 +93,7 @@ export async function updateCategory(c: Context) {
       .update(expenseCategories)
       .set(parsed.data)
       .where(
-        and(
-          eq(expenseCategories.id, id),
-          eq(expenseCategories.organizationId, organizationId)
-        )
+        and(eq(expenseCategories.id, id), eq(expenseCategories.organizationId, organizationId)),
       )
       .returning();
 
@@ -140,16 +144,16 @@ export async function deleteCategory(c: Context) {
     await db
       .delete(expenseCategories)
       .where(
-        and(
-          eq(expenseCategories.id, id),
-          eq(expenseCategories.organizationId, organizationId)
-        )
+        and(eq(expenseCategories.id, id), eq(expenseCategories.organizationId, organizationId)),
       );
 
     return c.json({ success: true });
   } catch (error: any) {
     if (error.code === "23503") {
-      return c.json({ error: "Cannot delete this category because it is already used in expenses." }, 409);
+      return c.json(
+        { error: "Cannot delete this category because it is already used in expenses." },
+        409,
+      );
     }
     throw error;
   }

@@ -1,18 +1,27 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Save, Loader2, Check, X, Edit2, Trash2, GitBranch, ExternalLink } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { apiUrl } from "@/lib/constants";
-import { CustomFieldsDataTable } from "@/components/features/custom-fields/custom-fields-data-table";
-import { AddCustomFieldModal } from "@/components/features/custom-fields/add-custom-field-modal";
-import { AddExpenseCategoryModal } from "@/components/features/expense-categories/add-expense-category-modal";
-import { useState, useEffect } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  Check,
+  Edit2,
+  ExternalLink,
+  GitBranch,
+  Loader2,
+  Plus,
+  Save,
+  Trash2,
+  X,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { AddCustomFieldModal } from "@/components/features/custom-fields/add-custom-field-modal";
+import { CustomFieldsDataTable } from "@/components/features/custom-fields/custom-fields-data-table";
+import { AddExpenseCategoryModal } from "@/components/features/expense-categories/add-expense-category-modal";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -21,22 +30,119 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { apiUrl } from "@/lib/constants";
 
 const SYSTEM_FIELDS = [
   // Client System Fields
-  { id: "sys-client-name", entityType: "client" as const, fieldName: "Name", fieldKey: "name", fieldType: "text", isRequired: true, options: null, isSeeded: true, isSystem: true, isPrivatable: false },
-  { id: "sys-client-email", entityType: "client" as const, fieldName: "Email", fieldKey: "email", fieldType: "text", isRequired: false, options: null, isSeeded: true, isSystem: true, isPrivatable: true },
+  {
+    id: "sys-client-name",
+    entityType: "client" as const,
+    fieldName: "Name",
+    fieldKey: "name",
+    fieldType: "text",
+    isRequired: true,
+    options: null,
+    isSeeded: true,
+    isSystem: true,
+    isPrivatable: false,
+  },
+  {
+    id: "sys-client-email",
+    entityType: "client" as const,
+    fieldName: "Email",
+    fieldKey: "email",
+    fieldType: "text",
+    isRequired: false,
+    options: null,
+    isSeeded: true,
+    isSystem: true,
+    isPrivatable: true,
+  },
   // Project System Fields
-  { id: "sys-project-name", entityType: "project" as const, fieldName: "Name", fieldKey: "name", fieldType: "text", isRequired: true, options: null, isSeeded: true, isSystem: true, isPrivatable: false },
-  { id: "sys-project-client", entityType: "project" as const, fieldName: "Client", fieldKey: "clientId", fieldType: "single_select", isRequired: true, options: null, isSeeded: true, isSystem: true, isPrivatable: false },
-  { id: "sys-project-status", entityType: "project" as const, fieldName: "Status", fieldKey: "status", fieldType: "single_select", isRequired: true, options: ["planning", "active", "completed", "on_hold"], isSeeded: true, isSystem: true, isPrivatable: false },
+  {
+    id: "sys-project-name",
+    entityType: "project" as const,
+    fieldName: "Name",
+    fieldKey: "name",
+    fieldType: "text",
+    isRequired: true,
+    options: null,
+    isSeeded: true,
+    isSystem: true,
+    isPrivatable: false,
+  },
+  {
+    id: "sys-project-client",
+    entityType: "project" as const,
+    fieldName: "Client",
+    fieldKey: "clientId",
+    fieldType: "single_select",
+    isRequired: true,
+    options: null,
+    isSeeded: true,
+    isSystem: true,
+    isPrivatable: false,
+  },
+  {
+    id: "sys-project-status",
+    entityType: "project" as const,
+    fieldName: "Status",
+    fieldKey: "status",
+    fieldType: "single_select",
+    isRequired: true,
+    options: ["planning", "active", "completed", "on_hold"],
+    isSeeded: true,
+    isSystem: true,
+    isPrivatable: false,
+  },
   // Staff System Fields
-  { id: "sys-staff-name", entityType: "staff" as const, fieldName: "Name", fieldKey: "name", fieldType: "text", isRequired: true, options: null, isSeeded: true, isSystem: true, isPrivatable: false },
-  { id: "sys-staff-email", entityType: "staff" as const, fieldName: "Email", fieldKey: "email", fieldType: "text", isRequired: true, options: null, isSeeded: true, isSystem: true, isPrivatable: true },
-  { id: "sys-staff-role", entityType: "staff" as const, fieldName: "System Role", fieldKey: "role", fieldType: "single_select", isRequired: true, options: ["user", "admin", "super_admin"], isSeeded: true, isSystem: true, isPrivatable: false },
+  {
+    id: "sys-staff-name",
+    entityType: "staff" as const,
+    fieldName: "Name",
+    fieldKey: "name",
+    fieldType: "text",
+    isRequired: true,
+    options: null,
+    isSeeded: true,
+    isSystem: true,
+    isPrivatable: false,
+  },
+  {
+    id: "sys-staff-email",
+    entityType: "staff" as const,
+    fieldName: "Email",
+    fieldKey: "email",
+    fieldType: "text",
+    isRequired: true,
+    options: null,
+    isSeeded: true,
+    isSystem: true,
+    isPrivatable: true,
+  },
+  {
+    id: "sys-staff-role",
+    entityType: "staff" as const,
+    fieldName: "System Role",
+    fieldKey: "role",
+    fieldType: "single_select",
+    isRequired: true,
+    options: ["user", "admin", "super_admin"],
+    isSeeded: true,
+    isSystem: true,
+    isPrivatable: false,
+  },
 ];
 
-function ExpenseCategoryRow({ cat, isShown, onToggleShow }: { cat: any, isShown: boolean, onToggleShow: () => void }) {
+function ExpenseCategoryRow({
+  cat,
+  isShown,
+  onToggleShow,
+}: {
+  cat: any;
+  isShown: boolean;
+  onToggleShow: () => void;
+}) {
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(cat.name);
   const [description, setDescription] = useState(cat.description || "");
@@ -63,7 +169,7 @@ function ExpenseCategoryRow({ cat, isShown, onToggleShow }: { cat: any, isShown:
     },
     onError: (err: any) => {
       toast.error(err.message);
-    }
+    },
   });
 
   const deleteMutation = useMutation({
@@ -84,7 +190,7 @@ function ExpenseCategoryRow({ cat, isShown, onToggleShow }: { cat: any, isShown:
     },
     onError: (err: any) => {
       toast.error(err.message);
-    }
+    },
   });
 
   const handleDelete = () => {
@@ -97,22 +203,24 @@ function ExpenseCategoryRow({ cat, isShown, onToggleShow }: { cat: any, isShown:
     <TableRow>
       <TableCell className="font-medium">
         {isEditing ? (
-          <Input 
-            value={name} 
+          <Input
+            value={name}
             onChange={(e) => setName(e.target.value)}
             className="h-8 w-full text-sm"
           />
         ) : (
           <div className="flex items-center gap-2 text-[15px]">
             <span>{cat.name}</span>
-            <span className="font-mono text-xs text-muted-foreground uppercase">(CAT_{cat.tokenKey})</span>
+            <span className="font-mono text-xs text-muted-foreground uppercase">
+              (CAT_{cat.tokenKey})
+            </span>
           </div>
         )}
       </TableCell>
       <TableCell className="text-[15px]">
         {isEditing ? (
-          <Input 
-            value={description} 
+          <Input
+            value={description}
             onChange={(e) => setDescription(e.target.value)}
             className="h-8 w-full text-sm"
           />
@@ -122,9 +230,9 @@ function ExpenseCategoryRow({ cat, isShown, onToggleShow }: { cat: any, isShown:
       </TableCell>
       <TableCell>
         <div className="flex items-center">
-          <Checkbox 
-            checked={isShown} 
-            onCheckedChange={onToggleShow} 
+          <Checkbox
+            checked={isShown}
+            onCheckedChange={onToggleShow}
             aria-label="Toggle visibility"
             className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
           />
@@ -133,20 +241,54 @@ function ExpenseCategoryRow({ cat, isShown, onToggleShow }: { cat: any, isShown:
       <TableCell className="text-right">
         {isEditing ? (
           <div className="flex items-center justify-end gap-1">
-            <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600" disabled={updateMutation.isPending} onClick={() => updateMutation.mutate()}>
-              {updateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-8 w-8 text-green-600"
+              disabled={updateMutation.isPending}
+              onClick={() => updateMutation.mutate()}
+            >
+              {updateMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Check className="h-4 w-4" />
+              )}
             </Button>
-            <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground" onClick={() => { setIsEditing(false); setName(cat.name); setDescription(cat.description || ""); }}>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-8 w-8 text-muted-foreground"
+              onClick={() => {
+                setIsEditing(false);
+                setName(cat.name);
+                setDescription(cat.description || "");
+              }}
+            >
               <X className="h-4 w-4" />
             </Button>
           </div>
         ) : (
           <div className="flex items-center justify-end gap-1">
-            <Button size="icon" variant="ghost" className="h-9 w-9 text-muted-foreground hover:text-foreground" onClick={() => setIsEditing(true)}>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-9 w-9 text-muted-foreground hover:text-foreground"
+              onClick={() => setIsEditing(true)}
+            >
               <Edit2 className="h-5 w-5" />
             </Button>
-            <Button size="icon" variant="ghost" className="h-9 w-9 text-muted-foreground hover:text-red-600" disabled={deleteMutation.isPending} onClick={handleDelete}>
-              {deleteMutation.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-9 w-9 text-muted-foreground hover:text-red-600"
+              disabled={deleteMutation.isPending}
+              onClick={handleDelete}
+            >
+              {deleteMutation.isPending ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <Trash2 className="h-5 w-5" />
+              )}
             </Button>
           </div>
         )}
@@ -157,7 +299,9 @@ function ExpenseCategoryRow({ cat, isShown, onToggleShow }: { cat: any, isShown:
 
 export default function CustomizeFieldsPage() {
   const [isAddFieldModalOpen, setIsAddFieldModalOpen] = useState(false);
-  const [activeEntityType, setActiveEntityType] = useState<"client" | "project" | "staff">("client");
+  const [activeEntityType, setActiveEntityType] = useState<"client" | "project" | "staff">(
+    "client",
+  );
   const [isAddExpenseCategoryOpen, setIsAddExpenseCategoryOpen] = useState(false);
 
   const router = useRouter();
@@ -188,13 +332,13 @@ export default function CustomizeFieldsPage() {
   const [sysSensitiveFields, setSysSensitiveFields] = useState<string[]>([]);
   const [sysPrivateFields, setSysPrivateFields] = useState<string[]>([]);
   const [categoryColumns, setCategoryColumns] = useState<string[]>([]);
-  
+
   useEffect(() => {
     if (orgSettings) {
       setSysDetailedFields(orgSettings.sysDetailedFields || []);
       setSysSensitiveFields(orgSettings.sysSensitiveFields || []);
       setSysPrivateFields(orgSettings.sysPrivateFields || []);
-      setCategoryColumns(orgSettings.categoryColumns || []); 
+      setCategoryColumns(orgSettings.categoryColumns || []);
     }
   }, [orgSettings]);
 
@@ -211,11 +355,11 @@ export default function CustomizeFieldsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["org-settings"] });
-    }
+    },
   });
 
   const updateCustomFieldMutation = useMutation({
-    mutationFn: async ({ id, payload }: { id: string, payload: any }) => {
+    mutationFn: async ({ id, payload }: { id: string; payload: any }) => {
       const res = await fetch(`${apiUrl}/api/workspaces/custom-fields/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -227,7 +371,7 @@ export default function CustomizeFieldsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["custom-fields"] });
-    }
+    },
   });
 
   const { data: expenseCategories, isLoading: loadingCategories } = useQuery({
@@ -242,14 +386,14 @@ export default function CustomizeFieldsPage() {
   // Handle initialization of categoryColumns when categories are loaded for the first time
   useEffect(() => {
     if (expenseCategories && orgSettings && !orgSettings.categoryColumns) {
-       setCategoryColumns(expenseCategories.map((c: any) => c.id));
+      setCategoryColumns(expenseCategories.map((c: any) => c.id));
     }
   }, [expenseCategories, orgSettings]);
 
   const allFields = [...SYSTEM_FIELDS, ...(customFields || [])];
-  const clientFields = allFields.filter(f => f.entityType === "client");
-  const projectFields = allFields.filter(f => f.entityType === "project");
-  const staffFields = allFields.filter(f => f.entityType === "staff");
+  const clientFields = allFields.filter((f) => f.entityType === "client");
+  const projectFields = allFields.filter((f) => f.entityType === "project");
+  const staffFields = allFields.filter((f) => f.entityType === "staff");
 
   const openAddFieldModal = (type: "client" | "project" | "staff") => {
     setActiveEntityType(type);
@@ -258,7 +402,9 @@ export default function CustomizeFieldsPage() {
 
   const handleToggleDetailed = (id: string, isSystem: boolean) => {
     if (isSystem) {
-      const updated = sysDetailedFields.includes(id) ? sysDetailedFields.filter(f => f !== id) : [...sysDetailedFields, id];
+      const updated = sysDetailedFields.includes(id)
+        ? sysDetailedFields.filter((f) => f !== id)
+        : [...sysDetailedFields, id];
       setSysDetailedFields(updated);
       updateSettingsMutation.mutate({
         sysDetailedFields: updated,
@@ -276,7 +422,9 @@ export default function CustomizeFieldsPage() {
 
   const handleToggleSensitive = (id: string, isSystem: boolean) => {
     if (isSystem) {
-      const updated = sysSensitiveFields.includes(id) ? sysSensitiveFields.filter(f => f !== id) : [...sysSensitiveFields, id];
+      const updated = sysSensitiveFields.includes(id)
+        ? sysSensitiveFields.filter((f) => f !== id)
+        : [...sysSensitiveFields, id];
       setSysSensitiveFields(updated);
       updateSettingsMutation.mutate({
         sysDetailedFields,
@@ -294,7 +442,9 @@ export default function CustomizeFieldsPage() {
 
   const handleTogglePrivate = (id: string, isSystem: boolean) => {
     if (isSystem) {
-      const updated = sysPrivateFields.includes(id) ? sysPrivateFields.filter(f => f !== id) : [...sysPrivateFields, id];
+      const updated = sysPrivateFields.includes(id)
+        ? sysPrivateFields.filter((f) => f !== id)
+        : [...sysPrivateFields, id];
       setSysPrivateFields(updated);
       updateSettingsMutation.mutate({
         sysDetailedFields,
@@ -311,7 +461,9 @@ export default function CustomizeFieldsPage() {
   };
 
   const handleToggleCategory = (fieldId: string) => {
-    const updated = categoryColumns.includes(fieldId) ? categoryColumns.filter(id => id !== fieldId) : [...categoryColumns, fieldId];
+    const updated = categoryColumns.includes(fieldId)
+      ? categoryColumns.filter((id) => id !== fieldId)
+      : [...categoryColumns, fieldId];
     setCategoryColumns(updated);
     updateSettingsMutation.mutate({
       sysDetailedFields,
@@ -334,16 +486,18 @@ export default function CustomizeFieldsPage() {
         <div className="flex items-center justify-between border-b pb-3">
           <div>
             <h2 className="text-xl font-bold">Client Schema</h2>
-            <p className="text-[14.5px] text-muted-foreground mt-1">Fields that appear on Client records.</p>
+            <p className="text-[14.5px] text-muted-foreground mt-1">
+              Fields that appear on Client records.
+            </p>
           </div>
           <Button onClick={() => openAddFieldModal("client")} className="shadow-sm">
             <Plus className="mr-2 h-4 w-4" />
             Add Client Field
           </Button>
         </div>
-        <CustomFieldsDataTable 
-          fields={clientFields} 
-          isLoading={loadingFields} 
+        <CustomFieldsDataTable
+          fields={clientFields}
+          isLoading={loadingFields}
           detailedFields={sysDetailedFields}
           sensitiveFields={sysSensitiveFields}
           privateFields={sysPrivateFields}
@@ -358,10 +512,16 @@ export default function CustomizeFieldsPage() {
         <div className="flex items-center justify-between border-b pb-3">
           <div>
             <h2 className="text-xl font-bold">Project / File Schema</h2>
-            <p className="text-[14.5px] text-muted-foreground mt-1">Fields that appear on Project and File records.</p>
+            <p className="text-[14.5px] text-muted-foreground mt-1">
+              Fields that appear on Project and File records.
+            </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => router.push("/org-admin/workflows")} className="shadow-sm">
+            <Button
+              variant="outline"
+              onClick={() => router.push("/org-admin/workflows")}
+              className="shadow-sm"
+            >
               <GitBranch className="mr-2 h-4 w-4" />
               Configure Workflows
             </Button>
@@ -371,9 +531,9 @@ export default function CustomizeFieldsPage() {
             </Button>
           </div>
         </div>
-        <CustomFieldsDataTable 
-          fields={projectFields} 
-          isLoading={loadingFields} 
+        <CustomFieldsDataTable
+          fields={projectFields}
+          isLoading={loadingFields}
           detailedFields={sysDetailedFields}
           sensitiveFields={sysSensitiveFields}
           privateFields={sysPrivateFields}
@@ -388,16 +548,18 @@ export default function CustomizeFieldsPage() {
         <div className="flex items-center justify-between border-b pb-3">
           <div>
             <h2 className="text-xl font-bold">Staff Schema</h2>
-            <p className="text-[14.5px] text-muted-foreground mt-1">Fields that appear on Staff and Employee profiles.</p>
+            <p className="text-[14.5px] text-muted-foreground mt-1">
+              Fields that appear on Staff and Employee profiles.
+            </p>
           </div>
           <Button onClick={() => openAddFieldModal("staff")} className="shadow-sm">
             <Plus className="mr-2 h-4 w-4" />
             Add Staff Field
           </Button>
         </div>
-        <CustomFieldsDataTable 
-          fields={staffFields} 
-          isLoading={loadingFields} 
+        <CustomFieldsDataTable
+          fields={staffFields}
+          isLoading={loadingFields}
           detailedFields={sysDetailedFields}
           sensitiveFields={sysSensitiveFields}
           privateFields={sysPrivateFields}
@@ -412,7 +574,9 @@ export default function CustomizeFieldsPage() {
         <div className="flex items-center justify-between border-b pb-3">
           <div>
             <h2 className="text-xl font-bold">Expense Categories</h2>
-            <p className="text-[14.5px] text-muted-foreground mt-1">Categories for logging financial expenses.</p>
+            <p className="text-[14.5px] text-muted-foreground mt-1">
+              Categories for logging financial expenses.
+            </p>
           </div>
           <Button onClick={() => setIsAddExpenseCategoryOpen(true)} className="shadow-sm">
             <Plus className="mr-2 h-4 w-4" />
@@ -444,9 +608,9 @@ export default function CustomizeFieldsPage() {
                 </TableRow>
               ) : (
                 expenseCategories?.map((cat: any) => (
-                  <ExpenseCategoryRow 
-                    key={cat.id} 
-                    cat={cat} 
+                  <ExpenseCategoryRow
+                    key={cat.id}
+                    cat={cat}
                     isShown={categoryColumns.includes(cat.id)}
                     onToggleShow={() => handleToggleCategory(cat.id)}
                   />
@@ -457,14 +621,14 @@ export default function CustomizeFieldsPage() {
         </div>
       </section>
 
-      <AddCustomFieldModal 
-        isOpen={isAddFieldModalOpen} 
+      <AddCustomFieldModal
+        isOpen={isAddFieldModalOpen}
         onClose={() => setIsAddFieldModalOpen(false)}
         defaultEntity={activeEntityType}
       />
-      <AddExpenseCategoryModal 
-        isOpen={isAddExpenseCategoryOpen} 
-        onClose={() => setIsAddExpenseCategoryOpen(false)} 
+      <AddExpenseCategoryModal
+        isOpen={isAddExpenseCategoryOpen}
+        onClose={() => setIsAddExpenseCategoryOpen(false)}
       />
     </div>
   );

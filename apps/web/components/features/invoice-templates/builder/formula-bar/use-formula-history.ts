@@ -1,8 +1,7 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export function useFormulaHistory(inputValue: string, setInputValue: (v: string) => void) {
-  const [history, setHistory] = useState<string[]>([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [hist, setHist] = useState({ items: [] as string[], index: -1 });
   const isUndoRedo = useRef(false);
 
   useEffect(() => {
@@ -10,45 +9,73 @@ export function useFormulaHistory(inputValue: string, setInputValue: (v: string)
       isUndoRedo.current = false;
       return;
     }
-    setHistory((h) => {
-      const truncated = h.slice(0, historyIndex + 1);
-      if (truncated[truncated.length - 1] === inputValue) return truncated;
-      return [...truncated, inputValue];
+
+    setHist((prev) => {
+      if (prev.items[prev.index] === inputValue) return prev;
+      const truncated = prev.items.slice(0, prev.index + 1);
+      return {
+        items: [...truncated, inputValue],
+        index: truncated.length,
+      };
     });
-    setHistoryIndex((prev) => prev + 1);
-  }, [inputValue, historyIndex]);
+  }, [inputValue]);
 
-  const undo = useCallback((inputRef: React.RefObject<any>, isDirty: React.MutableRefObject<boolean>) => {
-    if (historyIndex > 0) {
-      isUndoRedo.current = true;
-      const newIdx = historyIndex - 1;
-      setHistoryIndex(newIdx);
-      setInputValue(history[newIdx]);
-      isDirty.current = true;
-      inputRef.current?.focus();
-    }
-  }, [history, historyIndex, setInputValue]);
+  const undo = useCallback(
+    (inputRef: React.RefObject<any>, isDirty: React.MutableRefObject<boolean>) => {
+      setHist((prev) => {
+        if (prev.index > 0) {
+          isUndoRedo.current = true;
+          const newIdx = prev.index - 1;
+          setInputValue(prev.items[newIdx]);
+          isDirty.current = true;
 
-  const redo = useCallback((inputRef: React.RefObject<any>, isDirty: React.MutableRefObject<boolean>) => {
-    if (historyIndex < history.length - 1) {
-      isUndoRedo.current = true;
-      const newIdx = historyIndex + 1;
-      setHistoryIndex(newIdx);
-      setInputValue(history[newIdx]);
-      isDirty.current = true;
-      inputRef.current?.focus();
-    }
-  }, [history, historyIndex, setInputValue]);
+          setTimeout(() => {
+            if (inputRef.current) {
+              inputRef.current.focus();
+              const len = prev.items[newIdx].length;
+              inputRef.current.setSelectionRange(len, len);
+            }
+          }, 0);
+          return { ...prev, index: newIdx };
+        }
+        return prev;
+      });
+    },
+    [setInputValue],
+  );
+
+  const redo = useCallback(
+    (inputRef: React.RefObject<any>, isDirty: React.MutableRefObject<boolean>) => {
+      setHist((prev) => {
+        if (prev.index < prev.items.length - 1) {
+          isUndoRedo.current = true;
+          const newIdx = prev.index + 1;
+          setInputValue(prev.items[newIdx]);
+          isDirty.current = true;
+
+          setTimeout(() => {
+            if (inputRef.current) {
+              inputRef.current.focus();
+              const len = prev.items[newIdx].length;
+              inputRef.current.setSelectionRange(len, len);
+            }
+          }, 0);
+          return { ...prev, index: newIdx };
+        }
+        return prev;
+      });
+    },
+    [setInputValue],
+  );
 
   const resetHistory = useCallback((initialValue: string) => {
     isUndoRedo.current = true;
-    setHistory([initialValue]);
-    setHistoryIndex(0);
+    setHist({ items: [initialValue], index: 0 });
   }, []);
 
   const markUndoRedo = useCallback(() => {
     isUndoRedo.current = true;
   }, []);
 
-  return { history, historyIndex, undo, redo, resetHistory, markUndoRedo };
+  return { history: hist.items, historyIndex: hist.index, undo, redo, resetHistory, markUndoRedo };
 }

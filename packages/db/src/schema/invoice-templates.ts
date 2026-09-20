@@ -1,23 +1,23 @@
+import { relations } from "drizzle-orm";
 import {
+  AnyPgColumn,
+  boolean,
+  index,
+  integer,
+  jsonb,
+  numeric,
   pgTable,
   text,
   timestamp,
-  boolean,
-  integer,
-  index,
   unique,
-  AnyPgColumn,
-  numeric,
-  jsonb,
 } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
 import { organizations, users } from "./auth";
 import {
-  documentTypeEnum,
-  templateScopeEnum,
-  headerFieldTypeEnum,
   componentValueTypeEnum,
+  documentTypeEnum,
+  headerFieldTypeEnum,
   sectionChargeBaseEnum,
+  templateScopeEnum,
 } from "./invoice-enums";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -43,7 +43,7 @@ export const invoiceTemplates = pgTable(
     }),
     sourceTemplateId: text("source_template_id").references(
       (): AnyPgColumn => invoiceTemplates.id,
-      { onDelete: "set null" }
+      { onDelete: "set null" },
     ),
     createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { mode: "date" })
@@ -52,12 +52,8 @@ export const invoiceTemplates = pgTable(
       .$onUpdate(() => new Date()),
   },
   (t) => [
-    index("invoice_templates_org_scope_archived_idx").on(
-      t.organizationId,
-      t.scope,
-      t.isArchived
-    ),
-  ]
+    index("invoice_templates_org_scope_archived_idx").on(t.organizationId, t.scope, t.isArchived),
+  ],
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -88,7 +84,7 @@ export const templateSections = pgTable(
   (t) => [
     unique("template_section_token_unique").on(t.templateId, t.sectionToken),
     index("template_sections_template_sort_idx").on(t.templateId, t.sortOrder),
-  ]
+  ],
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -121,7 +117,7 @@ export const templateRows = pgTable(
     description: text("description"),
     /** normal = manual entry / formula = engine-computed */
     valueType: componentValueTypeEnum("value_type").notNull().default("normal"),
-    /** 
+    /**
      * Bare expression using {{$row:UUID}} references.
      * Decoded to token names before engine evaluation.
      * Only present when valueType = 'formula'.
@@ -137,12 +133,8 @@ export const templateRows = pgTable(
   },
   (t) => [
     unique("template_row_token_unique").on(t.templateId, t.rowToken),
-    index("template_rows_template_section_sort_idx").on(
-      t.templateId,
-      t.sectionId,
-      t.sortOrder
-    ),
-  ]
+    index("template_rows_template_section_sort_idx").on(t.templateId, t.sectionId, t.sortOrder),
+  ],
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -182,7 +174,7 @@ export const templateRowCharges = pgTable(
   (t) => [
     unique("template_row_charge_token_unique").on(t.rowId, t.chargeToken),
     index("template_row_charges_row_sort_idx").on(t.rowId, t.sortOrder),
-  ]
+  ],
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -215,15 +207,9 @@ export const templateSectionCharges = pgTable(
       .$onUpdate(() => new Date()),
   },
   (t) => [
-    unique("template_section_charge_token_unique").on(
-      t.sectionId,
-      t.chargeToken
-    ),
-    index("template_section_charges_section_sort_idx").on(
-      t.sectionId,
-      t.sortOrder
-    ),
-  ]
+    unique("template_section_charge_token_unique").on(t.sectionId, t.chargeToken),
+    index("template_section_charges_section_sort_idx").on(t.sectionId, t.sortOrder),
+  ],
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -242,9 +228,7 @@ export const templateHeaderFields = pgTable(
     sortOrder: integer("sort_order").default(0).notNull(),
     columnPosition: text("column_position").default("left").notNull(),
     fileFieldKey: text("file_field_key"),
-    isFormulaInjectable: boolean("is_formula_injectable")
-      .default(false)
-      .notNull(),
+    isFormulaInjectable: boolean("is_formula_injectable").default(false).notNull(),
     orgConfigKey: text("org_config_key"),
     defaultManualValue: text("default_manual_value"),
     placeholder: text("placeholder"),
@@ -254,12 +238,7 @@ export const templateHeaderFields = pgTable(
       .notNull()
       .$onUpdate(() => new Date()),
   },
-  (t) => [
-    index("template_header_fields_template_sort_idx").on(
-      t.templateId,
-      t.sortOrder
-    ),
-  ]
+  (t) => [index("template_header_fields_template_sort_idx").on(t.templateId, t.sortOrder)],
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -280,106 +259,85 @@ export const invoiceTagOptions = pgTable(
     createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
   },
   (t) => [
-    unique("invoice_tag_options_org_value_unique").on(
-      t.organizationId,
-      t.value
-    ),
+    unique("invoice_tag_options_org_value_unique").on(t.organizationId, t.value),
     index("invoice_tag_options_org_idx").on(t.organizationId),
-  ]
+  ],
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RELATIONS
 // ─────────────────────────────────────────────────────────────────────────────
-export const invoiceTemplatesRelations = relations(
-  invoiceTemplates,
-  ({ one, many }) => ({
-    organization: one(organizations, {
-      fields: [invoiceTemplates.organizationId],
-      references: [organizations.id],
-    }),
-    createdByUser: one(users, {
-      fields: [invoiceTemplates.createdByUserId],
-      references: [users.id],
-    }),
-    sourceTemplate: one(invoiceTemplates, {
-      fields: [invoiceTemplates.sourceTemplateId],
-      references: [invoiceTemplates.id],
-      relationName: "source_template",
-    }),
-    derivedTemplates: many(invoiceTemplates, {
-      relationName: "source_template",
-    }),
-    sections: many(templateSections),
-    rows: many(templateRows),
-    sectionCharges: many(templateSectionCharges),
-    headerFields: many(templateHeaderFields),
-  })
-);
+export const invoiceTemplatesRelations = relations(invoiceTemplates, ({ one, many }) => ({
+  organization: one(organizations, {
+    fields: [invoiceTemplates.organizationId],
+    references: [organizations.id],
+  }),
+  createdByUser: one(users, {
+    fields: [invoiceTemplates.createdByUserId],
+    references: [users.id],
+  }),
+  sourceTemplate: one(invoiceTemplates, {
+    fields: [invoiceTemplates.sourceTemplateId],
+    references: [invoiceTemplates.id],
+    relationName: "source_template",
+  }),
+  derivedTemplates: many(invoiceTemplates, {
+    relationName: "source_template",
+  }),
+  sections: many(templateSections),
+  rows: many(templateRows),
+  sectionCharges: many(templateSectionCharges),
+  headerFields: many(templateHeaderFields),
+}));
 
-export const templateRowsRelations = relations(
-  templateRows,
-  ({ one, many }) => ({
-    template: one(invoiceTemplates, {
-      fields: [templateRows.templateId],
-      references: [invoiceTemplates.id],
-    }),
-    section: one(templateSections, {
-      fields: [templateRows.sectionId],
-      references: [templateSections.id],
-    }),
-    charges: many(templateRowCharges),
-  })
-);
+export const templateRowsRelations = relations(templateRows, ({ one, many }) => ({
+  template: one(invoiceTemplates, {
+    fields: [templateRows.templateId],
+    references: [invoiceTemplates.id],
+  }),
+  section: one(templateSections, {
+    fields: [templateRows.sectionId],
+    references: [templateSections.id],
+  }),
+  charges: many(templateRowCharges),
+}));
 
-export const templateRowChargesRelations = relations(
-  templateRowCharges,
-  ({ one }) => ({
-    row: one(templateRows, {
-      fields: [templateRowCharges.rowId],
-      references: [templateRows.id],
-    }),
-  })
-);
+export const templateRowChargesRelations = relations(templateRowCharges, ({ one }) => ({
+  row: one(templateRows, {
+    fields: [templateRowCharges.rowId],
+    references: [templateRows.id],
+  }),
+}));
 
-export const templateSectionsRelations = relations(
-  templateSections,
-  ({ one, many }) => ({
-    template: one(invoiceTemplates, {
-      fields: [templateSections.templateId],
-      references: [invoiceTemplates.id],
-    }),
-    rows: many(templateRows),
-    sectionCharges: many(templateSectionCharges),
-  })
-);
+export const templateSectionsRelations = relations(templateSections, ({ one, many }) => ({
+  template: one(invoiceTemplates, {
+    fields: [templateSections.templateId],
+    references: [invoiceTemplates.id],
+  }),
+  rows: many(templateRows),
+  sectionCharges: many(templateSectionCharges),
+}));
 
-export const templateSectionChargesRelations = relations(
-  templateSectionCharges,
-  ({ one }) => ({
-    section: one(templateSections, {
-      fields: [templateSectionCharges.sectionId],
-      references: [templateSections.id],
-    }),
-    template: one(invoiceTemplates, {
-      fields: [templateSectionCharges.templateId],
-      references: [invoiceTemplates.id],
-    }),
-  })
-);
+export const templateSectionChargesRelations = relations(templateSectionCharges, ({ one }) => ({
+  section: one(templateSections, {
+    fields: [templateSectionCharges.sectionId],
+    references: [templateSections.id],
+  }),
+  template: one(invoiceTemplates, {
+    fields: [templateSectionCharges.templateId],
+    references: [invoiceTemplates.id],
+  }),
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // EXPORTED TYPES
 // ─────────────────────────────────────────────────────────────────────────────
-export const templateHeaderFieldsRelations = relations(
-  templateHeaderFields,
-  ({ one }) => ({
-    template: one(invoiceTemplates, {
-      fields: [templateHeaderFields.templateId],
-      references: [invoiceTemplates.id],
-    }),
-  })
-);
+export const templateHeaderFieldsRelations = relations(templateHeaderFields, ({ one }) => ({
+  template: one(invoiceTemplates, {
+    fields: [templateHeaderFields.templateId],
+    references: [invoiceTemplates.id],
+  }),
+}));
 export type InvoiceTemplate = typeof invoiceTemplates.$inferSelect;
 export type NewInvoiceTemplate = typeof invoiceTemplates.$inferInsert;
 
@@ -393,12 +351,10 @@ export type TemplateRowCharge = typeof templateRowCharges.$inferSelect;
 export type NewTemplateRowCharge = typeof templateRowCharges.$inferInsert;
 
 export type TemplateSectionCharge = typeof templateSectionCharges.$inferSelect;
-export type NewTemplateSectionCharge =
-  typeof templateSectionCharges.$inferInsert;
+export type NewTemplateSectionCharge = typeof templateSectionCharges.$inferInsert;
 
 export type TemplateHeaderField = typeof templateHeaderFields.$inferSelect;
 export type NewTemplateHeaderField = typeof templateHeaderFields.$inferInsert;
 
 export type InvoiceTagOption = typeof invoiceTagOptions.$inferSelect;
 export type NewInvoiceTagOption = typeof invoiceTagOptions.$inferInsert;
-

@@ -1,8 +1,6 @@
+import { type CustomFieldDefinition, customFieldDefinitions, db, organizations } from "@starter/db";
+import { and, eq } from "drizzle-orm";
 import { type Context } from "hono";
-import { type CustomFieldDefinition } from "@starter/db";
-
-import { db, organizations, customFieldDefinitions } from "@starter/db";
-import { eq, and } from "drizzle-orm";
 
 export interface ScrubberContext {
   isOwner: boolean;
@@ -17,11 +15,11 @@ export interface ScrubberContext {
 
 export async function getScrubberConfig(
   c: Context,
-  entityType: "project" | "client" | "staff" | "all"
+  entityType: "project" | "client" | "staff" | "all",
 ): Promise<ScrubberContext> {
-  const orgId = c.get('organizationId');
-  const isOwner = c.get('isOwner') || false;
-  const userPermissions = c.get('userPermissions') as Set<string> | undefined;
+  const orgId = c.get("organizationId");
+  const isOwner = c.get("isOwner") || false;
+  const userPermissions = c.get("userPermissions") as Set<string> | undefined;
 
   // If owner, we don't need to load anything because scrubber will instantly return
   if (isOwner) {
@@ -30,7 +28,7 @@ export async function getScrubberConfig(
 
   // Load org settings
   const org = await db.query.organizations.findFirst({
-    where: eq(organizations.id, orgId)
+    where: eq(organizations.id, orgId),
   });
   const orgSettings = org?.metadata ? JSON.parse(org.metadata) : {};
 
@@ -39,16 +37,16 @@ export async function getScrubberConfig(
   if (entityType !== "all") {
     defsWhere = and(defsWhere, eq(customFieldDefinitions.entityType, entityType))!;
   }
-  
+
   const defs = await db.query.customFieldDefinitions.findMany({
-    where: defsWhere
+    where: defsWhere,
   });
 
   return {
     isOwner,
     userPermissions,
     orgSettings,
-    customFieldDefinitions: defs
+    customFieldDefinitions: defs,
   };
 }
 
@@ -59,7 +57,7 @@ export async function getScrubberConfig(
 export function scrubEntityData<T extends Record<string, any>>(
   entity: T,
   config: ScrubberContext,
-  entityType: "project" | "client" | "staff"
+  entityType: "project" | "client" | "staff",
 ): T {
   // If user is owner, they see everything. No scrubbing needed.
   if (config.isOwner) {
@@ -74,7 +72,7 @@ export function scrubEntityData<T extends Record<string, any>>(
   // 1. Scrub Category 1 (System Fields)
   // These are stored directly on the entity (e.g. result.email, result.status)
   // ---------------------------------------------------------------------------
-  
+
   // A. Scrub Private System Fields (No one except owner should see these)
   if (settings.sysPrivateFields?.length) {
     for (const fieldId of settings.sysPrivateFields) {
@@ -114,7 +112,7 @@ export function scrubEntityData<T extends Record<string, any>>(
     let hasChanges = false;
 
     // Filter definitions to match this entity type
-    const relevantDefs = config.customFieldDefinitions.filter(d => d.entityType === entityType);
+    const relevantDefs = config.customFieldDefinitions.filter((d) => d.entityType === entityType);
 
     for (const def of relevantDefs) {
       const key = def.fieldKey;
@@ -149,7 +147,7 @@ export function scrubEntityData<T extends Record<string, any>>(
  */
 function getSystemFieldKey(sysFieldId: string, entityType: string): string | null {
   // We only map fields relevant to the requested entityType
-  const map: Record<string, { entity: string, key: string }> = {
+  const map: Record<string, { entity: string; key: string }> = {
     "sys-client-name": { entity: "client", key: "name" },
     "sys-client-email": { entity: "client", key: "email" },
     "sys-project-name": { entity: "project", key: "name" },

@@ -1,8 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import {
-  makeCtx, makeSection,
-  ORG_ID, SECTION_ID,
-} from "../../invoice-templates.fixtures";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { makeCtx, makeSection, ORG_ID, SECTION_ID } from "../../invoice-templates.fixtures";
 
 const { makeChain } = vi.hoisted(() => {
   return {
@@ -15,7 +12,7 @@ const { makeChain } = vi.hoisted(() => {
       p.orderBy = vi.fn().mockReturnValue(p);
       p.with = vi.fn().mockReturnValue(p);
       return p;
-    }
+    },
   };
 });
 
@@ -29,7 +26,7 @@ const { makeSelectChain } = vi.hoisted(() => {
       p.limit = vi.fn().mockReturnValue(p);
       p.orderBy = vi.fn().mockReturnValue(p);
       return p;
-    }
+    },
   };
 });
 
@@ -64,8 +61,20 @@ vi.mock("@starter/db", () => {
     eq,
     and,
     asc,
-    templateSections: { id: "id", templateId: "templateId", sectionToken: "sectionToken", sortOrder: "sortOrder", label: "label" },
-    templateRows: { id: "id", templateId: "templateId", rowToken: "rowToken", formula: "formula", sortOrder: "sortOrder" },
+    templateSections: {
+      id: "id",
+      templateId: "templateId",
+      sectionToken: "sectionToken",
+      sortOrder: "sortOrder",
+      label: "label",
+    },
+    templateRows: {
+      id: "id",
+      templateId: "templateId",
+      rowToken: "rowToken",
+      formula: "formula",
+      sortOrder: "sortOrder",
+    },
     templateRowCharges: { id: "id", sortOrder: "sortOrder" },
     templateSectionCharges: { id: "id", sectionId: "sectionId", formula: "formula" },
     invoiceTemplates: { id: "id", organizationId: "organizationId" },
@@ -75,8 +84,8 @@ vi.mock("@starter/db", () => {
   };
 });
 
-import { updateSection } from "./update-section.controller";
 import { db } from "@starter/db";
+import { updateSection } from "./update-section.controller";
 
 // ─── Helpers to configure db mocks ───────────────────────────────────────────
 
@@ -100,7 +109,11 @@ describe("updateSection", () => {
   });
 
   it("returns 401 when unauthenticated", async () => {
-    const ctx = makeCtx({ orgId: null, params: { sectionId: SECTION_ID }, body: { label: "New Name" } });
+    const ctx = makeCtx({
+      orgId: null,
+      params: { sectionId: SECTION_ID },
+      body: { label: "New Name" },
+    });
     const res = await updateSection(ctx);
     expect(res.status).toBe(401);
   });
@@ -205,7 +218,7 @@ describe("updateSection", () => {
       });
       const res = await updateSection(ctx);
       expect(res.status).toBe(200);
-      expect((db.transaction as any)).toHaveBeenCalled();
+      expect(db.transaction as any).toHaveBeenCalled();
     });
   });
 });

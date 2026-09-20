@@ -48,29 +48,23 @@ function formatScopeValue(tokenName: string, rawValue: string): string {
  */
 export function interpolate(
   text: string | null | undefined,
-  scope: Record<string, string>
+  scope: Record<string, string>,
 ): string {
   if (!text) return "";
 
   // Step 1: Replace {{$TOKEN}} with the resolved value
-  let result = text.replace(
-    new RegExp(VALUE_TOKEN_REGEX.source, "g"),
-    (_match, tokenName) => {
-      const rawValue = scope[tokenName];
-      if (rawValue === undefined) return _match; // leave unknown tokens as-is
-      return formatScopeValue(tokenName, rawValue);
-    }
-  );
+  let result = text.replace(new RegExp(VALUE_TOKEN_REGEX.source, "g"), (_match, tokenName) => {
+    const rawValue = scope[tokenName];
+    if (rawValue === undefined) return _match; // leave unknown tokens as-is
+    return formatScopeValue(tokenName, rawValue);
+  });
 
   // Step 2: Replace {{TOKEN}} (no dollar) with the literal token key name
-  result = result.replace(
-    new RegExp(KEY_TOKEN_REGEX.source, "g"),
-    (_match, tokenName) => {
-      // For non-$ tokens we return the token name itself as text
-      // e.g. {{FILE_GRT}} → "FILE_GRT"
-      return tokenName;
-    }
-  );
+  result = result.replace(new RegExp(KEY_TOKEN_REGEX.source, "g"), (_match, tokenName) => {
+    // For non-$ tokens we return the token name itself as text
+    // e.g. {{FILE_GRT}} → "FILE_GRT"
+    return tokenName;
+  });
 
   return result;
 }
@@ -79,25 +73,33 @@ export function interpolate(
  * Interpolate all text fields on a row (label, subDescription, surchargeLabel).
  * Returns a new object with interpolated strings; all other fields unchanged.
  */
-export function interpolateRow<T extends {
-  label: string;
-  subDescription?: string | null;
-  surchargeLabel?: string | null;
-}>(row: T, scope: Record<string, string>): T {
+export function interpolateRow<
+  T extends {
+    label: string;
+    subDescription?: string | null;
+    surchargeLabel?: string | null;
+  },
+>(row: T, scope: Record<string, string>): T {
   return {
     ...row,
     label: interpolate(row.label, scope),
-    subDescription: row.subDescription ? interpolate(row.subDescription, scope) : row.subDescription,
-    surchargeLabel: row.surchargeLabel ? interpolate(row.surchargeLabel, scope) : row.surchargeLabel,
+    subDescription: row.subDescription
+      ? interpolate(row.subDescription, scope)
+      : row.subDescription,
+    surchargeLabel: row.surchargeLabel
+      ? interpolate(row.surchargeLabel, scope)
+      : row.surchargeLabel,
   };
 }
 
 /** Interpolate all rows in an array */
-export function interpolateRows<T extends {
-  label: string;
-  subDescription?: string | null;
-  surchargeLabel?: string | null;
-}>(rows: T[], scope: Record<string, string>): T[] {
+export function interpolateRows<
+  T extends {
+    label: string;
+    subDescription?: string | null;
+    surchargeLabel?: string | null;
+  },
+>(rows: T[], scope: Record<string, string>): T[] {
   return rows.map((row) => interpolateRow(row, scope));
 }
 

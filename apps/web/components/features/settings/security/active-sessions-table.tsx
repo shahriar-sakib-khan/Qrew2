@@ -1,13 +1,16 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { Laptop, Smartphone, Trash2, Loader2 } from "lucide-react";
+import { Laptop, Loader2, Smartphone, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { UAParser } from "ua-parser-js";
-import { authClient, useSession } from "@/lib/auth-client";
-import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  FilterableTableCell,
+  FilterableTableHeader,
+} from "@/components/ui/table-filter-components";
 import { useTableCellFilter } from "@/hooks/use-table-cell-filter";
-import { FilterableTableHeader, FilterableTableCell } from "@/components/ui/table-filter-components";
+import { authClient, useSession } from "@/lib/auth-client";
 
 export function ActiveSessionsTable() {
   const { data: currentSession } = useSession();
@@ -15,13 +18,8 @@ export function ActiveSessionsTable() {
   const [isLoading, setIsLoading] = useState(true);
   const [revokingId, setRevokingId] = useState<string | null>(null);
 
-  const {
-    filters,
-    toggleFilter,
-    clearColumnFilter,
-    filterRows,
-    isColumnFiltered,
-  } = useTableCellFilter();
+  const { filters, toggleFilter, clearColumnFilter, filterRows, isColumnFiltered } =
+    useTableCellFilter();
 
   useEffect(() => {
     fetchSessions();
@@ -53,9 +51,9 @@ export function ActiveSessionsTable() {
 
   const extractors = useMemo(() => {
     return {
-      'device': (s: any) => parseUserAgent(s.userAgent || "").name,
-      'ip': (s: any) => s.ipAddress || "Unknown IP",
-      'created': (s: any) => new Date(s.createdAt).toLocaleDateString(),
+      device: (s: any) => parseUserAgent(s.userAgent || "").name,
+      ip: (s: any) => s.ipAddress || "Unknown IP",
+      created: (s: any) => new Date(s.createdAt).toLocaleDateString(),
     };
   }, []);
 
@@ -63,7 +61,12 @@ export function ActiveSessionsTable() {
     return filterRows(sessions || [], extractors);
   }, [sessions, filterRows, extractors]);
 
-  if (isLoading) return <div className="flex justify-center p-8"><Loader2 className="animate-spin text-muted-foreground h-6 w-6" /></div>;
+  if (isLoading)
+    return (
+      <div className="flex justify-center p-8">
+        <Loader2 className="animate-spin text-muted-foreground h-6 w-6" />
+      </div>
+    );
 
   return (
     <div className="rounded-md border border-border/50 bg-card/40 backdrop-blur-sm w-full overflow-x-auto">
@@ -99,7 +102,9 @@ export function ActiveSessionsTable() {
         <TableBody>
           {filteredSessions.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={4} className="text-center py-6 text-muted-foreground">No active sessions found.</TableCell>
+              <TableCell colSpan={4} className="text-center py-6 text-muted-foreground">
+                No active sessions found.
+              </TableCell>
             </TableRow>
           ) : (
             filteredSessions.map((session) => {
@@ -116,7 +121,11 @@ export function ActiveSessionsTable() {
                   >
                     <div className="flex items-start sm:items-center gap-3">
                       <div className="mt-1 sm:mt-0">
-                        {isDesktop ? <Laptop className="h-4 w-4 text-muted-foreground" /> : <Smartphone className="h-4 w-4 text-muted-foreground" />}
+                        {isDesktop ? (
+                          <Laptop className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <Smartphone className="h-4 w-4 text-muted-foreground" />
+                        )}
                       </div>
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -152,7 +161,10 @@ export function ActiveSessionsTable() {
                   >
                     {new Date(session.createdAt).toLocaleDateString()}
                   </FilterableTableCell>
-                  <TableCell className="text-right align-top sm:align-middle" onClick={(e) => e.stopPropagation()}>
+                  <TableCell
+                    className="text-right align-top sm:align-middle"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     {!isCurrent && (
                       <Button
                         variant="ghost"
@@ -161,7 +173,11 @@ export function ActiveSessionsTable() {
                         onClick={() => handleRevoke(session.token)}
                         disabled={revokingId === session.token}
                       >
-                        {revokingId === session.token ? <Loader2 className="h-4 w-4 sm:mr-2 animate-spin" /> : <Trash2 className="h-4 w-4 sm:mr-2" />}
+                        {revokingId === session.token ? (
+                          <Loader2 className="h-4 w-4 sm:mr-2 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4 sm:mr-2" />
+                        )}
                         <span className="hidden sm:inline">Revoke</span>
                       </Button>
                     )}

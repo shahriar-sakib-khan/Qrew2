@@ -1,7 +1,7 @@
-import { drizzle } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
-import { seedPermissionsDefaults } from './seed-permissions';
-import 'dotenv/config';
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
+import { seedPermissionsDefaults } from "./seed-permissions";
+import "dotenv/config";
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
@@ -17,7 +17,7 @@ async function main() {
   try {
     // Seed global system permissions
     await seedPermissionsDefaults(db);
-    
+
     console.log("✅ Seed completed successfully!");
   } catch (error) {
     console.error("❌ Seeding failed:");

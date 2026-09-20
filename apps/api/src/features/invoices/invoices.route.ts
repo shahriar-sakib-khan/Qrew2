@@ -1,10 +1,10 @@
 import { Hono } from "hono";
-import { DraftBuilderController } from "./drafts/draft-builder.controller";
-import { InvoicesController } from "./invoices.controller";
-import { DraftsController } from "./drafts/drafts.controller";
-import { EngineController } from "./engine/engine.controller";
 import { requireAuth } from "../../infra/middleware/auth";
 import { requireOrgPermission } from "../../infra/middleware/require-permission";
+import { DraftBuilderController } from "./drafts/draft-builder.controller";
+import { DraftsController } from "./drafts/drafts.controller";
+import { EngineController } from "./engine/engine.controller";
+import { InvoicesController } from "./invoices.controller";
 
 export const invoicesRouter = new Hono();
 
@@ -15,153 +15,153 @@ invoicesRouter.use("*", requireAuth);
 invoicesRouter.get(
   "/tokens",
   requireOrgPermission("finance:view_invoices"),
-  InvoicesController.getTokens
+  InvoicesController.getTokens,
 );
 
 // Math engine preview
 invoicesRouter.post(
   "/preview",
   requireOrgPermission("finance:manage_invoices"),
-  EngineController.previewInvoice
+  EngineController.previewInvoice,
 );
 
 // --- DRAFTS ---
 invoicesRouter.get(
   "/drafts/list",
   requireOrgPermission("finance:manage_invoices"),
-  DraftsController.listDrafts
+  DraftsController.listDrafts,
 );
 
 invoicesRouter.get(
   "/drafts",
   requireOrgPermission("finance:manage_invoices"),
-  DraftsController.getDraft
+  DraftsController.getDraft,
 );
 
 invoicesRouter.get(
   "/drafts/:id",
   requireOrgPermission("finance:manage_invoices"),
-  DraftsController.getDraftById
+  DraftsController.getDraftById,
 );
 
 invoicesRouter.post(
   "/drafts",
   requireOrgPermission("finance:manage_invoices"),
-  DraftsController.createDraft
+  DraftsController.createDraft,
 );
 
 invoicesRouter.put(
   "/drafts",
   requireOrgPermission("finance:manage_invoices"),
-  DraftsController.upsertDraft
+  DraftsController.upsertDraft,
 );
 
 invoicesRouter.delete(
   "/drafts/:id",
   requireOrgPermission("finance:manage_invoices"),
-  DraftsController.deleteDraft
+  DraftsController.deleteDraft,
 );
 
 // --- DRAFT BUILDER ---
 invoicesRouter.get(
   "/drafts/:id/sections",
   requireOrgPermission("finance:manage_invoices"),
-  DraftBuilderController.getSections
+  DraftBuilderController.getSections,
 );
 invoicesRouter.get(
   "/drafts/:id/constants",
   requireOrgPermission("finance:manage_invoices"),
-  DraftBuilderController.getConstants
+  DraftBuilderController.getConstants,
 );
 
 invoicesRouter.post(
   "/drafts/:id/constants",
   requireOrgPermission("finance:manage_invoices"),
-  DraftBuilderController.createConstant
+  DraftBuilderController.createConstant,
 );
 invoicesRouter.patch(
   "/drafts/:id/constants/:constantId",
   requireOrgPermission("finance:manage_invoices"),
-  DraftBuilderController.updateConstant
+  DraftBuilderController.updateConstant,
 );
 invoicesRouter.delete(
   "/drafts/:id/constants/:constantId",
   requireOrgPermission("finance:manage_invoices"),
-  DraftBuilderController.deleteConstant
+  DraftBuilderController.deleteConstant,
 );
 
 invoicesRouter.post(
   "/drafts/:id/sections",
   requireOrgPermission("finance:manage_invoices"),
-  DraftBuilderController.createSection
+  DraftBuilderController.createSection,
 );
 invoicesRouter.patch(
   "/drafts/:id/sections/:sectionId",
   requireOrgPermission("finance:manage_invoices"),
-  DraftBuilderController.updateSection
+  DraftBuilderController.updateSection,
 );
 invoicesRouter.delete(
   "/drafts/:id/sections/:sectionId",
   requireOrgPermission("finance:manage_invoices"),
-  DraftBuilderController.deleteSection
+  DraftBuilderController.deleteSection,
 );
 invoicesRouter.post(
   "/drafts/:id/sections/reorder",
   requireOrgPermission("finance:manage_invoices"),
-  DraftBuilderController.reorderSections
+  DraftBuilderController.reorderSections,
 );
 
 invoicesRouter.post(
   "/drafts/:id/sections/:sectionId/rows",
   requireOrgPermission("finance:manage_invoices"),
-  DraftBuilderController.createRow
+  DraftBuilderController.createRow,
 );
 invoicesRouter.patch(
   "/drafts/:id/sections/:sectionId/rows/:rowId",
   requireOrgPermission("finance:manage_invoices"),
-  DraftBuilderController.updateRow
+  DraftBuilderController.updateRow,
 );
 invoicesRouter.delete(
   "/drafts/:id/sections/:sectionId/rows/:rowId",
   requireOrgPermission("finance:manage_invoices"),
-  DraftBuilderController.deleteRow
+  DraftBuilderController.deleteRow,
 );
 invoicesRouter.post(
   "/drafts/:id/sections/:sectionId/rows/reorder",
   requireOrgPermission("finance:manage_invoices"),
-  DraftBuilderController.reorderRows
+  DraftBuilderController.reorderRows,
 );
 invoicesRouter.put(
   "/drafts/:id/sections/:sectionId/rows/reorder",
   requireOrgPermission("finance:manage_invoices"),
-  DraftBuilderController.reorderRows
+  DraftBuilderController.reorderRows,
 );
 
 // --- DRAFT ROW CHARGES ---
 invoicesRouter.get(
   "/drafts/:id/sections/:sectionId/rows/:rowId/charges",
   requireOrgPermission("finance:view_invoices"),
-  DraftBuilderController.listRowCharges
+  DraftBuilderController.listRowCharges,
 );
 invoicesRouter.post(
   "/drafts/:id/sections/:sectionId/rows/:rowId/charges",
   requireOrgPermission("finance:manage_invoices"),
-  DraftBuilderController.createRowCharge
+  DraftBuilderController.createRowCharge,
 );
 invoicesRouter.patch(
   "/drafts/:id/sections/:sectionId/rows/:rowId/charges/:chargeId",
   requireOrgPermission("finance:manage_invoices"),
-  DraftBuilderController.updateRowCharge
+  DraftBuilderController.updateRowCharge,
 );
 invoicesRouter.delete(
   "/drafts/:id/sections/:sectionId/rows/:rowId/charges/:chargeId",
   requireOrgPermission("finance:manage_invoices"),
-  DraftBuilderController.deleteRowCharge
+  DraftBuilderController.deleteRowCharge,
 );
 invoicesRouter.put(
   "/drafts/:id/sections/:sectionId/rows/:rowId/charges/reorder",
   requireOrgPermission("finance:manage_invoices"),
-  DraftBuilderController.reorderRowCharges
+  DraftBuilderController.reorderRowCharges,
 );
 
 // --- DRAFT SECTION CHARGES ---
@@ -169,82 +169,82 @@ invoicesRouter.put(
 invoicesRouter.post(
   "/drafts/:id/sections/:sectionId/section-charges",
   requireOrgPermission("finance:manage_invoices"),
-  DraftBuilderController.createSectionCharge
+  DraftBuilderController.createSectionCharge,
 );
 invoicesRouter.patch(
   "/drafts/:id/sections/:sectionId/section-charges/:chargeId",
   requireOrgPermission("finance:manage_invoices"),
-  DraftBuilderController.updateSectionCharge
+  DraftBuilderController.updateSectionCharge,
 );
 invoicesRouter.delete(
   "/drafts/:id/sections/:sectionId/section-charges/:chargeId",
   requireOrgPermission("finance:manage_invoices"),
-  DraftBuilderController.deleteSectionCharge
+  DraftBuilderController.deleteSectionCharge,
 );
 invoicesRouter.put(
   "/drafts/:id/sections/:sectionId/section-charges/reorder",
   requireOrgPermission("finance:manage_invoices"),
-  DraftBuilderController.reorderSectionCharges
+  DraftBuilderController.reorderSectionCharges,
 );
 
 // Fallback aliases without 'section-' prefix
 invoicesRouter.post(
   "/drafts/:id/sections/:sectionId/charges",
   requireOrgPermission("finance:manage_invoices"),
-  DraftBuilderController.createSectionCharge
+  DraftBuilderController.createSectionCharge,
 );
 invoicesRouter.patch(
   "/drafts/:id/sections/:sectionId/charges/:chargeId",
   requireOrgPermission("finance:manage_invoices"),
-  DraftBuilderController.updateSectionCharge
+  DraftBuilderController.updateSectionCharge,
 );
 invoicesRouter.delete(
   "/drafts/:id/sections/:sectionId/charges/:chargeId",
   requireOrgPermission("finance:manage_invoices"),
-  DraftBuilderController.deleteSectionCharge
+  DraftBuilderController.deleteSectionCharge,
 );
 
 // --- GENERATION & MUTATION ---
 invoicesRouter.post(
   "/generate",
   requireOrgPermission("finance:manage_invoices"),
-  InvoicesController.generateInvoice
+  InvoicesController.generateInvoice,
 );
 
 invoicesRouter.post(
   "/:id/issue",
   requireOrgPermission("finance:manage_invoices"),
-  InvoicesController.issueInvoice
+  InvoicesController.issueInvoice,
 );
 
 invoicesRouter.post(
   "/:id/void",
   requireOrgPermission("finance:manage_invoices"),
-  InvoicesController.voidInvoice
+  InvoicesController.voidInvoice,
 );
 
 invoicesRouter.post(
   "/:id/unfreeze",
   requireOrgPermission("finance:manage_invoices"),
-  InvoicesController.unfreezeInvoice
+  InvoicesController.unfreezeInvoice,
 );
 
 invoicesRouter.post(
   "/:id/mark-paid",
   requireOrgPermission("finance:manage_invoices"),
-  InvoicesController.markPaid
+  InvoicesController.markPaid,
 );
 
 // List invoices (requires finance:view_invoices)
 invoicesRouter.get(
   "/",
   requireOrgPermission("finance:view_invoices"),
-  InvoicesController.listInvoices
+  InvoicesController.listInvoices,
 );
 
 // Get single invoice
 invoicesRouter.get(
   "/:id",
   requireOrgPermission("finance:view_invoices"),
-  InvoicesController.getInvoice
+  InvoicesController.getInvoice,
 );
